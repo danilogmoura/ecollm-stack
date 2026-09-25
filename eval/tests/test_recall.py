@@ -176,3 +176,47 @@ def test_dataset_real_carrega_e_tem_alvos_validos():
     for q in qs:
         assert q.expect_paths, f"{q.id} sem expect_paths"
         assert q.question.strip(), f"{q.id} pergunta vazia"
+
+
+# --------------------------------------------------------------------------
+# gate de regressão (S15) — puro, sem DB/rede
+# --------------------------------------------------------------------------
+
+def _agg_com_recall8(v):
+    return {"overall": {"n": 30, "recall": {1: 0.4, 3: 0.6, 5: 0.7, 8: v, 10: 0.9},
+                        "mrr": 0.5}, "by_kind": {}, "misses": []}
+
+
+def test_gate_piso_eh_baseline_menos_margem():
+    assert rc.gate_threshold() == round(rc.BASELINE_RECALL_AT_8 - rc.MARGEM_REGRESSAO, 4)
+    # baseline 0,933 - margem 0,033 => piso ~0,90
+    assert abs(rc.gate_threshold() - 0.90) < 1e-9
+
+
+def test_gate_aprova_no_baseline():
+    g = rc.check_gate(_agg_com_recall8(0.933))
+    assert g["passed"] is True
+    assert g["k"] == rc.GATE_K and g["medido"] == 0.933
+
+
+def test_gate_aprova_exatamente_no_piso():
+    g = rc.check_gate(_agg_com_recall8(0.90))
+    assert g["passed"] is True  # >= piso
+
+
+def test_gate_reprova_abaixo_do_piso():
+    # regressão sutil (peso da fusão alterado) cai de 0,933 p/ 0,867 -> reprova
+    g = rc.check_gate(_agg_com_recall8(0.867))
+    assert g["passed"] is False
+    assert g["piso"] == rc.gate_threshold()
+
+
+def test_gate_falha_conservador_sem_metrica():
+    # recall@8 ausente (k não avaliado / sem perguntas) NÃO é aprovado
+    assert rc.check_gate({"overall": {"recall": {}}})["passed"] is False
+    assert rc.check_gate({})["passed"] is False
+
+
+def test_gate_override_de_threshold():
+    g = rc.check_gate(_agg_com_recall8(0.95), threshold=0.97)
+    assert g["passed"] is False and g["piso"] == 0.97

@@ -14,12 +14,17 @@ hibrida (ingest.search) contra o indice real e calcula:
 
 Criterio de corte do plano: recall@8 >= 0.7 com Gemini = baseline aceito.
 
+Gate de regressao (S15 / T-EVAL-1): `python -m eval.recall --gate` roda a eval
+contra o indice e SAI 1 se recall@8 cair abaixo do piso registrado
+(BASELINE_RECALL_AT_8 - MARGEM_REGRESSAO ~ 0,90). Rodar SEMPRE que mexer em
+ingest/search/chunker/embeddings — ver .planning/PLANO-SANEAMENTO.md S15.
+
 Design testavel: as metricas sao funcoes puras (hit_for_query, aggregate); a
 retrieval e injetavel via `retrieve` (default = ingest.search.search real). Os
 unit tests exercitam as metricas sem tocar em rede/DB.
 
 Saida: relatorio markdown -> .planning/relatorio-avaliacao-<YYYYMMDD>.md
-(override --out). Rodar:  python -m eval.recall [--k 1,3,5,8,10] [--json]
+(override --out). Rodar:  python -m eval.recall [--k 1,3,5,8,10] [--json] [--gate]
 """
 
 from __future__ import annotations
@@ -27,6 +32,7 @@ from __future__ import annotations
 import argparse
 import json
 import statistics
+import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -177,6 +183,45 @@ def aggregate(rows: Sequence[PerQuery], ks: Sequence[int] | None = None) -> dict
 
 
 # ---------------------------------------------------------------------------
+# gate de regressão (S15 / T-EVAL-1)
+# ---------------------------------------------------------------------------
+
+# Baseline registrado da FASE 4 (recall@8 = 0,933). Margem de tolerância à
+# flutuação (chamadas reais de embedding variam): o gate reprova abaixo de
+# BASELINE_RECALL_AT_8 - MARGEM_REGRESSAO (~0,90). Ver .planning/PLANO-RAG.md §5b.
+BASELINE_RECALL_AT_8 = 0.933
+MARGEM_REGRESSAO = 0.033
+GATE_K = 8
+
+
+def gate_threshold() -> float:
+    """Piso do gate: baseline menos a margem de tolerância."""
+    return round(BASELINE_RECALL_AT_8 - MARGEM_REGRESSAO, 4)
+
+
+def check_gate(agg: dict, *, k: int = GATE_K, threshold: float | None = None) -> dict:
+    """Decisão do gate de regressão sobre métricas já agregadas.
+
+    Puro (sem DB/rede): recebe o dict de `aggregate` e compara recall@k contra o
+    piso. Retorna dict com a medição, o piso e o veredito — nunca levanta, para
+    que o chamador (CLI/teste) decida o que fazer com `passed=False`.
+    """
+    thr = gate_threshold() if threshold is None else threshold
+    recall = agg.get("overall", {}).get("recall", {})
+    medido = recall.get(k)
+    # Sem perguntas (ou k não avaliado) NÃO é 'aprovado' — falha conservadora.
+    passed = medido is not None and medido >= thr
+    return {
+        "k": k,
+        "medido": medido,
+        "piso": thr,
+        "baseline": BASELINE_RECALL_AT_8,
+        "margem": MARGEM_REGRESSAO,
+        "passed": passed,
+    }
+
+
+# ---------------------------------------------------------------------------
 # retrieval real (usa ingest.search + DB/env)
 # ---------------------------------------------------------------------------
 
@@ -261,9 +306,17 @@ def main(argv: Sequence[str] | None = None) -> int:
                     help="lista de k separada por vírgula (ex: 1,3,5,8,10)")
     ap.add_argument("--out", type=Path, default=None, help="caminho do relatório md")
     ap.add_argument("--json", action="store_true", help="imprime métricas em JSON no stdout")
+    ap.add_argument("--gate", action="store_true",
+                    help="modo regressão (S15): sai 1 se recall@8 < piso "
+                         "(baseline - margem). Use após mexer em ingest/search/chunker.")
+    ap.add_argument("--min-recall", type=float, default=None, dest="min_recall",
+                    help="override do piso do gate (default: baseline-margem)")
     args = ap.parse_args(argv)
 
     ks = tuple(int(x) for x in str(args.k).split(",") if x.strip())
+    # No modo gate o k vigiado (@8) DEVE ser avaliado, mesmo se --k não o liste.
+    if args.gate and GATE_K not in ks:
+        ks = tuple(sorted(set(ks) | {GATE_K}))
     queries = load_dataset(args.dataset)
 
     from ingest import ingest as ingest_mod
@@ -272,8 +325,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     rows = evaluate(queries, retriever, ks=ks)
     agg = aggregate(rows, ks=ks)
 
+    gate = check_gate(agg, k=GATE_K, threshold=args.min_recall) if args.gate else None
+
     if args.json:
-        print(json.dumps({"repo": repo, "ks": list(ks), **agg}, ensure_ascii=False, indent=2))
+        payload = {"repo": repo, "ks": list(ks), **agg}
+        if gate is not None:
+            payload["gate"] = gate
+        print(json.dumps(payload, ensure_ascii=False, indent=2))
 
     report = render_report(rows, agg, ks=ks, dataset_path=args.dataset, repo=repo,
                            embedder="gemini-embedding-2")
@@ -290,6 +348,17 @@ def main(argv: Sequence[str] | None = None) -> int:
         if agg["misses"]:
             print(f"  misses: {', '.join(agg['misses'])}")
     print(f"[eval] relatório -> {out}")
+
+    if gate is not None:
+        med = "n/a" if gate["medido"] is None else f"{gate['medido']:.3f}"
+        if gate["passed"]:
+            print(f"[gate] ✅ recall@{gate['k']} = {med} ≥ piso {gate['piso']:.3f} "
+                  f"(baseline {gate['baseline']:.3f} − margem {gate['margem']:.3f})")
+            return 0
+        print(f"[gate] ❌ REPROVADO: recall@{gate['k']} = {med} < piso "
+              f"{gate['piso']:.3f} — possível regressão em ingest/search/chunker.",
+              file=sys.stderr)
+        return 1
     return 0
 
 
