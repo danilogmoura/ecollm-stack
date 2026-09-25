@@ -1,0 +1,71 @@
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+      - ./ollama/entrypoint.sh:/entrypoint.sh
+    entrypoint: [ "/bin/bash", "/entrypoint.sh" ]
+    environment:
+      - OLLAMA_DEBUG=1
+      # Ollama is the fallback path: keep models warm for a bounded window
+      # instead of pinning them to VRAM forever (-1). Reloads on demand after idle.
+      - OLLAMA_KEEP_ALIVE=15m
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
+
+  litellm-db:
+    image: postgres:15
+    container_name: ai-litellm-db
+    environment:
+      - POSTGRES_USER=litellm
+      - POSTGRES_PASSWORD=litellm_secret
+      - POSTGRES_DB=litellm
+    volumes:
+      - litellm_db_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  litellm-redis:
+    image: redis:7-alpine
+    container_name: ai-litellm-redis
+    command: redis-server --save 20 1 --loglevel warning
+    volumes:
+      - litellm_redis_data:/data
+    restart: unless-stopped
+
+  litellm:
+    # NOTE: the bare `:main` tag is a stale Dec-2023 build whose ENTRYPOINT hardcodes
+    # `litellm --config /app/proxy_server_config.yaml` and ignores CMD, so our config.yaml
+    # was never read and the image's built-in Azure demo model_list crashed on startup.
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: ai-litellm
+    ports:
+      - "4000:4000"
+    environment:
+      - DATABASE_URL=postgresql://litellm:litellm_secret@litellm-db:5432/litellm
+      - REDIS_URL=redis://litellm-redis:6379
+      - LITELLM_MASTER_KEY=sk-stack-mestra-123
+      - LITELLM_LOG=DEBUG
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
+    volumes:
+      - ./litellm/config.yaml:/app/config.yaml:ro
+    command: [ "--config", "/app/config.yaml", "--port", "4000" ]
+    depends_on:
+      - ollama
+      - litellm-db
+      - litellm-redis
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  litellm_db_data:
+  litellm_redis_data:

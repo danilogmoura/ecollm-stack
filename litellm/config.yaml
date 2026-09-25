@@ -1,0 +1,146 @@
+model_list:
+  # ===== CHAT (ask do RAG) =====
+  # Primário: Gemini free tier. Pin fixo (3.8-flash) em vez do alias rolante
+  # "-latest", que muda de versão sem você controlar.
+  - model_name: rag-chat
+    litellm_params:
+      model: gemini/gemini-3.8-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Fallback: Ollama local — qwen3:4b-instruct-2507 (2,5 GB, ctx 256K).
+  # Trocou qwen2.5-coder:7b em 2026-09-25: não existe coder dedicado novo que caiba
+  # em 8 GB (qwen3-coder:30b = 19 GB). O 4B é mais novo, cabe com folga e carrega
+  # sob demanda em ~2-3 s. SEM warmup por decisão: GPU livre em repouso, o modelo
+  # só sobe se o fallback realmente disparar (papel de emergência).
+  # Tag real no registry exige o sufixo de quantização (-q4_K_M).
+  - model_name: qwen3:4b-instruct-2507
+    litellm_params:
+      model: ollama_chat/qwen3:4b-instruct-2507-q4_K_M
+      api_base: http://ai-ollama:11434
+
+  # ===== AGENTE (Roo Code — Modes/plan). NAO entra no rag-chat nem no RAG. =====
+  # Token Plan Individual QwenCloud. Regras do plano (doc 2026-09-25):
+  #  - chave comeca com "sk-sp-" e so funciona no base URL do plano (nao misturar
+  #    com chave comum sk-ws-);
+  #  - endpoint OpenAI-compat usado pelo LiteLLM = /compatible-mode/v1;
+  #  - ferramentas Harness (web search etc.) so via Responses API — pelo chat
+  #    completions o modelo responde normal, sem as ferramentas automaticas.
+  # No Roo Code: provider "OpenAI Compatible", base http://localhost:4000/v1,
+  # api key = LITELLM_MASTER_KEY.
+  #
+  # ---- POR QUE EXISTEM VERSOES "-fast" (thinking OFF) E SEM SUFIXO (ON) ----
+  # qwen3.8-* sao modelos de raciocinio: pensam em "reasoning_content" antes de
+  # responder, e isso e pago em token + latencia. Matriz medida 2026-09-25 via
+  # este proxy (tarefa dificil = revisar funcao p/ race conditions):
+  #   flash ON : 2467 out-tok (2110 reasoning!) | 59,2 s | 11 itens achados
+  #   flash OFF:  286 out-tok                   |  6,6 s |  6 itens
+  #   max   ON :  538 out-tok (183 reasoning)   | 15,9 s | 11 itens
+  #   max   OFF:  468 out-tok                   |  9,7 s | 12 itens (mais completo!)
+  # Mais 3 achados que decidiram o design:
+  #  1. ARMADILHA 400: com thinking ON, tool_choice "required"/"none" retorna
+  #     HTTP 400 no endpoint. Clientes que forcam tool_choice (alguns modos do
+  #     Roo) quebrariam nos grupos sem sufixo. Com OFF, funciona.
+  #  2. LOOP DE AGENTE: no multi-turn (resultado de ferramenta de volta), ON
+  #     re-chamou a ferramenta em vez de sintetizar (finish=tool_calls, 122 tok);
+  #     OFF respondeu certo (finish=stop, 10 tok). Thinking ON deixa o modelo
+  #     MAIS propenso a emendar chamada de ferramenta — num loop de 20-50
+  #     iteracoes por tarefa, isso multiplica custo/latencia com risco de loop.
+  #  3. Thinking ON infla ate o PROMPT (121 vs 85 in-tok = scaffolding injetado),
+  #     e o prompt de agente carrega o historico inteiro a cada iteracao.
+  # Regra de uso no Roo Code (mapear por mode nos presets):
+  #   Code/Ask/Debug-mecanico -> "-fast" (procedural, contexto ja na tela)
+  #   Architect/plantia/difficil -> sem sufixo (encadear passos = onde thinking
+  #   mostra servico: no unico caso em que ON ganhou, achou 11 vs 6 itens)
+  # OBS: "/no_think" no prompt NAO desliga nada (423 reasoning-tok medidos);
+  #      "thinking_budget:0" da erro (endpoint exige positivo). A unica alavanca
+  #      que funciona e enable_thinking:false — por isso fixamos NO PROXY, e nao
+  #      dependendo de config do cliente.
+
+  # --- Thinking ON: planejamento, arquitetura, debug dificil ---
+  - model_name: qwen3.8-max
+    litellm_params:
+      model: openai/qwen3.8-max
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+
+  - model_name: qwen3.8-flash
+    litellm_params:
+      model: openai/qwen3.8-flash
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+
+  # --- Thinking OFF: loop de agente (Code/Ask). Motivos: ver bloco acima ---
+  - model_name: qwen3.8-flash-fast
+    litellm_params:
+      model: openai/qwen3.8-flash
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+      enable_thinking: false
+
+  - model_name: qwen3.8-max-fast
+    litellm_params:
+      model: openai/qwen3.8-max
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+      enable_thinking: false
+
+  # ===== EMBEDDINGS =====
+  # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
+  # auto-normaliza as dims truncadas — verificado no teste A/B 2026-09-24).
+  # Task assimétrica p/ código: prefixo no texto "task: code retrieval | query: ..."
+  # Embedding local (bge-m3) REMOVIDO da stack em 2026-09-25: sem fallback de
+  # embeddings por design (3072 vs 1024 = espaços incompatíveis corromperiam o índice).
+  #
+  # GARANTIA (verificado 2026-09-25): o Google e SO o gerador de embeddings desta
+  # stack. Os grupos qwen3.8-* sao chat-only — o proprio endpoint do Token Plan
+  # retorna 404 em /v1/embeddings (erro do upstream, nao do LiteLLM), e a doc do
+  # plano nao lista nenhum modelo de embedding. Um request de embed apontando p/
+  # Qwen falha na porta, nao existe caminho silencioso p/ outro gerador. Se um dia
+  # houver embedder novo, re-embedar o indice INTEIRO e obrigatorio (espacos
+  # vetoriais de modelos diferentes sao incompativeis — nunca misturar no mesmo indice).
+  - model_name: rag-embeddings
+    litellm_params:
+      model: gemini/gemini-embedding-2
+      api_key: os.environ/GEMINI_API_KEY
+
+litellm_settings:
+  drop_params: true
+  set_verbose: true
+  num_retries: 2
+  # Cada item: {modelo_chamado: [fallbacks em ordem]}
+  # Chat: Gemini -> qwen3:4b local (válido, mesma tarefa).
+  # Embeddings: sem fallback por design — não existe embedder local na stack.
+  fallbacks:
+    - rag-chat: ["qwen3:4b-instruct-2507"]
+
+  # ===== CACHE (Redis já sobe no compose; REDIS_URL aponta p/ ele) =====
+  # Habilitado SOMENTE p/ embeddings, e o motivo é um fato medido hoje:
+  # SpendLogs 2026-09-25 = 105k prompt-tok vs 6k completion-tok no fluxo de
+  # agente. ENTRADA domina o custo. Isso define qual tipo de cache serve:
+  #
+  #  1. CACHE DE RESPOSTA (este bloco, exato): chave = hash do request INTEIRO;
+  #     "qualquer mudança na conversa = miss" (doc proxy/caching). Por isso NÃO
+  #     cobrimos chat aqui: loop de agente muda os messages a cada iteração →
+  #     hit ~zero, e só adicionaria latência de round-trip ao Redis. Para
+  #     embeddings porém o texto do chunk é imutável entre execuções de ingest
+  #     → re-tocar o corpus vira hit grátis. Guardamos também contra o caso
+  #     "pergunta repetida" do RAG.
+  #  2. SEMÂNTICO (redis-semantic): doc avisa que "goes badly wrong on agentic
+  #     traffic" — embedding aproximado serviria resposta errada. De fora.
+  #  3. PROMPT CACHING de upstream (Anthropic/OpenAI/Gemini breakpoints): corta
+  #     o token de ENTRADA repetido, que é exatamente nosso gargalo. Mas exige
+  #     suporte nativo do provedor, e o Token Plan Qwen NÃO expõe nenhum campo
+  #     de cache na doc (grep em qwen.txt = zero hits). LiteLLM faz cache
+  #     pass-through só p/ Anthropic/OpenAI/Gemini, não p/ openai-compat custom.
+  #
+  # ➜ HEADROOM (próxima camada, quando o RAG nascer): a economia real de entrada
+  #   não é cache de resposta — é JANELA. Um pré-processador de contexto
+  #   (headroom-style: dedupe de chunks, resumo de histórico antigo, truncar
+  #   tool-output) ataca os 105k in-tok direto. Este cache de embeddings fica
+  #   barato de manter e serve de base p/ medir hit-rate antes de adicionar
+  #   headroom por cima.
+  cache: true
+  cache_params:
+    type: redis # lê conexão de REDIS_URL (env), sem host/port explícitos
+    supported_call_types: ["aembedding", "atranscription"] # chat FORA do cache
+    ttl: 86400 # respostas de embed válidas p/ re-ingest no mesmo dia
