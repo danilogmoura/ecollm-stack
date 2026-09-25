@@ -33,7 +33,8 @@ Os grupos `-fast` fixam `enable_thinking: false` **no proxy** — clientes nunca
 ```bash
 cp .env.example .env   # preencha GEMINI_API_KEY e QWEN_PLAN_API_KEY
 docker compose up -d
-curl -s localhost:4000/v1/models -H "Authorization: Bearer sk-stack-mestra-123" | jq -r '.data[].id'
+# LITELLM_MASTER_KEY fica no .env; leia de la em vez de colar a chave no comando
+curl -s localhost:4000/v1/models -H "Authorization: Bearer $(grep LITELLM_MASTER_KEY .env | cut -d= -f2)" | jq -r '.data[].id'
 ```
 
 Chave dos clientes = `LITELLM_MASTER_KEY` (uma chave por camada; chaves upstream só no `.env`).
@@ -44,6 +45,14 @@ Chave dos clientes = `LITELLM_MASTER_KEY` (uma chave por camada; chaves upstream
 - **Cache**: exato (Redis), escopo `aembedding` apenas. Tráfego de agente fica fora porque o cache é hash do request inteiro e as mensagens mudam a cada iteração. Semântico descartado (risco em tráfego agentic). Prompt-caching de upstream não existe no plano Qwen.
 - **Fallback RAG**: cadeia simples `rag-chat → qwen3:4b` mantida de propósito (multinível funciona no LiteLLM 1.102, avaliado e dispensado por ora).
 - **Warmup Ollama**: removido — GPU livre em repouso; cold load ~41 s aceitável para papel de emergência.
+
+## Gotchas
+
+Armadilhas já encontradas ao montar o índice RAG (pgvector + Docker):
+
+- **HNSW tem teto de dimensões.** Índices HNSW/IVFFlat sobre `vector` (float4) aceitam no máximo 2000 dimensões; embedders de 3072d (ex.: `gemini-embedding-2`) exigem armazenar como `halfvec(3072)` — fp16 indexável até 4000d, com erro de precisão (~1e-3) irrelevante para ranking. Truncar via MRL é alternativa, mas descarta informação.
+- **Operator class errada = índice enfeite.** `USING hnsw (embedding vector_cosine_ops)` numa coluna `halfvec` cria o índice sem erro algum — e o planner nunca usa `<=>` contra ele: seq scan silencioso. A classe deve bater com o tipo exato da coluna (`halfvec_cosine_ops` p/ halfvec). Validar sempre com `EXPLAIN`, nunca confiar só no `\di`.
+- **`init.sql` quebra em silêncio.** O entrypoint do Postgres roda os scripts de bootstrap statement a statement; um erro no meio aborta o resto sem sinal externo — o container declara "database system is ready" com schema incompleto. Após qualquer mudança em `rag-db/init.sql`, recriar o volume e conferir `pg_indexes` pós-boot.
 
 ## Roadmap
 

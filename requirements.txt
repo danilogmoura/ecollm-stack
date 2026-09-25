@@ -1,0 +1,21 @@
+# ============================================================================
+# FASE 1 — Loader + Chunker (ver .planning/PLANO-RAG.md §3)
+# Python 3.12, sem framework de RAG (decisao travada no plano).
+# ============================================================================
+
+# --- runtime da stack (nao mudam por aqui) ---
+pgvector: pg17 (imagem rag-db)
+
+# --- ingest (FASE 1+) — versoes verificadas em .venv (2026-09-25) ---
+tree-sitter==0.26.0
+tree-sitter-python==0.25.0
+tree-sitter-javascript==0.25.0
+tree-sitter-typescript==0.23.2
+tree-sitter-go==0.25.0
+tree-sitter-bash==0.25.1
+pyyaml>=6
+requests>=2.31          # embed.py fala com LiteLLM via HTTP
+psycopg[binary]>=3.2    # store.py (FASE 2)
+
+# --- dev/testes ---
+pytest>=8
