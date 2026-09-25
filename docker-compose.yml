@@ -42,13 +42,16 @@ services:
     restart: unless-stopped
 
   # ===== BANCO DO RAG (pgvector) — FASE 0 do .planning/PLANO-RAG.md =====
-  # Sem porta publicada no host (mesmo padrao do litellm-db): so os containers
-  # da stack alcancam via rede interna em rag-db:5432. init.sql roda UMA vez no
-  # primeiro bootstrap do volume (docker-entrypoint-initdb.d).
+  # Rede interna em rag-db:5432 para os containers da stack. Publica TAMBEM
+  # 127.0.0.1:5433 no host (bind loopback apenas, nada exposto a rede externa)
+  # para o CLI de ingest (FASE 2) rodar fora do docker sem entrar na rede.
+  # init.sql roda UMA vez no primeiro bootstrap do volume (docker-entrypoint-initdb.d).
   # Imagem pg17 = linha moderna do Postgres com extensao vector pre-compilada.
   rag-db:
     image: pgvector/pgvector:pg17
     container_name: ai-rag-db
+    ports:
+      - "127.0.0.1:5433:5432"
     environment:
       - POSTGRES_USER=rag
       - POSTGRES_PASSWORD=rag_secret
