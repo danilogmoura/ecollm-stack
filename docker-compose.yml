@@ -89,7 +89,9 @@ services:
     environment:
       - DATABASE_URL=postgresql://${LITELLM_DB_USER:-litellm}:${LITELLM_DB_PASSWORD:-litellm_secret}@litellm-db:5432/${LITELLM_DB_NAME:-litellm}
       - REDIS_URL=redis://litellm-redis:6379
-      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-stack-mestra-123}
+      # Sem default: falha-closed se .env não definir a chave (S17 removeu o
+      # valor real hardcoded; antes caía em sk padrão conhecido publicamente).
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY ausente no .env}
       - LITELLM_LOG=DEBUG
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
