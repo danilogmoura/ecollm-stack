@@ -57,17 +57,29 @@ def _stage_corpus(repo_root: Path, entries: list[loader.FileEntry], dest: Path) 
         shutil.copy2(src, dst)
 
 
-def gitleaks_gate(repo_root: Path, entries: list[loader.FileEntry]) -> tuple[bool, str]:
+def gitleaks_gate(repo_root: Path, entries: list[loader.FileEntry],
+                  *, skip: bool = False) -> tuple[bool, str]:
     """Roda gitleaks no corpus versionado. Retorna (ok, mensagem).
 
-    ok=False => abortar ingest. Se o binario nao estiver disponivel, o gate e
-    um AVISO (nao bloqueia) — ambiente sem sudo pode nao ter gitleaks; o
-    registro disso fica no relatorio. Superficie escaneada = exatamente o que
-    seria embedado (so `git ls-files`).
+    ok=False => abortar ingest. O gate é FAIL-CLOSED (S13/T-ENV-6): se o
+    binário não estiver disponível, ABORTA — nunca embedamos um corpus sem
+    varredura de segredos por comodidade de ambiente. A única saída é a
+    decisão EXPLÍCITA do operador via ``skip=True`` (flag ``--skip-gitleaks``)
+    ou env ``RAG_SKIP_GITLEAKS=1``, que rebaixa o ausentismo a AVISO. Achados
+    reais de segredo abortam SEMPRE, mesmo com skip pedido (skip só cobre o
+    binário faltando, não segredos encontrados). Superficie escaneada =
+    exatamente o que seria embedado (só `git ls-files`).
     """
     gitleaks = shutil.which("gitleaks") or os.path.expanduser("~/.local/bin/gitleaks")
     if not os.path.isfile(gitleaks) and not shutil.which("gitleaks"):
-        return True, "gitleaks ausente — gate pulado (AVISO)"
+        if skip:
+            return True, ("gitleaks ausente — gate PULADO por decisão explícita "
+                          "(--skip-gitleaks / RAG_SKIP_GITLEAKS=1). AVISO: corpus "
+                          "embedado SEM varredura de segredos.")
+        return False, ("gitleaks AUSENTE e gate é fail-closed (S13) — abortando "
+                       "ingest. Instale o binário (ex.: ~/.local/bin/gitleaks) ou, "
+                       "assumindo o risco, rode com --skip-gitleaks / "
+                       "RAG_SKIP_GITLEAKS=1.")
     tmp = Path(tempfile.mkdtemp(prefix="rag-gate-"))
     try:
         _stage_corpus(repo_root, entries, tmp)
@@ -118,14 +130,17 @@ def plan_sync(repo_root: Path, existing: dict[str, str]) -> list[PlanFile]:
 
 def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
                db_url: str | None = None, cfg: dict | None = None,
-               verbose: bool = True) -> store.SyncReport:
+               verbose: bool = True, skip_gitleaks: bool | None = None) -> store.SyncReport:
     repo_root = Path(repo_root).resolve()
     repo = repo_name(repo_root)
     cfg = cfg or embed.config_from_env()
+    # S13: permissão de pular o gate vem da flag OU do env (fail-closed por default).
+    if skip_gitleaks is None:
+        skip_gitleaks = os.environ.get("RAG_SKIP_GITLEAKS", "").strip().lower() in ("1", "true", "yes")
 
     # 1) gate de segredos SEMPRE antes de qualquer saida de texto do host
     entries_all = loader.load_corpus(repo_root)
-    ok, gate_msg = gitleaks_gate(repo_root, entries_all)
+    ok, gate_msg = gitleaks_gate(repo_root, entries_all, skip=skip_gitleaks)
     if verbose:
         print(f"[gate] {gate_msg}")
     if not ok:
@@ -198,10 +213,13 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="rag-ingest", description="FASE 2: ingest RAG")
     ap.add_argument("--repo", default=".", help="repo root a indexar (default: cwd)")
     ap.add_argument("--dry-run", action="store_true", help="nao embeda nem escreve no DB")
+    ap.add_argument("--skip-gitleaks", action="store_true",
+                    help="pule o gate por binário ausente (assumindo o risco; segredo achado aborta sempre)")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
     try:
-        report = run_ingest(args.repo, dry_run=args.dry_run, verbose=not args.quiet)
+        report = run_ingest(args.repo, dry_run=args.dry_run, verbose=not args.quiet,
+                            skip_gitleaks=args.skip_gitleaks)
     except SystemExit as exc:  # gate abortou
         print(f"[abort] codigo {exc.code}", file=sys.stderr)
         return int(exc.code or 0)

@@ -14,6 +14,10 @@ import pytest
 
 from ingest import embed, ingest, store
 
+# Gate real capturado ANTES de qualquer monkeypatch (os testes que exercitam o
+# caminho fail-closed/skip restauram este callable, não o stub do fixture).
+_REAL_GITLEAKS_GATE = ingest.gitleaks_gate
+
 
 def _git(repo: Path, *args):
     subprocess.run(["git", *args], cwd=repo, check=True,
@@ -98,7 +102,7 @@ def patched(monkeypatch):
     """Stub gitleaks + embed + camada de store no orquestrador."""
     db = FakeDB()
 
-    monkeypatch.setattr(ingest, "gitleaks_gate", lambda root, entries: (True, "ok"))
+    monkeypatch.setattr(ingest, "gitleaks_gate", lambda root, entries, *, skip=False: (True, "ok"))
 
     def fake_embed_documents(pairs, *, cfg=None, **kw):
         db.embedded.extend(pairs)
@@ -168,8 +172,66 @@ def test_dry_run_nao_escreve_nem_embeda(repo, patched):
 
 
 def test_gate_falha_aborta(repo, monkeypatch):
-    monkeypatch.setattr(ingest, "gitleaks_gate", lambda root, entries: (False, "segredo!"))
+    monkeypatch.setattr(ingest, "gitleaks_gate", lambda root, entries, *, skip=False: (False, "segredo!"))
     monkeypatch.setattr(store, "connect", lambda url=None: pytest.fail("não deveria conectar"))
     with pytest.raises(SystemExit) as exc:
         ingest.run_ingest(repo, verbose=False)
     assert exc.value.code == 2
+
+
+# --- S13 · gate gitleaks FAIL-CLOSED -------------------------------------
+
+def _no_gitleaks(monkeypatch):
+    """Faz o gate NÃO encontrar o binário em lugar nenhum."""
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: None)
+    monkeypatch.setattr(ingest.os.path, "isfile", lambda p: False)
+
+
+def test_gate_binario_ausente_aborta_fail_closed(repo, monkeypatch):
+    """Sem binário e sem permissão explícita => ABORTA (fail-closed)."""
+    _no_gitleaks(monkeypatch)
+    monkeypatch.delenv("RAG_SKIP_GITLEAKS", raising=False)
+    ok, msg = ingest.gitleaks_gate(repo, [])
+    assert ok is False
+    assert "fail-closed" in msg
+
+
+def test_gate_binario_ausente_passa_com_flag_skip(repo, monkeypatch):
+    """Binário ausente + skip=True => passa com AVISO (decisão do operador)."""
+    _no_gitleaks(monkeypatch)
+    ok, msg = ingest.gitleaks_gate(repo, [], skip=True)
+    assert ok is True
+    assert "PULADO" in msg and "AVISO" in msg
+
+
+def test_run_ingest_env_skip_deixa_passar(repo, patched, monkeypatch, capsys):
+    """Env RAG_SKIP_GITLEAKS=1 faz o orquestrador aceitar binário ausente."""
+    # patched stub o gate; restauramos o gate REAL (capturado antes do stub) e
+    # forçamos binário ausente p/ exercitar o caminho fail-closed/skip.
+    monkeypatch.setattr(ingest, "gitleaks_gate", _REAL_GITLEAKS_GATE)
+    _no_gitleaks(monkeypatch)
+    monkeypatch.setenv("RAG_SKIP_GITLEAKS", "1")
+    ingest.run_ingest(repo, dry_run=True, verbose=True)
+    out = capsys.readouterr().out
+    assert "PULADO" in out
+
+
+def test_run_ingest_sem_skip_aborta_pelo_env(repo, patched, monkeypatch):
+    """Sem env nem flag, binário ausente aborta o orquestrador inteiro (exit 2)."""
+    monkeypatch.setattr(ingest, "gitleaks_gate", _REAL_GITLEAKS_GATE)
+    _no_gitleaks(monkeypatch)
+    monkeypatch.delenv("RAG_SKIP_GITLEAKS", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        ingest.run_ingest(repo, dry_run=True, verbose=False)
+    assert exc.value.code == 2
+
+
+def test_gate_segredo_aborta_mesmo_com_skip(repo, monkeypatch):
+    """skip só cobre binário faltando; segredo ACHADO aborta sempre."""
+    # Binário presente que retorna código != 0 (achou segredo).
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: "/usr/bin/gitleaks")
+    monkeypatch.setattr(ingest.subprocess, "run",
+                        lambda *a, **k: type("R", (), {"returncode": 1, "stdout": "leak", "stderr": ""})())
+    ok, msg = ingest.gitleaks_gate(repo, [], skip=True)
+    assert ok is False
+    assert "ACHOU segredo" in msg

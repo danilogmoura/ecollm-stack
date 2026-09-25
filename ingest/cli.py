@@ -136,7 +136,8 @@ def cmd_rag(args) -> int:
 def cmd_sync(args) -> int:
     try:
         report = ingest_mod.run_ingest(args.repo, dry_run=args.dry_run,
-                                       verbose=not args.quiet)
+                                       verbose=not args.quiet,
+                                       skip_gitleaks=args.skip_gitleaks)
     except SystemExit as exc:
         print(f"[abort] codigo {exc.code}", file=sys.stderr)
         return int(exc.code or 0)
@@ -163,6 +164,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--repo", default=".")
     p_sync.add_argument("--dry-run", action="store_true")
     p_sync.add_argument("--quiet", action="store_true")
+    p_sync.add_argument("--skip-gitleaks", action="store_true",
+                        help="pule o gate de segredos se o binário estiver ausente "
+                             "(fail-closed por default; NÃO cobre segredos achados)")
     p_sync.set_defaults(func=cmd_sync)
     return ap
 
