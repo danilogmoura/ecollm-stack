@@ -9,7 +9,7 @@ Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, s
 ## Serviços
 
 | Container | Imagem | Porta | Papel |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `ai-litellm` | `ghcr.io/berriai/litellm:main-stable` | 4000 | gateway / roteamento / fallbacks / cache |
 | `ai-ollama` | `ollama/ollama` | 11434 | modelo local de emergência (`qwen3:4b-instruct-2507-q4_K_M`) |
 | `ai-litellm-db` | `postgres:15` | — | SpendLogs e chaves do LiteLLM |
@@ -20,7 +20,7 @@ Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, s
 ## Modelos expostos (`/v1/models`)
 
 | Grupo | Backend | Thinking | Uso |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | `rag-chat` | gemini-3.8-flash → fallback qwen3:4b local | — | chat do RAG |
 | `rag-embeddings` | gemini-embedding-2 | — | único gerador de vetores da stack |
 | `qwen3.8-max` / `qwen3.8-flash` | Token Plan | ON | Architect / debug difícil |

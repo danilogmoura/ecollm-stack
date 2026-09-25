@@ -41,6 +41,23 @@ services:
       - litellm_redis_data:/data
     restart: unless-stopped
 
+  # ===== BANCO DO RAG (pgvector) — FASE 0 do .planning/PLANO-RAG.md =====
+  # Sem porta publicada no host (mesmo padrao do litellm-db): so os containers
+  # da stack alcancam via rede interna em rag-db:5432. init.sql roda UMA vez no
+  # primeiro bootstrap do volume (docker-entrypoint-initdb.d).
+  # Imagem pg17 = linha moderna do Postgres com extensao vector pre-compilada.
+  rag-db:
+    image: pgvector/pgvector:pg17
+    container_name: ai-rag-db
+    environment:
+      - POSTGRES_USER=rag
+      - POSTGRES_PASSWORD=rag_secret
+      - POSTGRES_DB=rag
+    volumes:
+      - rag_db_data:/var/lib/postgresql/data
+      - ./rag-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+
   litellm:
     # NOTE: the bare `:main` tag is a stale Dec-2023 build whose ENTRYPOINT hardcodes
     # `litellm --config /app/proxy_server_config.yaml` and ignores CMD, so our config.yaml
@@ -56,6 +73,9 @@ services:
       - LITELLM_LOG=DEBUG
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
+      # URL do banco do RAG — os scripts de ingest (FASE 1+) leem do mesmo .env;
+      # exposto aqui tb para futuras tools internas do proxy.
+      - RAG_DB_URL=postgresql://rag:rag_secret@rag-db:5432/rag
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     command: [ "--config", "/app/config.yaml", "--port", "4000" ]
@@ -63,9 +83,11 @@ services:
       - ollama
       - litellm-db
       - litellm-redis
+      - rag-db
     restart: unless-stopped
 
 volumes:
   ollama_data:
   litellm_db_data:
   litellm_redis_data:
+  rag_db_data:
