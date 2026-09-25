@@ -3,8 +3,12 @@
 Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, servindo três papéis:
 
 - **Agente de código** (Roo Code / GitHub Copilot BYOK / LM Studio) → Qwen Token Plan
-- **Chat de RAG** (alias pronto; pipeline de ingestão ainda em construção) → Gemini free tier com fallback local via Ollama
+- **Chat de RAG** (`rag-chat`) → Gemini com fallback local via Ollama
 - **Embeddings** → exclusivamente Google (`gemini-embedding-2`, 3072 dims)
+
+Além do gateway, a stack inclui um **pipeline RAG completo** sobre pgvector (ingest
+incremental → chunker AST/markdown/config → embeddings → busca híbrida HNSW+tsvector
+via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline RAG](#pipeline-rag-fases-05).
 
 ## Serviços
 
@@ -14,6 +18,7 @@ Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, s
 | `ai-ollama` | `ollama/ollama` | 11434 | modelo local de emergência (`qwen3:4b-instruct-2507-q4_K_M`) |
 | `ai-litellm-db` | `postgres:15` | — | SpendLogs e chaves do LiteLLM |
 | `ai-litellm-redis` | `redis:7-alpine` | — | cache de respostas (hoje: só embeddings) |
+| `ai-rag-db` | `pgvector/pgvector:pg17` | `127.0.0.1:5433`→5432 | índice vetorial do RAG (halfvec 3072 + HNSW + tsvector GIN); bind loopback só |
 
 > ⚠️ Não use a tag `:main` do LiteLLM — congelada em Dez/2023, ignora o config montado (detalhes em `litellm/config.yaml`).
 
@@ -39,6 +44,55 @@ curl -s localhost:4000/v1/models -H "Authorization: Bearer $(grep LITELLM_MASTER
 
 Chave dos clientes = `LITELLM_MASTER_KEY` (uma chave por camada; chaves upstream só no `.env`).
 
+## Pipeline RAG (FASES 0–5)
+
+Índice vetorial do próprio repo sobre pgvector (`ai-rag-db`). Python 3.12 em `.venv/`
+(criado com **uv**; não tem `pip` — instale com `VIRTUAL_ENV=.venv ~/.local/bin/uv pip install -r requirements.txt`).
+O CLI é um módulo: invoque via `.venv/bin/python -m ingest.cli …`. Config de conexão vem do `.env` da raiz.
+
+| Comando | O que faz |
+| --- | --- |
+| `rag-sync` / `python -m ingest.cli sync [--repo PATH] [--dry-run]` | ingest incremental (loader→chunker→embed→store). Idempotente: re-execução sem mudança = 0 embeddings. Gate gitleaks aborta se achar segredo no corpus. |
+| `rag "pergunta"` / `… cli search "pergunta"` | busca híbrida (HNSW denso + tsvector/BM25 → fusão RRF), imprime top-k com fonte, score e ranks. Filtros `--kind code\|doc\|config`, `--path PREFIXO`, `-k N`. |
+| `rag --ask "pergunta"` | busca + gera resposta citando `[n]` via **`qwen3.8-flash-fast`** (default real; override por env `RAG_CHAT_MODEL`). Fora do corpus → responde "NÃO SEI". |
+
+```bash
+# sincronizar o índice e consultar
+.venv/bin/python -m ingest.cli sync
+.venv/bin/python -m ingest.cli search "como funciona o gate de segredos"
+.venv/bin/python -m ingest.cli search --ask "qual modelo e dims dos embeddings?"
+```
+
+**Servidor MCP `rag_search`** (`mcp/rag_server.py`, stdio): expõe a mesma busca como
+tool para agentes (Roo Code / Copilot). Contrato de retorno: JSON `{results:[{path,symbol,kind,score,source,content}]}`.
+Registro do lado do cliente em `mcp/mcp.example.json`:
+
+```jsonc
+{ "mcpServers": { "rag-search": {
+    "command": "/home/demo/ecollm-stack/.venv/bin/python",
+    "args": ["/home/demo/ecollm-stack/mcp/rag_server.py"],
+    "cwd": "/home/demo/ecollm-stack",
+    "env": { "PYTHONPATH": "/home/demo/ecollm-stack", "RAG_REPO": "ecollm-stack" }
+} } }
+```
+
+**Baseline de avaliação** (`eval/`): `recall@k` sobre dataset curado. Estado atual
+(índice completo, 207 chunks): **recall@8 = 0,933** (@1=0,433 · @3=0,667 · @5=0,800 · @10=0,967 · MRR=0,577).
+
+### Runbook — recuperação do índice
+
+`init.sql` roda **só no primeiro bootstrap do volume**. Se o schema corromper ou mudar:
+
+```bash
+docker compose down rag-db
+docker volume rm ecollm-stack_rag_db_data   # nome do volume conforme `docker volume ls`
+docker compose up -d rag-db                  # re-executa init.sql (extensão + tabela + índices)
+.venv/bin/python -m ingest.cli sync          # re-embeda o corpus do zero
+```
+
+Após qualquer edição em `rag-db/init.sql`, recrie o volume e confira `pg_indexes`
+(HNSW `halfvec_cosine_ops` + GIN tsvector) — ver Gotchas abaixo (BUG-002).
+
 ## Decisões registradas
 
 - **Embeddings**: só Google. O Token Plan não tem embedder (404 no upstream, comprovado). Upgrade path pago documentado: `voyage-code-3` (~$0,18 o ingest inteiro) — decidir com baseline recall@k, não no escuro. Trocar embedder = re-embedar o índice todo.
@@ -57,5 +111,5 @@ Armadilhas já encontradas ao montar o índice RAG (pgvector + Docker):
 ## Roadmap
 
 - [x] Gateway multi-provedor + grupos fast/thinking + cache de embeddings
-- [ ] **Ingest RAG**: serviço pgvector (`rag-db`), loader via `git ls-files`, chunker AST (tree-sitter) p/ código e por `##` p/ docs, busca híbrida, baseline recall@k
-- [ ] **Headroom**: pré-processador de contexto (dedupe de chunks, resumo de histórico, trunc de tool-output) — ataca os ~16–54k tokens de entrada por chamada de agente
+- [x] **Ingest RAG** (FASES 0–5): serviço pgvector (`rag-db`), loader via `git ls-files`, chunker AST (tree-sitter) p/ código e por `##` p/ docs, busca híbrida (HNSW+tsvector via RRF), baseline recall@8=0,933, CLI `rag`/`rag-sync` e servidor MCP `rag_search`
+- [ ] **Headroom / context caching**: pré-processador de contexto (dedupe de chunks, resumo de histórico, trunc de tool-output) **+ cache de prefixo upstream**. Alvo: os ~105k prompt-tokens de ENTRADA por turno do agente Roo Code, medidos nos SpendLogs do LiteLLM (não a estimativa inicial de 16–54k). Ver `.planning/PLANO-RAG.md` §4b-6 e `PLANO-FASE6-CACHE.md`.
