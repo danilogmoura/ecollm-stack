@@ -157,6 +157,34 @@ def count_chunks(conn: psycopg.Connection, repo: str) -> int:
     return conn.execute("SELECT count(*) FROM chunks WHERE repo = %s", (repo,)).fetchone()[0]
 
 
+# ---------------------------------------------------------------------------
+# Estado de sync (S14 / T-OPS-2) — uma linha por repo com o HEAD do ultimo ingest.
+# ---------------------------------------------------------------------------
+
+_SYNC_STATE_UPSERT = """
+INSERT INTO rag_sync_state (repo, head_sha, dirty, synced_at)
+VALUES (%(repo)s, %(head)s, %(dirty)s, now())
+ON CONFLICT (repo) DO UPDATE
+   SET head_sha = EXCLUDED.head_sha,
+       dirty    = EXCLUDED.dirty,
+       synced_at = now()
+"""
+
+
+def record_sync_state(conn: psycopg.Connection, repo: str,
+                      head_sha: str | None, dirty: bool) -> None:
+    """Grava/atualiza o estado do git no momento deste sync (chamado dentro da transacao)."""
+    conn.execute(_SYNC_STATE_UPSERT,
+                 {"repo": repo, "head": head_sha, "dirty": dirty})
+
+
+def get_sync_state(conn: psycopg.Connection, repo: str):
+    """(head_sha, dirty) do ultimo sync, ou None se nao houver registro."""
+    return conn.execute(
+        "SELECT head_sha, dirty FROM rag_sync_state WHERE repo = %s", (repo,)
+    ).fetchone()
+
+
 def connect(url: str | None = None) -> psycopg.Connection:
     """Abre conexao (autocommit desligado — o chamador controla a transacao)."""
     return psycopg.connect(url or db_url_from_env())

@@ -46,6 +46,69 @@ def repo_name(repo_root: Path) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Estado de sync (S14 / T-OPS-2 — staleness do índice sinalizada)
+# ---------------------------------------------------------------------------
+
+def _git_state(repo_root: Path) -> tuple[str | None, bool]:
+    """(HEAD sha, working_tree_dirty). HEAD=None se nao for repo git.
+
+    dirty = ha mudanca em ARQUIVO VERSIONADO (staged/unstaged/untracked versionado).
+    Arquivos ignorados (.env, .venv) NAO contam — o corpus e `git ls-files`, entao
+    o que nao esta versionado nunca entra no indice e nao deve marcar stale.
+    """
+    try:
+        head = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip() or None
+    except subprocess.CalledProcessError:
+        head = None
+    try:
+        # -u=no: nao listar untracked (são irrelevantes p/ o corpus versionado);
+        # comparamos apenas tracked modifications contra HEAD.
+        porcelain = subprocess.run(
+            ["git", "-C", str(repo_root), "status", "--porcelain", "--untracked-files=no"],
+            capture_output=True, text=True, check=True,
+        ).stdout
+        dirty = bool(porcelain.strip())
+    except subprocess.CalledProcessError:
+        dirty = False
+    return head, dirty
+
+
+def is_index_stale(conn, repo: str, repo_root: str | Path) -> tuple[bool, str]:
+    """Compara estado atual do git vs último sync registrado (tabela rag_sync_state).
+
+    Retorna (stale, motivo_legivel). Nunca levanta — falha vira aviso conservador
+    ('nao sabemos', stale=True) para NUNCA dar falsa garantia de frescor. Se nao
+    houver registro de sync (indice legado pré-S14), tratamos como desconhecido.
+    """
+    repo_root = Path(repo_root).resolve()
+    if conn is None:
+        return True, "sem conexao com o indice — impossivel confirmar frescor"
+    try:
+        row = conn.execute(
+            "SELECT head_sha, dirty FROM rag_sync_state WHERE repo = %s",
+            (repo,),
+        ).fetchone()
+    except Exception as exc:  # tabela ausente (schema pré-S14) etc.
+        return True, f"estado de sync indisponivel ({exc.__class__.__name__})"
+    if row is None:
+        return True, ("nenhum registro de sync encontrado — rode 'rag-sync' para "
+                      "registrar o HEAD e habilitar o aviso de desatualizacao")
+    synced_head, synced_dirty = row[0], row[1]
+    head, dirty = _git_state(repo_root)
+    if head is None:
+        return True, "diretorio nao e um repo git — impossivel comparar com o sync"
+    if head != synced_head:
+        return True, (f"HEAD mudou desde o ultimo sync "
+                      f"(sync={synced_head[:8]} atual={head[:8]})")
+    if dirty and not synced_dirty:
+        return True, "ha mudancas nao commitadas em arquivos versionados desde o sync"
+    return False, f"indice sincronizado com HEAD {head[:8]}"
+
+
+# ---------------------------------------------------------------------------
 # Gate gitleaks (§1, nota §5)
 # ---------------------------------------------------------------------------
 
@@ -203,6 +266,11 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             report.chunks_total = store.count_chunks(conn, repo)
             report.changed_files = changed_paths
             report.removed_files = removed
+
+            # S14: registra o estado do git neste sync (mesma transacao — só fica
+            # marcado como sincronizado se o ingest inteiro commitar).
+            head_sha, dirty = _git_state(repo_root)
+            store.record_sync_state(conn, repo, head_sha, dirty)
         return report
     finally:
         if conn is not None:

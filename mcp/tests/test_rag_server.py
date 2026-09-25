@@ -142,3 +142,40 @@ def test_call_tool_erro_vira_payload_sem_crash(monkeypatch):
     payload = json.loads(res.content[0].text)
     assert payload["results"] == []
     assert "db fora do ar" in payload["error"]
+
+
+# ---------------------------------------------------------------------------
+# S14 — envelope traz aviso de desatualizacao (campo extra retrocompativeis)
+# ---------------------------------------------------------------------------
+
+def test_envelope_sem_stale_quando_fresco(monkeypatch):
+    fake = FakeSearch([_hit()])
+    monkeypatch.setattr(rag_server, "search", fake)
+    monkeypatch.setattr(rag_server, "staleness_note", lambda repo=None: None)
+    res = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "oi"}))
+    payload = json.loads(res.content[0].text)
+    assert "stale" not in payload and "notice" not in payload
+    assert payload["results"][0]["path"] == "ingest/search.py"
+
+
+def test_envelope_com_stale_quando_desatualizado(monkeypatch):
+    fake = FakeSearch([_hit()])
+    monkeypatch.setattr(rag_server, "search", fake)
+    monkeypatch.setattr(
+        rag_server, "staleness_note",
+        lambda repo=None: "[aviso] indice pode estar desatualizado — HEAD mudou")
+    res = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "oi"}))
+    payload = json.loads(res.content[0].text)
+    assert payload["stale"] is True
+    assert "HEAD mudou" in payload["notice"]
+    # contrato base preservado mesmo com o campo extra
+    assert payload["results"][0]["path"] == "ingest/search.py"
+
+
+def test_staleness_note_nunca_levanta(monkeypatch):
+    def boom(*a, **k):
+        raise RuntimeError("db fora")
+    monkeypatch.setattr("ingest.search.staleness_warning", boom)
+    # deve retornar None (ou string), jamais propagar exceção
+    out = rag_server.staleness_note()
+    assert out is None or isinstance(out, str)

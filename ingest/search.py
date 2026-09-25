@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
 import psycopg
@@ -168,3 +169,32 @@ def search(
     finally:
         if own_conn:
             conn.close()
+
+
+# ---------------------------------------------------------------------------
+# Aviso de desatualizacao (S14 / T-OPS-2)
+# ---------------------------------------------------------------------------
+
+def staleness_warning(repo_root: str | Path, repo: str,
+                      conn: psycopg.Connection | None = None) -> str | None:
+    """Retorna uma mensagem de aviso se o indice pode estar desatualizado, senao None.
+
+    Compara o git atual (HEAD/arvore) contra o ultimo sync registrado em
+    rag_sync_state. Usado pelo CLI (`rag`) e pelo servidor MCP (`rag_search`) para
+    NUNCA apresentar resultado como fresco quando o codigo mudou desde o ingest.
+    Import de ingest feito aqui (lazy) para evitar ciclo no topo do modulo.
+    Nunca levanta: qualquer falha vira aviso conservador (nao dar falsa garantia).
+    """
+    from . import ingest as _ingest  # lazy — evita ciclo de import no topo
+
+    own = conn is None
+    try:
+        if own:
+            conn = psycopg.connect(db_url_from_env())
+        stale, reason = _ingest.is_index_stale(conn, repo, repo_root)
+    except Exception as exc:  # DB fora, etc. — melhor avisar do que silenciar
+        return f"[aviso] nao foi possivel verificar frescor do indice ({exc.__class__.__name__})"
+    finally:
+        if own and conn is not None:
+            conn.close()
+    return f"[aviso] indice pode estar desatualizado — {reason}" if stale else None

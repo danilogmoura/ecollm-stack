@@ -76,3 +76,17 @@ CREATE INDEX IF NOT EXISTS chunks_tsv_gin
 
 -- Filtros comuns (por repo e por kind) — baratos, ajudam o planner.
 CREATE INDEX IF NOT EXISTS chunks_repo_kind ON chunks (repo, kind);
+
+-- ---------------------------------------------------------------------------
+-- Estado de sync (S14 / T-OPS-2) — sinaliza indice desatualizado.
+-- Uma linha por repo: guarda o HEAD (e se a arvore estava suja) no momento do
+-- ultimo ingest bem-sucedido. rag/rag_search comparam o git atual contra este
+-- registro e emitem aviso quando divergir. NAO faz parte do corpus; nao e
+-- embedado nem indexado vetorialmente.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS rag_sync_state (
+    repo        text PRIMARY KEY,
+    head_sha    text,                      -- git rev-parse HEAD no momento do sync
+    dirty       boolean NOT NULL DEFAULT false,  -- arvore versionada suja no sync?
+    synced_at   timestamptz NOT NULL DEFAULT now()
+);

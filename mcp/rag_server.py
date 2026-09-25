@@ -128,6 +128,15 @@ def run_search(
     return [hit_to_dict(h) for h in hits]
 
 
+def staleness_note(repo: str | None = None) -> str | None:
+    """S14: mensagem de indice desatualizado (ou None se fresco). Nunca levanta."""
+    try:
+        from ingest import search as _search
+        return _search.staleness_warning(REPO_ROOT, repo or _default_repo())
+    except Exception:  # noqa: BLE001 — frescor é melhor-esforço, nunca derruba a tool
+        return None
+
+
 server = MCPServer(
     name="rag-search",
     instructions=(
@@ -166,7 +175,14 @@ async def rag_search(
         )
     except Exception as exc:  # noqa: BLE001 — erro vira payload p/ o agente, nao crash
         return json.dumps({"error": str(exc), "results": []}, ensure_ascii=False)
-    return json.dumps({"results": results}, ensure_ascii=False)
+    payload: dict = {"results": results}
+    # S14: se o indice pode estar desatualizado, sinaliza no envelope (sem quebrar
+    # o contrato {results:[...]} — campo extra e retrocompativel).
+    note = staleness_note()
+    if note:
+        payload["stale"] = True
+        payload["notice"] = note
+    return json.dumps(payload, ensure_ascii=False)
 
 
 def main() -> None:

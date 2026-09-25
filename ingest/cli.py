@@ -113,6 +113,10 @@ def ask_llm(question: str, context: str, cfg: dict | None = None) -> str:
 def cmd_rag(args) -> int:
     repo_root = Path(args.repo).resolve()
     repo = ingest_mod.repo_name(repo_root)
+    # S14: avisa ANTES do resultado se o indice pode estar desatualizado.
+    warn = search.staleness_warning(repo_root, repo)
+    if warn:
+        print(warn, file=sys.stderr)
     qvec = None
     if args.ask:
         # embeda a query uma vez; reusa p/ busca (evita dupla chamada ao proxy)

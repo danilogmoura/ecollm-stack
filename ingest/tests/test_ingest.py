@@ -40,13 +40,19 @@ def repo(tmp_path):
 
 
 class _NullConn:
-    """Conexão fake só com close() — o orquestrador usa `with conn:` e close()."""
+    """Conexão fake só com close() — o orquestrador usa `with conn:` e close().
+
+    Também aceita .execute() no-op (S14: record_sync_state grava estado do git).
+    """
 
     def __enter__(self):
         return self
 
     def __exit__(self, *a):
         return False
+
+    def execute(self, *a, **k):  # S14 record_sync_state — nada a gravar no fake
+        return self
 
     def close(self):
         pass
