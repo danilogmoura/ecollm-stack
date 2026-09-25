@@ -2,8 +2,9 @@
 
 Comandos (plano §3 FASE 3):
   rag "pergunta"            -> busca hibrida, imprime top-k chunks com fonte+score
-  rag --ask "pergunta"      -> busca + gera resposta via rag-chat citando [n];
-                               se nada relevante no indice, responde "NAO SEI".
+  rag --ask "pergunta"      -> busca + gera resposta via ASK_MODEL_DEFAULT
+                               (qwen3.8-flash-fast) citando [n]; se nada
+                               relevante no indice, responde "NAO SEI".
   rag-sync [--repo PATH]    -> roda o ingest (FASE 2); --dry-run repassa.
 
 `rag` usa o repo do cwd por default (mesmo identificador `repo` gravado pelo

@@ -5,7 +5,9 @@ agente (Roo Code / Copilot / qualquer cliente stdio MCP) consulte o indice do
 repositorio e receba chunks com fonte.
 
 Contrato da tool (plano .planning/PLANO-RAG.md §3 FASE 5):
-    rag_search(query: str, k: int = 8) -> JSON [{path, symbol, kind, score, source, content}]
+    rag_search(query: str, k: int = 8) -> JSON {"results": [{path, symbol, kind, score, source, content}]}
+    (em erro: {"error": str, "results": []}). O envelope {"results": [...]} e
+    deliberado: deixa espaco p/ metadados futuros sem quebrar o contrato do cliente.
 
 Decisoes travadas no plano:
   - Reusa ingest.search.search() tal qual: mesma fusao RRF e MESMA ordenacao
