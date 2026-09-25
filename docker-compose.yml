@@ -22,13 +22,14 @@ services:
               count: all
               capabilities: [ gpu ]
 
+  # Credenciais lidas do .env (ver .env.example). Defaults = DEV LOCAL apenas.
   litellm-db:
     image: postgres:15
     container_name: ai-litellm-db
     environment:
-      - POSTGRES_USER=litellm
-      - POSTGRES_PASSWORD=litellm_secret
-      - POSTGRES_DB=litellm
+      - POSTGRES_USER=${LITELLM_DB_USER:-litellm}
+      - POSTGRES_PASSWORD=${LITELLM_DB_PASSWORD:-litellm_secret}
+      - POSTGRES_DB=${LITELLM_DB_NAME:-litellm}
     volumes:
       - litellm_db_data:/var/lib/postgresql/data
     restart: unless-stopped
@@ -53,9 +54,9 @@ services:
     ports:
       - "127.0.0.1:5433:5432"
     environment:
-      - POSTGRES_USER=rag
-      - POSTGRES_PASSWORD=rag_secret
-      - POSTGRES_DB=rag
+      - POSTGRES_USER=${RAG_DB_USER:-rag}
+      - POSTGRES_PASSWORD=${RAG_DB_PASSWORD:-rag_secret}
+      - POSTGRES_DB=${RAG_DB_NAME:-rag}
     volumes:
       - rag_db_data:/var/lib/postgresql/data
       - ./rag-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -70,15 +71,15 @@ services:
     ports:
       - "4000:4000"
     environment:
-      - DATABASE_URL=postgresql://litellm:litellm_secret@litellm-db:5432/litellm
+      - DATABASE_URL=postgresql://${LITELLM_DB_USER:-litellm}:${LITELLM_DB_PASSWORD:-litellm_secret}@litellm-db:5432/${LITELLM_DB_NAME:-litellm}
       - REDIS_URL=redis://litellm-redis:6379
-      - LITELLM_MASTER_KEY=sk-stack-mestra-123
+      - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:-sk-stack-mestra-123}
       - LITELLM_LOG=DEBUG
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
-      # URL do banco do RAG — os scripts de ingest (FASE 1+) leem do mesmo .env;
-      # exposto aqui tb para futuras tools internas do proxy.
-      - RAG_DB_URL=postgresql://rag:rag_secret@rag-db:5432/rag
+      # URL do banco do RAG vista pelo CONTAINER (rede interna, host=rag-db).
+      # O CLI de ingest no HOST usa RAG_DB_URL (localhost:5433) do mesmo .env.
+      - RAG_DB_URL=${RAG_DB_URL_INTERNAL:-postgresql://rag:rag_secret@rag-db:5432/rag}
     volumes:
       - ./litellm/config.yaml:/app/config.yaml:ro
     command: [ "--config", "/app/config.yaml", "--port", "4000" ]
