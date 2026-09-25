@@ -1,2 +1,5 @@
 # Segredos da stack — nunca versionar
 .env
+
+# Planejamento, análise de bugs e resolução — exclusivo local, nunca sobe
+.planning/
