@@ -11,6 +11,10 @@
 -- init.sql so executa em VOLUME NOVO -- mudar este arquivo num volume existente
 -- NAO re-aplica nada; faca ALTER manual OU docker compose down -v (apaga os
 -- dados) e suba de novo. Nunca confie em "container up" = "schema pronto".
+-- S18 (T-OPS-3): para EVOLUIR o schema depois do bootstrap, use a convencao de
+-- migracoes versionadas em rag-db/migrations/ + python rag-db/run_migrations.py.
+-- init.sql retrata o estado inicial (volume novo); as migracoes trazem o delta
+-- (volume antigo). Os dois caminhos convergem p/ o mesmo schema (verify_schema.py).
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS vector;
