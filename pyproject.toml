@@ -1,0 +1,41 @@
+# ============================================================================
+# Projeto Python da stack RAG (ingest/ eval/ mcp/). Fonte de verdade para o
+# LOCKFILE (`uv.lock`) usado pela CI (S27 / T-ENV-5). requirements.txt continua
+# como doc legível das versões; pyproject é a forma que o uv congela.
+# Python 3.12, sem framework de RAG (decisão travada no PLANO-RAG §3).
+# ============================================================================
+
+[project]
+name = "ecollm-rag"
+version = "0.0.0"
+description = "RAG de código+docs (pgvector + LiteLLM) do ecollm-stack"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "tree-sitter==0.26.0",
+    "tree-sitter-python==0.25.0",
+    "tree-sitter-javascript==0.25.0",
+    "tree-sitter-typescript==0.23.2",
+    "tree-sitter-go==0.25.0",
+    "tree-sitter-bash==0.25.1",
+    "pyyaml>=6",
+    "requests>=2.31",          # embed.py fala com LiteLLM via HTTP
+    "psycopg[binary]>=3.2",    # store.py (FASE 2)
+    "mcp>=2.2,<3",             # FASE 5: servidor MCP rag_search (stdio), API 2.x
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+# Projeto "virtual": não empacotamos nem instalamos nosso próprio código — só
+# queremos o grafo de dependências travado em uv.lock. `package = false` evita o
+# uv tentar construir uma wheel (não há módulo ecollm_rag). A CI roda `uv sync`
+# para trazer as deps e executa pytest por caminho.
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+# rootdir do repo; testes vivem em */tests. addopts mantém saída enxuta.
+testpaths = ["ingest/tests", "eval/tests", "mcp/tests"]
+addopts = "-q"

@@ -79,6 +79,22 @@ Registro do lado do cliente em `mcp/mcp.example.json`:
 **Baseline de avaliação** (`eval/`): `recall@k` sobre dataset curado. Estado atual
 (índice completo, 207 chunks): **recall@8 = 0,933** (@1=0,433 · @3=0,667 · @5=0,800 · @10=0,967 · MRR=0,577).
 
+### Testes e CI
+
+Dependências travadas em `uv.lock` (fonte: `pyproject.toml`; `requirements.txt` é só
+doc legível). Ambiente local:
+
+```bash
+VIRTUAL_ENV=.venv ~/.local/bin/uv sync --extra dev   # cria/.atualiza .venv a partir do lock
+.venv/bin/python -m pytest                            # suíte unitária (sem rede/DB)
+```
+
+A pipeline **`.github/workflows/ci.yml`** roda essa suíte em todo push/PR no runner da
+GitHub Actions (`uv sync --frozen` + `pytest`) — falha bloqueia merge com branch protection.
+O **gate de recall** (`python -m eval.recall --gate`) **não** roda na CI: exige índice
+pgvector vivo + chamada real de embedding (chave/cota Gemini), inviável/seguro no runner
+efêmero. Ele continua validado localmente após qualquer mudança que afete ranking.
+
 ### Runbook — recuperação do índice
 
 `init.sql` roda **só no primeiro bootstrap do volume**. Se o schema corromper ou mudar:

@@ -1,0 +1,41 @@
+# ============================================================================
+# S27 / T-ENV-5 — CI mínima: instala deps a partir do uv.lock e roda a suite de
+# testes unitários em push/PR. Falha => bloqueia merge (com branch protection).
+#
+# Escopo deliberado: o GATE DE RECALL (eval/recall.py --gate) NÃO roda aqui.
+# Ele exige (a) índice pgvector vivo com 207+ chunks e (b) chamada real de
+# embedding via LiteLLM→Gemini (chave + cota). Nenhum desses é viável/seguro no
+# runner efêmero da GitHub Actions sem expor credenciais ou depender de serviço
+# externo pago. O gate continua sendo validado localmente (FASE 4, PLANO-RAG
+# §5b). Aqui rodamos APENAS os testes que não tocam rede/DB (mesmo critério dos
+# testes existentes: nenhum teste unitário abre conexão com LiteLLM/Postgres).
+# ============================================================================
+name: ci
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # uv fornece Python + gerencia o ambiente a partir do lockfile travado.
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python 3.12
+        run: uv python install 3.12
+
+      # --frozen: usa uv.lock tal como commitado (falha se divergir do pyproject).
+      - name: Sync dependencies from uv.lock
+        run: uv sync --extra dev --frozen
+
+      # Suite determinística (sem rede/DB). Saída enxuta (-q vem do pyproject).
+      - name: Run test suite
+        run: uv run pytest
