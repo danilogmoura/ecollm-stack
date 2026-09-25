@@ -60,6 +60,22 @@ services:
     volumes:
       - rag_db_data:/var/lib/postgresql/data
       - ./rag-db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # S11 (T-OPS-1): o entrypoint do Postgres roda init.sql SEM ON_ERROR_STOP
+    # garantido e só na 1a criação do volume, então um statement inválido no meio
+    # pode deixar o container "up" com schema INCOMPLETO (ex.: sem o índice HNSW).
+    # Este healthcheck confere a estrutura real (tabela + 3 índices obrigatórios
+    # válidos) e marca o serviço como unhealthy se divergir — nunca "ready" c/ schema
+    # quebrado. Checagem completa (halfvec 3072, opclass halfvec_cosine_ops, tsv
+    # gerada) vive em rag-db/verify_schema.py; rode-o após mexer em init.sql.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          psql -U "$${POSTGRES_USER:-rag}" -d "$${POSTGRES_DB:-rag}" -tA -c "SELECT CASE WHEN to_regclass('chunks') IS NOT NULL AND (SELECT count(*) FROM (VALUES ('chunks_embedding_hnsw','hnsw'), ('chunks_tsv_gin','gin'),('chunks_repo_path_content_hash_key','btree')) need(name,am) JOIN pg_index i ON i.indrelid='chunks'::regclass JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_am a ON a.oid=c.relam WHERE c.relname=need.name AND a.amname=need.am AND i.indisvalid)=3 THEN 'ok' ELSE 'schema-incompleto' END;" | grep -q '^ok$$'
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
     restart: unless-stopped
 
   litellm:

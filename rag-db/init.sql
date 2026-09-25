@@ -5,6 +5,12 @@
 -- IMPORTANTE (BUG-002): o entrypoint roda psql SEM ON_ERROR_STOP por default;
 -- ate a versao atual do script oficial ele para no primeiro erro, mas NAO ha
 -- garantia. Validar schema pos-boot com \d chunks sempre que mexer aqui.
+-- S11 (T-OPS-1): a validacao esta automatizada. Healthcheck no compose marca o
+-- servico unhealthy se faltar tabela/indice obrigatorio; e o script completo
+-- (meio ambiente / CI) roda:  python rag-db/verify_schema.py
+-- init.sql so executa em VOLUME NOVO -- mudar este arquivo num volume existente
+-- NAO re-aplica nada; faca ALTER manual OU docker compose down -v (apaga os
+-- dados) e suba de novo. Nunca confie em "container up" = "schema pronto".
 -- ============================================================================
 
 CREATE EXTENSION IF NOT EXISTS vector;
