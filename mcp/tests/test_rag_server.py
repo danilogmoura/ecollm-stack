@@ -110,6 +110,66 @@ def test_run_search_query_vazia_levanta(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
+# S22 — log estruturado de observabilidade (query, k, latência, n resultados)
+# ---------------------------------------------------------------------------
+
+def _capture_stderr(monkeypatch):
+    """Instala um coletor no lugar de sys.stderr.write do módulo sob teste."""
+    lines: list[str] = []
+    monkeypatch.setattr(rag_server.sys.stderr, "write", lambda s: lines.append(s))
+    return lines
+
+
+def test_log_estruturado_campos_obrigatorios(monkeypatch):
+    lines = _capture_stderr(monkeypatch)
+    fake = FakeSearch([_hit(), _hit()])
+    monkeypatch.setattr(rag_server, "search", fake)
+    rag_server.run_search("gitleaks gate", k=4, repo="r")
+    assert len(lines) == 1
+    rec = json.loads(lines[0])
+    assert rec["event"] == "rag_search"
+    assert rec["query"] == "gitleaks gate"
+    assert rec["k"] == 4
+    assert rec["n_results"] == 2
+    assert isinstance(rec["latency_ms"], (int, float)) and rec["latency_ms"] >= 0
+    assert rec["status"] == "ok"
+    assert rec["slo_ms"] == rag_server.SLO_LATENCY_MS
+    assert rec["slo_breach"] is (rec["latency_ms"] > rag_server.SLO_LATENCY_MS)
+
+
+def test_log_registra_erro_e_propaga(monkeypatch):
+    lines = _capture_stderr(monkeypatch)
+
+    def boom(query, **kwargs):
+        raise RuntimeError("db fora do ar")
+
+    monkeypatch.setattr(rag_server, "search", boom)
+    with pytest.raises(RuntimeError):
+        rag_server.run_search("x", k=3, repo="r")
+    rec = json.loads(lines[0])
+    assert rec["status"].startswith("error:")
+    assert rec["n_results"] == 0
+
+
+def test_log_nao_vaza_para_stdout(monkeypatch):
+    # o canal MCP (stdout) deve permanecer limpo; só stderr recebe o log
+    out_lines: list[str] = []
+    monkeypatch.setattr(rag_server.sys.stdout, "write", lambda s: out_lines.append(s))
+    _capture_stderr(monkeypatch)
+    monkeypatch.setattr(rag_server, "search", FakeSearch([_hit()]))
+    rag_server.run_search("oi", k=1, repo="r")
+    assert out_lines == []
+
+
+def test_log_trunca_query_longa(monkeypatch):
+    lines = _capture_stderr(monkeypatch)
+    monkeypatch.setattr(rag_server, "search", FakeSearch([]))
+    rag_server.run_search("q" * 500, k=2, repo="r")
+    rec = json.loads(lines[0])
+    assert len(rec["query"]) <= 200
+
+
+# ---------------------------------------------------------------------------
 # registro + invocacao da tool pela API oficial do MCPServer
 # (sem pytest-asyncio: dirigimos o event loop com asyncio.run nos proprios testes)
 # ---------------------------------------------------------------------------

@@ -28,6 +28,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import time
 from pathlib import Path
 
 # Garante que o pacote `ingest` seja importavel quando o servidor e lancado por
@@ -86,6 +87,24 @@ embed.load_dotenv()
 
 MAX_K = 50  # teto defensivo p/ nao despejar contexto demais no prompt do agente
 
+# SLO de latência da busca (S22 / T-OPS-4): a parte DB do rag_search mede ~1-6 ms
+# morno; o orçamento <200 ms cobre a ida ao embedder da QUERY quando o cliente não
+# injeta qvec. Medir: o log estruturado abaixo traz latency_ms por chamada — um
+# `grep '"event": "rag_search"' stderr.log | jq .latency_ms` dá a distribuição;
+# p/ p95, `sort -n | awk '{a[NR]=$1} END{print a[int(NR*0.95)+1]}'`.
+SLO_LATENCY_MS = 200
+
+
+def _log_line(obj: dict) -> None:
+    """Escreve UMA linha JSON em stderr (S22). Nunca levanta: observabilidade não
+    pode derrubar a tool. stdout é reservado ao protocolo MCP (stdio), por isso o
+    log vai para stderr/arquivo, nunca para o canal da conversa."""
+    try:
+        sys.stderr.write(json.dumps(obj, ensure_ascii=False) + "\n")
+        sys.stderr.flush()
+    except Exception:  # noqa: BLE001 — logging best-effort
+        pass
+
 
 def _default_repo() -> str:
     return os.environ.get("RAG_REPO") or repo_name(REPO_ROOT)
@@ -118,14 +137,40 @@ def run_search(
     if not query or not query.strip():
         raise ValueError("query vazia")
     k = max(1, min(int(k), MAX_K))
-    hits = search(
-        query.strip(),
-        repo=repo or _default_repo(),
-        kind=kind,
-        path_prefix=path_prefix,
-        final_k=k,
-    )
-    return [hit_to_dict(h) for h in hits]
+    repo_used = repo or _default_repo()
+    t0 = time.perf_counter()
+    status = "ok"
+    n = 0
+    try:
+        hits = search(
+            query.strip(),
+            repo=repo_used,
+            kind=kind,
+            path_prefix=path_prefix,
+            final_k=k,
+        )
+        out = [hit_to_dict(h) for h in hits]
+        n = len(out)
+        return out
+    except Exception as exc:  # noqa: BLE001 — registra e propaga (caller vira payload)
+        status = f"error:{type(exc).__name__}"
+        raise
+    finally:
+        latency_ms = round((time.perf_counter() - t0) * 1000, 2)
+        _log_line({
+            "event": "rag_search",
+            "ts": round(time.time(), 3),
+            "repo": repo_used,
+            "query": query.strip()[:200],
+            "k": k,
+            "kind": kind,
+            "path_prefix": path_prefix,
+            "n_results": n,
+            "latency_ms": latency_ms,
+            "slo_ms": SLO_LATENCY_MS,
+            "slo_breach": latency_ms > SLO_LATENCY_MS,
+            "status": status,
+        })
 
 
 def staleness_note(repo: str | None = None) -> str | None:
