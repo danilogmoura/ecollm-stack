@@ -16,6 +16,7 @@ tree-sitter-bash==0.25.1
 pyyaml>=6
 requests>=2.31          # embed.py fala com LiteLLM via HTTP
 psycopg[binary]>=3.2    # store.py (FASE 2)
+mcp>=1.0                # FASE 5: servidor MCP rag_search (stdio). Inst do venv: mcp==2.2.0
 
 # --- dev/testes ---
 pytest>=8

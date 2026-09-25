@@ -1,0 +1,16 @@
+{
+    "//": "Exemplo de registro do servidor MCP rag_search. Copie os campos de 'rag-search' para o mcp.json do seu cliente (Roo Code: ~/.config/roo-code/mcp_settings.json | Copilot: .vscode/mcp.json). Ajuste os caminhos absolutos.",
+    "mcpServers": {
+        "rag-search": {
+            "command": "/home/demo/ecollm-stack/.venv/bin/python",
+            "args": [
+                "/home/demo/ecollm-stack/mcp/rag_server.py"
+            ],
+            "cwd": "/home/demo/ecollm-stack",
+            "env": {
+                "PYTHONPATH": "/home/demo/ecollm-stack",
+                "RAG_REPO": "ecollm-stack"
+            }
+        }
+    }
+}
