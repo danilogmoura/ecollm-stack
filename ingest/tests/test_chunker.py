@@ -121,6 +121,45 @@ def test_doc_prepara_quebra_de_linha_unica_gigante():
 
 
 # ---------------------------------------------------------------------------
+# S19 — âncora "path > heading" no conteúdo de chunks doc
+# ---------------------------------------------------------------------------
+
+def test_doc_ancora_path_heading_no_topo():
+    src = "# T\n\n## Gotchas\n\ntexto da secao de gotchas.\n"
+    ch = [c for c in chunker.chunk_doc("README.md", src) if c.symbol == "Gotchas"][0]
+    assert ch.content.splitlines()[0] == "README.md > Gotchas"
+    # corpo original preservado logo abaixo da âncora
+    assert "texto da secao de gotchas." in ch.content
+
+
+def test_doc_ancora_nao_duplica_em_reprocessamento():
+    src = "# T\n\n## Sec\n\nconteudo.\n"
+    once = [c for c in chunker.chunk_doc("a.md", src) if c.symbol == "Sec"][0].content
+    twice = chunker._anchor_doc("a.md", "Sec", once)  # re-aplicar não deve repetir
+    assert twice == once
+    assert twice.count("a.md > Sec") == 1
+
+
+def test_doc_sem_heading_nao_recebe_ancora():
+    # preâmbulo antes do primeiro ## (symbol None) fica intacto
+    src = "intro solta sem titulo\n\n## A\n\naaa\n"
+    pre = [c for c in chunker.chunk_doc("d.md", src) if c.symbol is None]
+    for c in pre:
+        assert ">" not in c.content.splitlines()[0]
+
+
+def test_doc_ancora_presente_em_cada_parte_grande():
+    corpo = "\n".join(f"linha numerada {i} ocupando espaco valido" for i in range(400))
+    src = f"# T\n\n## S\n\n{corpo}\n"
+    parts = [c for c in chunker.chunk_doc("d.md", src)
+             if c.symbol and c.symbol.startswith("S")]
+    assert len(parts) >= 2
+    for p in parts:
+        # cada parte carrega a âncora com o título rotulado daquela parte
+        assert p.content.splitlines()[0].startswith("d.md > S")
+
+
+# ---------------------------------------------------------------------------
 # config
 # ---------------------------------------------------------------------------
 

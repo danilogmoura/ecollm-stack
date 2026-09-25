@@ -272,7 +272,7 @@ def chunk_doc(path: str, source: str) -> list[Chunk]:
     out: list[Chunk] = []
     for title, body in merged:
         if _est_tokens(body) <= DOC_MAX_TOK:
-            out.append(Chunk(path, "doc", "markdown", title, body))
+            parts = [body]
         else:
             max_chars = DOC_MAX_TOK * CHARS_PER_TOKEN
             # 1) pre-quebra paragrafos gigantes linha a linha em janela menor
@@ -321,11 +321,30 @@ def chunk_doc(path: str, source: str) -> list[Chunk]:
                 size += add
             if buf:
                 parts.append("\n\n".join(buf))
-            for i, part in enumerate(parts):
-                out.append(Chunk(path, "doc", "markdown",
-                                 f"{title} ({i+1})" if title and len(parts) > 1 else title,
-                                 part))
+        for i, part in enumerate(parts):
+            sym = f"{title} ({i+1})" if title and len(parts) > 1 else title
+            out.append(Chunk(path, "doc", "markdown", sym,
+                             _anchor_doc(path, sym, part)))
     return out
+
+
+def _anchor_doc(path: str, heading: str | None, body: str) -> str:
+    """S19 (T-RET-1): âncora `path > heading` no TOPO do conteúdo de chunks doc.
+
+    O chunk perde o contexto de ONDE vive quando é embedado isolado; prefixar a
+    linha `path > heading` dá ao vetor e ao tsvector a âncora da seção, ajudando
+    perguntas que citam o arquivo/título (ex.: q03 'Gotchas'). A âncora entra no
+    `content` armazenado (e portanto no embed e no content_hash), mas NUNCA na
+    string de heading duplicada — só uma linha à frente. Se já começar com a
+    mesma âncora (re-processamento), não repete.
+    """
+    if not heading:
+        return body
+    anchor = f"{path} > {heading}"
+    first_line = body.lstrip().split("\n", 1)[0].strip() if body.strip() else ""
+    if first_line == anchor:
+        return body
+    return f"{anchor}\n{body}"
 
 
 # ---------------------------------------------------------------------------
