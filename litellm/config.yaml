@@ -105,7 +105,10 @@ model_list:
 
 litellm_settings:
   drop_params: true
-  set_verbose: true
+  # S28 (T-OPS-5): verbose desligado por default. Com set_verbose:true +
+  # LITELLM_LOG=DEBUG o proxy despejava o CORPO inteiro de cada request nos logs
+  # — incluindo a master key e todo o payload do agente. DEBUG só sob demanda.
+  set_verbose: false
   num_retries: 2
   # Cada item: {modelo_chamado: [fallbacks em ordem]}
   # Chat: Gemini -> qwen3:4b local (válido, mesma tarefa).

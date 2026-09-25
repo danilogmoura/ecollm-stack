@@ -92,7 +92,11 @@ services:
       # Sem default: falha-closed se .env não definir a chave (S17 removeu o
       # valor real hardcoded; antes caía em sk padrão conhecido publicamente).
       - LITELLM_MASTER_KEY=${LITELLM_MASTER_KEY:?LITELLM_MASTER_KEY ausente no .env}
-      - LITELLM_LOG=DEBUG
+      # S28 (T-OPS-5): nível de log do proxy é OT-IN por env, default INFO.
+      # DEBUG + set_verbose vazam corpo INTEIRO das requisições nos logs — o que
+      # inclui a master key e todo o payload do agente (ver diário PLANO-RAG §5b).
+      # Para depurar: LITELLM_LOG=DEBUG docker compose up (assumindo o risco).
+      - LITELLM_LOG=${LITELLM_LOG:-INFO}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
       # URL do banco do RAG vista pelo CONTAINER (rede interna, host=rag-db).
