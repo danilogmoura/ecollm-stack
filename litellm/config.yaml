@@ -128,10 +128,21 @@ litellm_settings:
   #  2. SEMÂNTICO (redis-semantic): doc avisa que "goes badly wrong on agentic
   #     traffic" — embedding aproximado serviria resposta errada. De fora.
   #  3. PROMPT CACHING de upstream (Anthropic/OpenAI/Gemini breakpoints): corta
-  #     o token de ENTRADA repetido, que é exatamente nosso gargalo. Mas exige
-  #     suporte nativo do provedor, e o Token Plan Qwen NÃO expõe nenhum campo
-  #     de cache na doc (grep em qwen.txt = zero hits). LiteLLM faz cache
-  #     pass-through só p/ Anthropic/OpenAI/Gemini, não p/ openai-compat custom.
+#     o token de ENTRADA repetido, que é exatamente nosso gargalo.
+#     [REGISTRO HISTÓRICO — AFIRMAÇÃO REFUTADA, preservada por regra do §6:]
+#     ~~"exige suporte nativo do provedor, e o Token Plan Qwen NÃO expõe nenhum
+#     campo de cache na doc (grep em qwen.txt = zero hits). LiteLLM faz cache
+#     pass-through só p/ Anthropic/OpenAI/Gemini, não p/ openai-compat custom."~~
+#     ➜ CORREÇÃO (BUG-007, ticket Alibaba 0065ETFBAP + teste empírico via este
+#       proxy): o Token Plan Individual SUPORTA context caching no endpoint
+#       OpenAI-compatível. O pass-through FOI medido EM ROTA openai-compat custom
+#       (sem upgrade): usage já devolve prompt_tokens_details.cached_tokens /
+#       cache_creation_input_tokens. Modos explicit/implicit ativos nos modelos
+#       qwen3.8-* (implícito hit ~20%; explícito criação 125%/hit menor, TTL 5min,
+#       ≤4 markers). A economia real de entrada mora AQUI, não só em headroom.
+#       Ver PLANO-RAG.md §4b-5/§4b-6 e .planning/docs/context-cache.md.
+#       (O bloco de cache RESPOSTA abaixo continua escopado em aembedding: isso é
+#        orthogonal — cache de resposta no proxy ≠ KV/prefixo cache no upstream.)
   #
   # ➜ HEADROOM (próxima camada, quando o RAG nascer): a economia real de entrada
   #   não é cache de resposta — é JANELA. Um pré-processador de contexto
