@@ -29,8 +29,10 @@ HEALTHY = {
         ("chunks_tsv_gin", "gin", True, "CREATE INDEX ... USING gin (tsv)"),
         ("chunks_repo_path_content_hash_key", "btree", True,
          "CREATE UNIQUE INDEX ... USING btree (repo, path, content_hash)"),
+        ("chunks_tsv_pt_gin", "gin", True,
+         "CREATE INDEX ... USING gin (tsv_pt) WHERE kind = 'doc'"),
     ],
-    "tsv": [("s",)],
+    "tsv": [("tsv", "s"), ("tsv_pt", "s")],
 }
 
 
@@ -91,3 +93,21 @@ def test_check_aborta_sem_tabela(monkeypatch):
     results = verify.check("u")
     assert results[0][0] is False
     assert "abortando" in results[-1][1].lower()
+
+
+def test_s20_detecta_indice_tsv_pt_ausente(monkeypatch):
+    """GIN parcial tsv_pt (S20) ausente deve ser reportado como falha."""
+    broken = {**HEALTHY,
+              "indexes": [r for r in HEALTHY["indexes"]
+                          if r[0] != "chunks_tsv_pt_gin"]}
+    monkeypatch.setattr(verify, "_fetch_all", _fake_fetch(broken))
+    results = verify.check("u")
+    assert any((not ok) and "chunks_tsv_pt_gin" in m for ok, m in results)
+
+
+def test_s20_detecta_coluna_tsv_pt_nao_gerada(monkeypatch):
+    """tsv_pt presente mas não GENERATED STORED ('s') → falha."""
+    monkeypatch.setattr(verify, "_fetch_all",
+                        _fake_fetch({**HEALTHY, "tsv": [("tsv", "s"), ("tsv_pt", "")]}))
+    results = verify.check("u")
+    assert any((not ok) and "tsv_pt" in m for ok, m in results)

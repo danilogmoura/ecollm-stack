@@ -225,12 +225,20 @@ def check_gate(agg: dict, *, k: int = GATE_K, threshold: float | None = None) ->
 # retrieval real (usa ingest.search + DB/env)
 # ---------------------------------------------------------------------------
 
-def make_live_retriever(repo: str, final_k: int) -> Callable[[Query], list[tuple[str, str | None, str]]]:
-    """Retriever que chama a busca hibrida real (rede LiteLLM + Postgres)."""
+def make_live_retriever(repo: str, final_k: int,
+                        lexical_pt_weight: float | None = None,
+                        ) -> Callable[[Query], list[tuple[str, str | None, str]]]:
+    """Retriever que chama a busca hibrida real (rede LiteLLM + Postgres).
+
+    `lexical_pt_weight` (S20): None => usa o default do search; 0.0 => desliga o
+    caminho léxico pt-BR (lado "B" do A/B de S20). Só faz sentido com DB vivo.
+    """
     from ingest import search as search_mod
 
+    kw = {} if lexical_pt_weight is None else {"lexical_pt_weight": lexical_pt_weight}
+
     def _retrieve(q: Query) -> list[tuple[str, str | None, str]]:
-        hits = search_mod.search(q.question, repo=repo, final_k=final_k)
+        hits = search_mod.search(q.question, repo=repo, final_k=final_k, **kw)
         return [(h.path, h.symbol, h.kind) for h in hits]
 
     return _retrieve
@@ -311,6 +319,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                          "(baseline - margem). Use após mexer em ingest/search/chunker.")
     ap.add_argument("--min-recall", type=float, default=None, dest="min_recall",
                     help="override do piso do gate (default: baseline-margem)")
+    ap.add_argument("--lexical-pt", type=float, default=None, dest="lexical_pt",
+                    help="peso do caminho léxico pt-BR (S20). 0 = desliga (A/B off); "
+                         "omitido = default do search.")
     args = ap.parse_args(argv)
 
     ks = tuple(int(x) for x in str(args.k).split(",") if x.strip())
@@ -321,7 +332,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from ingest import ingest as ingest_mod
     repo = args.repo or ingest_mod.repo_name(REPO_ROOT)
-    retriever = make_live_retriever(repo, final_k=max(ks))
+    retriever = make_live_retriever(repo, final_k=max(ks), lexical_pt_weight=args.lexical_pt)
     rows = evaluate(queries, retriever, ks=ks)
     agg = aggregate(rows, ks=ks)
 

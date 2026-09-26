@@ -59,6 +59,19 @@ ALTER TABLE chunks DROP COLUMN IF EXISTS tsv;
 ALTER TABLE chunks ADD COLUMN tsv tsvector
     GENERATED ALWAYS AS (to_tsvector('simple', content)) STORED;
 
+-- S20 (T-RET-2): segunda coluna lexical p/ prosa em pt-BR. Config 'portuguese'
+-- lematiza (stemming Snowball + stopwords), o que 'simple' nao faz — recupera
+-- "indice" a partir de "indices", etc. Preenchida SO para kind='doc' (prosa);
+-- code/config ficam NULL e seguem cobertos pelo `tsv` simple acima. Espelha a
+-- migracao 003_add_tsv_pt.sql (init.sql = volume novo; migracao = volume antigo).
+ALTER TABLE chunks DROP COLUMN IF EXISTS tsv_pt;
+ALTER TABLE chunks ADD COLUMN tsv_pt tsvector
+    GENERATED ALWAYS AS (
+        CASE WHEN kind = 'doc'
+             THEN to_tsvector('portuguese', content)
+        END
+    ) STORED;
+
 -- ---------------------------------------------------------------------------
 -- Índices
 --  - HNSW (cosine) sobre halfvec: m/ef_construction defaults conservadores do
@@ -77,6 +90,12 @@ CREATE INDEX IF NOT EXISTS chunks_embedding_hnsw
 
 CREATE INDEX IF NOT EXISTS chunks_tsv_gin
     ON chunks USING gin (tsv);
+
+-- S20: GIN PARCIAL sobre tsv_pt — so linhas kind='doc' (prosa). Pequeno e o
+-- planner so o usa quando o predicado confirma kind='doc'. Espelho da migracao 003.
+CREATE INDEX IF NOT EXISTS chunks_tsv_pt_gin
+    ON chunks USING gin (tsv_pt)
+    WHERE kind = 'doc';
 
 -- Filtros comuns (por repo e por kind) — baratos, ajudam o planner.
 CREATE INDEX IF NOT EXISTS chunks_repo_kind ON chunks (repo, kind);

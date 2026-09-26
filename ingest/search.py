@@ -8,8 +8,10 @@ Regras travadas no plano (.planning/PLANO-RAG.md §3 FASE 3, §4b-5):
                 (cobre simbolos/identificadores exatos que o vetorial pode perder)
   - Fusao por Reciprocal Rank Fusion: score = sum 1/(k + rank), k=60 (padrao do
     plano). RRF nao usa as escalas cruas (cosine ~[0,2] vs ts_rank ~[0,1]), so a
-    ORDEM de cada lista — robusto e sem tuning.
-  - Ordenacao FINAL deterministica: score desc, desempate por (path, symbol,
+    ORDEM de cada lista — robusto e sem tuning.  - S20 (T-RET-2): um TERCEIRO caminho léxico opcional sobre tsv_pt (config
+    'portuguese', só kind='doc'), fundido com peso LEXICAL_PT_WEIGHT. Reforca
+    recall de prosa pt-BR que o 'simple' (sem stemming) perde. `lexical_pt_weight
+    =0` desliga (botão de A/B).  - Ordenacao FINAL deterministica: score desc, desempate por (path, symbol,
     content_hash). Motivo (plano 4b-5): estabilidade de prefixo p/ prompt cache
     do agente — mesma query => mesma ordem, sem timestamp/random no topo.
   - Filtro opcional por kind e/ou prefixo de path (WHERE antes do top-N).
@@ -82,6 +84,32 @@ ORDER BY r DESC, id
 LIMIT %(n)s
 """
 
+# S20 (T-RET-2): caminho lexical EM PORTUGUÊS, só p/ prosa (kind='doc'). Usa a
+# coluna gerada tsv_pt (stemming Snowball + stopwords pt), que o 'simple' não faz
+# — "índice" casa com "indices". O predicado `kind='doc'` é EXPLÍCITO no WHERE
+# para casar com o índice GIN parcial (chunks_tsv_pt_gin). Roda sempre: p/ queries
+# sem filtro kind ele só retorna docs; p/ kind≠doc retorna vazio (custo ~0).
+_LEXICAL_PT_SQL = f"""
+SELECT {_COLS}, ts_rank(tsv_pt, websearch_to_tsquery('portuguese', %(q)s)) AS r
+FROM chunks
+WHERE repo = %(repo)s
+  AND kind = 'doc'
+  AND tsv_pt @@ websearch_to_tsquery('portuguese', %(q)s)
+  AND (%(path_like)s::text IS NULL OR path LIKE %(path_like)s::text)
+ORDER BY r DESC, id
+LIMIT %(n)s
+"""
+
+# Peso do caminho léxico pt na fusão RRF, relativo ao léxico simple (1.0).
+# DEFAULT 0.0 = DESLIGADO. Decisão S20 (A/B medido 2026-09-25): ligar o caminho
+# pt-BR (peso 0.5) NÃO mudou nenhuma métrica da eval (@1/@3/@5/@8/@10/MRR idênticos,
+# zero diferença por pergunta) — os chunks doc já eram recuperados pelo denso +
+# simple pós-S19. Critério de aceite = "adotar só se melhorar sem regressão" ⇒ não
+# adotamos. O mecanismo fica no código, acionável via lexical_pt_weight>0, p/ re-testar
+# quando a base de docs crescer ou em tuning de pesos (S21). Coluna tsv_pt + índice GIN
+# parcial permanecem (custo ~0, pré-requisito do botão).
+LEXICAL_PT_WEIGHT = 0.0
+
 
 def _row_to_hit(row, score, vec_rank=None, lex_rank=None) -> Hit:
     return Hit(
@@ -137,11 +165,14 @@ def search(
     final_k: int = DEFAULT_FINAL_K,
     weights: Sequence[float] | None = None,
     rrf_k: int = RRF_K,
+    lexical_pt_weight: float | None = None,
 ) -> list[Hit]:
     """Busca hibrida para `query`. Ou embeda a query (via LiteLLM) ou recebe qvec pronto.
 
     `qvec` injetavel p/ testes (sem rede). `conn` reusavel (testes/integra); se
     omitido, abre com RAG_DB_URL e fecha ao terminar.
+    `lexical_pt_weight`=None usa o default do módulo (LEXICAL_PT_WEIGHT, hoje 0.0
+    = desligado — ver nota S20). Passar >0 liga o caminho léxico pt-BR p/ A/B.
     """
     own_conn = conn is None
     if own_conn:
@@ -161,8 +192,18 @@ def search(
         lex_rows = conn.execute(
             _LEXICAL_SQL, {**params_common, "q": query, "n": lexical_topk}
         ).fetchall()
+        pt_weight = LEXICAL_PT_WEIGHT if lexical_pt_weight is None else lexical_pt_weight
+        # S20: terceira lista — léxico pt-BR p/ docs. Peso 0 => desligado (default).
+        lists: Sequence[Sequence[tuple]] = [vec_rows, lex_rows]
+        all_weights = list(weights) if weights is not None else [1.0, 1.0]
+        if pt_weight > 0:
+            lex_pt_rows = conn.execute(
+                _LEXICAL_PT_SQL, {**params_common, "q": query, "n": lexical_topk}
+            ).fetchall()
+            lists.append(lex_pt_rows)
+            all_weights.append(lexical_pt_weight)
 
-        fused = reciprocal_rank_fusion([vec_rows, lex_rows], weights=weights, k=rrf_k)
+        fused = reciprocal_rank_fusion(lists, weights=all_weights, k=rrf_k)
         hits = [_row_to_hit(row, score, vr, lr)
                 for (row, score, vr, lr) in fused.values()]
         return _sort_final(hits, final_k)

@@ -40,3 +40,4 @@ Lê `RAG_DB_URL` do `.env` no repo root (override com `--url`).
 | --- | --- | --- |
 | 001 | `001_baseline.sql` | Estado inicial (FASE 0 + S11 + S14), idempotente. No-op num volume recém-bootstrapped. |
 | 002 | `002_add_meta.sql` | Coluna `meta jsonb` em `chunks` (metadados futuros sem nova ALTER por campo). |
+| 003 | `003_add_tsv_pt.sql` | Coluna gerada `tsv_pt` (config `portuguese`, só `kind='doc'`) + GIN parcial. S20/T-RET-2 — caminho léxico pt-BR; mecanismo no código mas **desligado por default** (A/B neutro). |

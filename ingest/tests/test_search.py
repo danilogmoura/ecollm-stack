@@ -30,17 +30,20 @@ class FakeCursor:
 
 
 class FakeConn:
-    """Devolve filas distintas conforme o SQL executado (denso vs léxico)."""
+    """Devolve filas distintas conforme o SQL executado (denso vs léxico vs léxico-pt)."""
 
-    def __init__(self, vec_rows, lex_rows):
+    def __init__(self, vec_rows, lex_rows, lex_pt_rows=None):
         self.vec_rows = vec_rows
         self.lex_rows = lex_rows
+        self.lex_pt_rows = lex_pt_rows if lex_pt_rows is not None else []
         self.calls = []  # (sql, params)
 
     def execute(self, sql, params=None):
         self.calls.append((sql, params))
         if "<=>" in sql:  # operador cosine => caminho denso
             return FakeCursor(self.vec_rows)
+        if "tsv_pt" in sql:  # S20: terceira lista, léxico pt-BR (kind='doc')
+            return FakeCursor(self.lex_pt_rows)
         return FakeCursor(self.lex_rows)
 
     def close(self):
@@ -127,6 +130,54 @@ def test_search_vetor_serializado_no_param():
     search.search("q", repo="r", conn=conn, qvec=[1.0, 2.5, 3.0])
     dense_call = next(p for s, p in conn.calls if "<=>" in s)
     assert dense_call["qvec"] == "[1,2.5,3]"
+
+
+# ---------------------------------------------------------------------------
+# S20 — caminho léxico pt-BR (tsv_pt) na fusão
+# ---------------------------------------------------------------------------
+
+def test_s20_default_desligado():
+    """Default do módulo é 0.0 → nenhum SQL tsv_pt roda sem pedir explicitamente."""
+    assert search.LEXICAL_PT_WEIGHT == 0.0
+    conn = FakeConn([], [])
+    search.search("q", repo="r", conn=conn, qvec=[0.0])
+    assert not any("tsv_pt" in s for s, _ in conn.calls)
+
+
+def test_s20_lexical_pt_weight_posivo_liga_caminho():
+    """Passar peso >0 dispara o SQL de tsv_pt além dos outros dois caminhos."""
+    conn = FakeConn([], [])
+    search.search("q", repo="r", conn=conn, qvec=[0.0], lexical_pt_weight=0.5)
+    sqls = [s for s, _ in conn.calls]
+    assert any("<=>" in s for s in sqls)          # denso
+    assert any("tsv_pt" in s for s in sqls)        # léxico pt (S20)
+    assert any("websearch_to_tsquery('simple'" in s for s in sqls)  # léxico simple
+
+
+def test_s20_doc_reforcado_pelo_lexico_pt_sobe_no_ranking():
+    """Um doc resgatado só pelo léxico-pt ganha score extra quando o caminho liga."""
+    doc = _row(5, "README.md", kind="doc")
+    code = _row(6, "a.py", kind="code")
+    # denso: code melhor; simple: nada; pt: só o doc casa (stemming)
+    conn = FakeConn([code, doc], [], [doc])
+    hits_on = {h.id: h.score for h in
+               search.search("índice", repo="r", conn=conn, qvec=[0.0], final_k=2,
+                             lexical_pt_weight=0.5)}
+    # com peso 0 (default/A-B off), o doc perde o reforço do caminho pt → score menor
+    conn_off = FakeConn([code, doc], [], [doc])
+    hits_off = {h.id: h.score for h in
+                search.search("índice", repo="r", conn=conn_off, qvec=[0.0],
+                              final_k=2, lexical_pt_weight=0.0)}
+    assert hits_on["id5"] > hits_off["id5"]      # reforço pt somou no RRF do doc
+    assert hits_on["id6"] == pytest.approx(hits_off["id6"])  # code não usa tsv_pt
+
+
+def test_s20_predicado_kind_doc_explicito_no_sql_pt():
+    """O SQL pt deve fixar kind='doc' p/ casar com o índice GIN parcial."""
+    conn = FakeConn([], [], [_row(1, "README.md", kind="doc")])
+    search.search("q", repo="r", conn=conn, qvec=[0.0], lexical_pt_weight=0.5)
+    pt_sql = next(s for s, _ in conn.calls if "tsv_pt" in s)
+    assert "kind = 'doc'" in pt_sql
 
 
 # ---------------------------------------------------------------------------

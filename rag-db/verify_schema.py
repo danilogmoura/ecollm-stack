@@ -59,6 +59,7 @@ REQUIRED_INDEXES = {
     "chunks_embedding_hnsw": "hnsw",
     "chunks_tsv_gin": "gin",
     "chunks_repo_path_content_hash_key": "btree",
+    "chunks_tsv_pt_gin": "gin",   # S20: GIN parcial p/ prosa pt-BR (kind='doc')
 }
 
 
@@ -139,17 +140,21 @@ def check(url: str) -> list[tuple[bool, str]]:
             detail += f" opclass_halfvec_cosine={uses_correct_opclass}"
         results.append((ok, f"índice '{name}' ({detail})"))
 
-    # 5. coluna gerada tsv existe
+    # 5. colunas geradas tsv / tsv_pt existem
     tsrows = _fetch_all(
         url,
         """
-        SELECT a.attgenerated FROM pg_attribute a
-        WHERE a.attrelid='chunks'::regclass AND a.attname='tsv'
+        SELECT a.attname, a.attgenerated FROM pg_attribute a
+        WHERE a.attrelid='chunks'::regclass
+          AND a.attname IN ('tsv','tsv_pt') AND a.attnum > 0
         """,
     )
-    tsv_ok = bool(tsrows) and tsrows[0][0] == "s"  # 's' = generated stored
-    results.append((tsv_ok, f"coluna gerada 'tsv' presente (generated="
-                            f"{tsrows[0][0] if tsrows else '-'})"))
+    gen = {r[0]: r[1] for r in tsrows}
+    tsv_ok = gen.get("tsv") == "s"  # 's' = generated stored
+    results.append((tsv_ok, f"coluna gerada 'tsv' presente (generated={gen.get('tsv', '-')}))"))
+    # S20: tsv_pt é gerado por expressão CASE → NULL em code/config, tsvector em doc.
+    tsvpt_ok = gen.get("tsv_pt") == "s"
+    results.append((tsvpt_ok, f"coluna gerada 'tsv_pt' presente (generated={gen.get('tsv_pt', '-')}))"))
 
     return results
 
