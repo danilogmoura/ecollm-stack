@@ -57,17 +57,32 @@ model_list:
   #      dependendo de config do cliente.
 
   # --- Thinking ON: planejamento, arquitetura, debug dificil ---
+  # Preco custom (C1/C2, 2026-09-27): marketplace PAYG, USD por token (= USD/1M / 1e6).
+  # ATENCAO (S30): a stack usa o endpoint Token Plan (debito em Creditos), nao o
+  # metered PAYG. Estes valores dao visibilidade de custo-EQUIVALENTE no SpendLogs;
+  # o gasto real do plano so aparece no painel do Token Plan. Baseline canonica
+  # continua sendo tokens economizados, nao $.
+  #   flash: in $0,15/M out $0,47/M | cache read $0,016/M | cache write $0,20/M
+  #   max:   in $2,00/M  out $6,00/M | cache read $0,17/M | cache write $2,50/M
   - model_name: qwen3.8-max
     litellm_params:
       model: openai/qwen3.8-max
       api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
       api_key: os.environ/QWEN_PLAN_API_KEY
+      input_cost_per_token: 2.0e-06
+      output_cost_per_token: 6.0e-06
+      cache_read_input_token_cost: 1.7e-07
+      cache_creation_input_token_cost: 2.5e-06
 
   - model_name: qwen3.8-flash
     litellm_params:
       model: openai/qwen3.8-flash
       api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
       api_key: os.environ/QWEN_PLAN_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 4.7e-07
+      cache_read_input_token_cost: 1.6e-08
+      cache_creation_input_token_cost: 2.0e-07
 
   # --- Thinking OFF: loop de agente (Code/Ask). Motivos: ver bloco acima ---
   - model_name: qwen3.8-flash-fast
@@ -76,6 +91,10 @@ model_list:
       api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
       api_key: os.environ/QWEN_PLAN_API_KEY
       enable_thinking: false
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 4.7e-07
+      cache_read_input_token_cost: 1.6e-08
+      cache_creation_input_token_cost: 2.0e-07
 
   - model_name: qwen3.8-max-fast
     litellm_params:
@@ -83,6 +102,10 @@ model_list:
       api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
       api_key: os.environ/QWEN_PLAN_API_KEY
       enable_thinking: false
+      input_cost_per_token: 2.0e-06
+      output_cost_per_token: 6.0e-06
+      cache_read_input_token_cost: 1.7e-07
+      cache_creation_input_token_cost: 2.5e-06
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
