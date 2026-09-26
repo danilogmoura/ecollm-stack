@@ -63,14 +63,14 @@ O CLI é um módulo: invoque via `.venv/bin/python -m ingest.cli …`. Config de
 .venv/bin/python -m ingest.cli search --ask "qual modelo e dims dos embeddings?"
 ```
 
-**Servidor MCP `rag_search`** (`mcp/rag_server.py`, stdio): expõe a mesma busca como
+**Servidor MCP `rag_search`** (`mcpsrv/rag_server.py`, stdio): expõe a mesma busca como
 tool para agentes (Roo Code / Copilot). Contrato de retorno: JSON `{results:[{path,symbol,kind,score,source,content}]}`.
-Registro do lado do cliente em `mcp/mcp.example.json`:
+Registro do lado do cliente em `mcpsrv/mcp.example.json`:
 
 ```jsonc
 { "mcpServers": { "rag-search": {
     "command": "/home/demo/ecollm-stack/.venv/bin/python",
-    "args": ["/home/demo/ecollm-stack/mcp/rag_server.py"],
+    "args": ["/home/demo/ecollm-stack/mcpsrv/rag_server.py"],
     "cwd": "/home/demo/ecollm-stack",
     "env": { "PYTHONPATH": "/home/demo/ecollm-stack", "RAG_REPO": "ecollm-stack" }
 } } }

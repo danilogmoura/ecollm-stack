@@ -19,8 +19,8 @@ Decisoes travadas no plano:
     LiteLLM sao lidos por ingest.embed.load_dotenv() a partir do .env da raiz.
 
 Rodar (stdio):
-    python -m mcp.rag_server
-Registros de cliente (exemplo) em mcp/mcp.example.json.
+    python -m mcpsrv.rag_server
+Registros de cliente (exemplo) em mcpsrv/mcp.example.json.
 """
 
 from __future__ import annotations
@@ -32,48 +32,11 @@ import time
 from pathlib import Path
 
 # Garante que o pacote `ingest` seja importavel quando o servidor e lancado por
-# caminho absoluto (ex.: mcp.json do Roo aponta ".../mcp/rag_server.py"), nao por
-# `-m` a partir da raiz. Insere o repo root no sys.path antes de importar ingest.
+# caminho absoluto (ex.: mcp.json do Roo aponta ".../mcpsrv/rag_server.py"), nao
+# por `-m` a partir da raiz. Insere o repo root no sys.path antes de importar.
 REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
-
-# Este diretorio chama-se `mcp` (nome travado no plano), o que COLIDE com o pacote
-# instalado do SDK `mcp`. Quando este modulo e importado como arquivo solto (por
-# caminho, ou sob pytest com rootdir no sys.path), `import mcp` pode resolver para
-# NOSSO pacote em vez do SDK. Resolvemos carregando o SDK REAL explicitamente pelo
-# file loader e registrando-o em sys.modules["mcp"] ANTES de qualquer `from mcp...`.
-# Assim os imports abaixo funcionam em todos os modos de execucao
-# (`python -m mcp.rag_server`, por caminho, e testes).
-def _ensure_real_mcp_sdk() -> None:
-    cur = sys.modules.get("mcp")
-    if cur is not None and hasattr(cur, "server"):
-        return  # ja e o SDK real
-    import importlib.util
-    from pathlib import Path as _P
-
-    here = str(REPO_ROOT)
-    real = None
-    for entry in sys.path:
-        try:
-            base = _P(entry if entry else ".").resolve()
-            cand = base / "mcp" / "__init__.py"
-            if cand.is_file() and str(base) != here:
-                real = cand
-                break
-        except OSError:
-            continue
-    if real is None:
-        raise ImportError("SDK 'mcp' (Model Context Protocol) nao encontrado")
-    spec = importlib.util.spec_from_file_location(
-        "mcp", str(real), submodule_search_locations=[str(real.parent)]
-    )
-    module = importlib.util.module_from_spec(spec)
-    sys.modules["mcp"] = module
-    spec.loader.exec_module(module)
-
-
-_ensure_real_mcp_sdk()
 
 from mcp.server.mcpserver import MCPServer  # noqa: E402
 

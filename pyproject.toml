@@ -1,5 +1,5 @@
 # ============================================================================
-# Projeto Python da stack RAG (ingest/ eval/ mcp/). Fonte de verdade para o
+# Projeto Python da stack RAG (ingest/ eval/ mcpsrv/). Fonte de verdade para o
 # LOCKFILE (`uv.lock`) usado pela CI (S27 / T-ENV-5). requirements.txt continua
 # como doc legível das versões; pyproject é a forma que o uv congela.
 # Python 3.12, sem framework de RAG (decisão travada no PLANO-RAG §3).
@@ -37,5 +37,5 @@ package = false
 
 [tool.pytest.ini_options]
 # rootdir do repo; testes vivem em */tests. addopts mantém saída enxuta.
-testpaths = ["ingest/tests", "eval/tests", "mcp/tests"]
+testpaths = ["ingest/tests", "eval/tests", "mcpsrv/tests"]
 addopts = "-q"

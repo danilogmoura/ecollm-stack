@@ -4,7 +4,7 @@
         "rag-search": {
             "command": "/home/demo/ecollm-stack/.venv/bin/python",
             "args": [
-                "/home/demo/ecollm-stack/mcp/rag_server.py"
+                "/home/demo/ecollm-stack/mcpsrv/rag_server.py"
             ],
             "cwd": "/home/demo/ecollm-stack",
             "env": {

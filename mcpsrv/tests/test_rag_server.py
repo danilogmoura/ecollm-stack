@@ -8,22 +8,16 @@ a ferramenta esta registrada e devolve JSON no contrato do plano.
 from __future__ import annotations
 
 import asyncio
-import importlib.util
 import json
-from pathlib import Path
 
 import pytest
 
 from ingest.search import Hit
 
-# O diretorio do servidor chama-se `mcp` (nome travado no plano), que COLIDE com o
-# pacote instalado do SDK `mcp`. Para importar nosso modulo sem quebrar os imports
-# internos dele (`from mcp.server...` -> precisa ser o SDK), carregamos o arquivo
-# por caminho sob um nome privado, SEM injeta-lo em sys.modules["mcp"].
-_SERVER_PATH = Path(__file__).resolve().parents[1] / "rag_server.py"
-_spec = importlib.util.spec_from_file_location("rag_server_under_test", _SERVER_PATH)
-rag_server = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(rag_server)
+# O pacote do servidor chama-se `mcpsrv` (nao `mcp`) para nao colidir com o SDK
+# instalado `mcp` — assim o import direto resolve os `from mcp.server...` internos
+# sem nenhum workaround (BUG-008 resolvido em S25/T-ENV-4).
+import mcpsrv.rag_server as rag_server
 
 
 def _hit(path="ingest/search.py", symbol="search", kind="code", score=0.0321, content="def search(): ..."):
