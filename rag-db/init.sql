@@ -47,9 +47,17 @@ CREATE TABLE IF NOT EXISTS chunks (
     embedding     halfvec(3072) NOT NULL,
     file_hash     char(40) NOT NULL,         -- git blob sha do arquivo
     created_at    timestamptz NOT NULL DEFAULT now(),
+    -- S29 (T-OPS-7): geração do sync blue-green. 0 = publicado em volumes antigos;
+    -- um sync monta gen=published_gen+1 e publica com flip atômico. Default 0 mantém
+    -- o índice legível pelo código novo sem re-boot. Espelha a migração 004_add_gen.sql.
+    gen           bigint NOT NULL DEFAULT 0,
 
-    -- Idempotencia bruta: mesmo repo+path+conteudo jamais duplica.
-    UNIQUE (repo, path, content_hash)
+    -- Idempotencia bruta: mesmo repo+path+conteudo jamais duplica DENTRO de uma
+    -- geracao. S29 inclui `gen` na unicidade: o mesmo conteudo pode coexistir em
+    -- duas geracoes durante o sync (velha servindo + nova sendo montada). Nome
+    -- EXPLICITO para casar com verify_schema.py / healthcheck do compose (I9/R6).
+    CONSTRAINT chunks_repo_path_content_hash_gen_key
+        UNIQUE (repo, path, content_hash, gen)
 );
 
 -- Coluna gerada p/ BM25-ish lexical. 'simple' de proposito: corpus tecnico em
@@ -100,6 +108,9 @@ CREATE INDEX IF NOT EXISTS chunks_tsv_pt_gin
 -- Filtros comuns (por repo e por kind) — baratos, ajudam o planner.
 CREATE INDEX IF NOT EXISTS chunks_repo_kind ON chunks (repo, kind);
 
+-- S29: filtro de leitura (gen = published_gen) + GC (gen < published_gen).
+CREATE INDEX IF NOT EXISTS chunks_repo_gen ON chunks (repo, gen);
+
 -- ---------------------------------------------------------------------------
 -- Estado de sync (S14 / T-OPS-2) — sinaliza indice desatualizado.
 -- Uma linha por repo: guarda o HEAD (e se a arvore estava suja) no momento do
@@ -111,5 +122,10 @@ CREATE TABLE IF NOT EXISTS rag_sync_state (
     repo        text PRIMARY KEY,
     head_sha    text,                      -- git rev-parse HEAD no momento do sync
     dirty       boolean NOT NULL DEFAULT false,  -- arvore versionada suja no sync?
-    synced_at   timestamptz NOT NULL DEFAULT now()
+    synced_at   timestamptz NOT NULL DEFAULT now(),
+    -- S29 (T-OPS-7): ponteiros de geracao do sync blue-green. `published_gen` e a
+    -- geracao que os leitores veem; `in_progress_gen` e a que o writer monta
+    -- (NULL quando nao ha sync em andamento). Espelha a migricao 004_add_gen.sql.
+    published_gen   bigint NOT NULL DEFAULT 0,
+    in_progress_gen bigint
 );

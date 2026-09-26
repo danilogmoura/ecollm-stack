@@ -71,7 +71,7 @@ services:
       test:
         - CMD-SHELL
         - >-
-          psql -U "$${POSTGRES_USER:-rag}" -d "$${POSTGRES_DB:-rag}" -tA -c "SELECT CASE WHEN to_regclass('chunks') IS NOT NULL AND (SELECT count(*) FROM (VALUES ('chunks_embedding_hnsw','hnsw'), ('chunks_tsv_gin','gin'),('chunks_repo_path_content_hash_key','btree')) need(name,am) JOIN pg_index i ON i.indrelid='chunks'::regclass JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_am a ON a.oid=c.relam WHERE c.relname=need.name AND a.amname=need.am AND i.indisvalid)=3 THEN 'ok' ELSE 'schema-incompleto' END;" | grep -q '^ok$$'
+          psql -U "$${POSTGRES_USER:-rag}" -d "$${POSTGRES_DB:-rag}" -tA -c "SELECT CASE WHEN to_regclass('chunks') IS NOT NULL AND (SELECT count(*) FROM (VALUES ('chunks_embedding_hnsw','hnsw'), ('chunks_tsv_gin','gin'),('chunks_repo_path_content_hash_gen_key','btree')) need(name,am) JOIN pg_index i ON i.indrelid='chunks'::regclass JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_am a ON a.oid=c.relam WHERE c.relname=need.name AND a.amname=need.am AND i.indisvalid)=3 THEN 'ok' ELSE 'schema-incompleto' END;" | grep -q '^ok$$'
       interval: 30s
       timeout: 5s
       retries: 3

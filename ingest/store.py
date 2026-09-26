@@ -36,7 +36,12 @@ def db_url_from_env() -> str:
 
 @dataclass(frozen=True)
 class Row:
-    """Uma linha pronta p/ a tabela chunks (sem id/created_at/tsv — gerados)."""
+    """Uma linha pronta p/ a tabela chunks (sem id/created_at/tsv — gerados).
+
+    S29: `gen` é a geração blue-green a que a linha pertence. Default 0 = a
+    geração publicada herdada de volumes antigos; um sync novo grava em
+    gen=published_gen+1 e publica com flip atômico.
+    """
     repo: str
     path: str
     lang: str | None
@@ -46,6 +51,7 @@ class Row:
     content_hash: str      # sha256 do texto PURO (sem task-prefix)
     file_hash: str         # git blob sha do arquivo pai
     embedding_text: str    # literal "[f1,...]" p/ cast ::halfvec(3072)
+    gen: int = 0           # S29: geração (blue-green); 0 = publicado legado
 
 
 @dataclass
@@ -68,19 +74,20 @@ class SyncReport:
 
 _UPSERT_SQL = """
 INSERT INTO chunks (repo, path, lang, kind, symbol, content, content_hash,
-                    file_hash, embedding)
+                    file_hash, embedding, gen)
 VALUES (%(repo)s, %(path)s, %(lang)s, %(kind)s, %(symbol)s, %(content)s,
-        %(content_hash)s, %(file_hash)s, %(embedding)s::halfvec)
-ON CONFLICT (repo, path, content_hash) DO NOTHING
+        %(content_hash)s, %(file_hash)s, %(embedding)s::halfvec, %(gen)s)
+ON CONFLICT (repo, path, content_hash, gen) DO NOTHING
 """
 
 
 def build_rows(repo: str, file_hash: str, chunks: Sequence[Chunk],
-               vectors: Sequence[Sequence[float]]) -> list[Row]:
+               vectors: Sequence[Sequence[float]], gen: int = 0) -> list[Row]:
     """Monta as linhas a partir dos chunks + vetores alinhados (mesma ordem).
 
     content_hash vem do chunk PURO (loader.content_sha256), nao do texto
     prefixado — assim mudar a string de task nao invalida o indice.
+    S29: `gen` marca a geração blue-green das linhas (default 0 = legado).
     """
     from .loader import content_sha256  # import local p/ evitar ciclo no topo
 
@@ -92,17 +99,31 @@ def build_rows(repo: str, file_hash: str, chunks: Sequence[Chunk],
             repo=repo, path=c.path, lang=c.lang, kind=c.kind, symbol=c.symbol,
             content=c.content, content_hash=content_sha256(c.content),
             file_hash=file_hash, embedding_text=vector_to_halfvec_text(vec),
+            gen=gen,
         ))
     return rows
 
 
-def existing_file_hashes(conn: psycopg.Connection, repo: str) -> dict[str, str]:
-    """{path: file_hash} currently stored para este repo (base do sync)."""
-    cur = conn.execute(
-        "SELECT DISTINCT ON (path) path, file_hash FROM chunks WHERE repo = %s "
-        "ORDER BY path, created_at DESC",
-        (repo,),
-    )
+def existing_file_hashes(conn: psycopg.Connection, repo: str,
+                         gen: int | None = None) -> dict[str, str]:
+    """{path: file_hash} currently stored para este repo (base do sync).
+
+    S29/I3: quando `gen` é dado, filtra por aquela geração (o plano deve comparar
+    contra a geração PUBLICADA, senão re-embeda arquivos já copiados na nova).
+    Sem `gen`, mantém o comportamento legado (todas as gerações, DISTINCT ON path).
+    """
+    if gen is None:
+        cur = conn.execute(
+            "SELECT DISTINCT ON (path) path, file_hash FROM chunks WHERE repo = %s "
+            "ORDER BY path, created_at DESC",
+            (repo,),
+        )
+    else:
+        cur = conn.execute(
+            "SELECT path, file_hash FROM chunks WHERE repo = %s AND gen = %s "
+            "GROUP BY path, file_hash",
+            (repo, gen),
+        )
     return {r[0]: r[1] for r in cur.fetchall()}
 
 
@@ -113,7 +134,7 @@ def upsert_rows(conn: psycopg.Connection, rows: Iterable[Row]) -> tuple[int, int
         cur = conn.execute(_UPSERT_SQL, {
             "repo": r.repo, "path": r.path, "lang": r.lang, "kind": r.kind,
             "symbol": r.symbol, "content": r.content, "content_hash": r.content_hash,
-            "file_hash": r.file_hash, "embedding": r.embedding_text,
+            "file_hash": r.file_hash, "embedding": r.embedding_text, "gen": r.gen,
         })
         if cur.rowcount and cur.rowcount > 0:
             inserted += 1
@@ -153,8 +174,146 @@ def delete_removed(conn: psycopg.Connection, repo: str,
     return cur.rowcount or 0
 
 
-def count_chunks(conn: psycopg.Connection, repo: str) -> int:
-    return conn.execute("SELECT count(*) FROM chunks WHERE repo = %s", (repo,)).fetchone()[0]
+def count_chunks(conn: psycopg.Connection, repo: str,
+                 gen: int | None = None) -> int:
+    if gen is None:
+        return conn.execute(
+            "SELECT count(*) FROM chunks WHERE repo = %s", (repo,)).fetchone()[0]
+    return conn.execute(
+        "SELECT count(*) FROM chunks WHERE repo = %s AND gen = %s",
+        (repo, gen)).fetchone()[0]
+
+
+# ---------------------------------------------------------------------------
+# S29 · Sync incremental retomável com publicação atômica (blue-green por gen).
+# Ver .planning/SPEC-S29-SYNC-RETOMAVEL.md §3–5. Cada execução monta uma geração
+# nova (gen=published_gen+1): arquivos inalterados são COPIADOS (copy-forward, 0
+# cota), new/changed são embedados por arquivo (retomável), e um único UPDATE
+# publica (flip) seguido de GC da geração anterior. Leitores veem sempre published_gen.
+# ---------------------------------------------------------------------------
+
+_COPY_FORWARD_SQL = """
+INSERT INTO chunks (repo, path, lang, kind, symbol, content, content_hash,
+                    file_hash, embedding, meta, gen)
+SELECT repo, path, lang, kind, symbol, content, content_hash,
+       file_hash, embedding, meta, %(new_gen)s
+FROM chunks
+WHERE repo = %(repo)s AND gen = %(src_gen)s AND path = ANY(%(paths)s)
+ON CONFLICT (repo, path, content_hash, gen) DO NOTHING
+"""
+
+
+def copy_forward_unchanged(conn: psycopg.Connection, repo: str, src_gen: int,
+                           new_gen: int, unchanged_paths: Sequence[str]) -> int:
+    """Copia os chunks de `unchanged_paths` da geração publicada p/ a nova.
+
+    Um só statement, ZERO chamadas ao embedder (cota intocada). Idempotente via
+    ON CONFLICT DO NOTHING → pode rodar de novo num resume sem duplicar. Retorna
+    o nº de linhas inseridas na nova geração. Paths vazios ⇒ no-op (0).
+    """
+    paths = list(unchanged_paths)
+    if not paths:
+        return 0
+    cur = conn.execute(_COPY_FORWARD_SQL, {
+        "repo": repo, "src_gen": src_gen, "new_gen": new_gen, "paths": paths,
+    })
+    return cur.rowcount or 0
+
+
+def next_generation(conn: psycopg.Connection, repo: str) -> tuple[int, int]:
+    """(published_gen, new_gen). Cria a linha de estado se não existir.
+
+    new_gen = published_gen + 1. Não grava in_progress_gen aqui — quem faz isso é
+    begin_generation (depois de saber que não há sync concorrente, sob lock advisory).
+    """
+    row = conn.execute(
+        "SELECT published_gen FROM rag_sync_state WHERE repo = %s", (repo,)
+    ).fetchone()
+    published = row[0] if row else 0
+    return published, published + 1
+
+
+def begin_generation(conn: psycopg.Connection, repo: str, new_gen: int) -> None:
+    """Marca in_progress_gen=new_gen (o writer está montando esta geração).
+
+    Upset idempotente do ponteiro; chamado dentro da transação do writer, após o
+    lock advisory. head_sha/dirty ficam para o flip (record_sync_state no fim).
+    """
+    conn.execute(
+        """
+        INSERT INTO rag_sync_state (repo, published_gen, in_progress_gen)
+        VALUES (%(repo)s, 0, %(gen)s)
+        ON CONFLICT (repo) DO UPDATE SET in_progress_gen = EXCLUDED.in_progress_gen
+        """,
+        {"repo": repo, "gen": new_gen},
+    )
+
+
+def file_in_generation(conn: psycopg.Connection, repo: str, gen: int,
+                       path: str, file_hash: str) -> bool:
+    """True se `path` já tem linhas em `gen` com este `file_hash` (resume: pular).
+
+    Átomo de retomada = arquivo (§3.3): um arquivo está inteiro em new_gen ou
+    ausente. Se já commitamos suas linhas nesta geração, pulamos o re-embed.
+    """
+    row = conn.execute(
+        "SELECT 1 FROM chunks WHERE repo = %s AND gen = %s AND path = %s "
+        "AND file_hash = %s LIMIT 1",
+        (repo, gen, path, file_hash),
+    ).fetchone()
+    return row is not None
+
+
+def publish_generation(conn: psycopg.Connection, repo: str, new_gen: int) -> None:
+    """FLIP atômico: published_gen ← new_gen, limpa in_progress_gen.
+
+    Um único UPDATE → atomicidade por construção. Depois disto os leitores passam
+    a ver a geração nova inteira. §5.2: crash entre flip e GC deixa órfão inofensivo.
+    """
+    conn.execute(
+        "UPDATE rag_sync_state SET published_gen = %s, in_progress_gen = NULL "
+        "WHERE repo = %s",
+        (new_gen, repo),
+    )
+
+
+def gc_old_generations(conn: psycopg.Connection, repo: str,
+                       published_gen: int) -> int:
+    """Apaga gerações antigas (gen < published_gen). NUNCA usa <= in_progress_gen (R4).
+
+    Chamado APÓS o flip commitar, em transação separada. Linhas com gen menor que
+    a publicada são órfãs de execuções anteriores ou a versão pré-flip. Retorna nº
+    de linhas removidas.
+    """
+    cur = conn.execute(
+        "DELETE FROM chunks WHERE repo = %s AND gen < %s", (repo, published_gen)
+    )
+    return cur.rowcount or 0
+
+
+def get_published_gen(conn: psycopg.Connection, repo: str) -> int:
+    """Geração publicada atual (leitores filtram por ela). Default 0 (legado)."""
+    row = conn.execute(
+        "SELECT published_gen FROM rag_sync_state WHERE repo = %s", (repo,)
+    ).fetchone()
+    return row[0] if row else 0
+
+
+def set_in_progress_gen(conn: psycopg.Connection, repo: str, gen: int | None) -> None:
+    """Grava (ou limpa, com gen=None) o ponteiro da geração em montagem.
+
+    Chamado no início do sync (gen=nova) e no finally (None) para liberar o
+    estado se a execução abortar no meio — a próxima retomada recomeça do zero
+    nesta geração (copy-forward é idempotente; linhas órfãs são GC-adas depois).
+    """
+    conn.execute(
+        """
+        INSERT INTO rag_sync_state (repo, in_progress_gen)
+        VALUES (%(repo)s, %(gen)s)
+        ON CONFLICT (repo) DO UPDATE SET in_progress_gen = EXCLUDED.in_progress_gen
+        """,
+        {"repo": repo, "gen": gen},
+    )
 
 
 # ---------------------------------------------------------------------------

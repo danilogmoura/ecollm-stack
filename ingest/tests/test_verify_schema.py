@@ -27,12 +27,17 @@ HEALTHY = {
         ("chunks_embedding_hnsw", "hnsw", True,
          "CREATE INDEX ... USING hnsw (embedding halfvec_cosine_ops)"),
         ("chunks_tsv_gin", "gin", True, "CREATE INDEX ... USING gin (tsv)"),
-        ("chunks_repo_path_content_hash_key", "btree", True,
-         "CREATE UNIQUE INDEX ... USING btree (repo, path, content_hash)"),
+        ("chunks_repo_path_content_hash_gen_key", "btree", True,
+         "CREATE UNIQUE INDEX ... USING btree (repo, path, content_hash, gen)"),
         ("chunks_tsv_pt_gin", "gin", True,
          "CREATE INDEX ... USING gin (tsv_pt) WHERE kind = 'doc'"),
+        ("chunks_repo_gen", "btree", True,
+         "CREATE INDEX ... USING btree (repo, gen)"),
     ],
     "tsv": [("tsv", "s"), ("tsv_pt", "s")],
+    # S29: coluna gen em chunks + ponteiros de geração no estado de sync.
+    "gen": [("gen",)],
+    "state": [("published_gen",), ("in_progress_gen",)],
 }
 
 
@@ -48,6 +53,11 @@ def _fake_fetch(table: dict):
             return table["indexes"]
         if "attgenerated" in s:
             return table["tsv"]
+        # S29: checagem da coluna gen (só chunks) vs ponteiros do estado de sync.
+        if "rag_sync_state" in s:
+            return table["state"]
+        if "attname = 'gen'" in s or "attname='gen'" in s:
+            return table["gen"]
         raise AssertionError(f"SQL não mapeado no fake: {sql!r}")
     return fetch
 

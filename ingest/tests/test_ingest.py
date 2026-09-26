@@ -7,122 +7,16 @@ MAQUINA de sync incremental (new/changed/unchanged/removido) e o --dry-run.
 
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 
 import pytest
 
 from ingest import embed, ingest, store
+from ingest.tests.conftest import FakeDB, _git  # noqa: F401  (fixtures repo/patched no conftest)
 
 # Gate real capturado ANTES de qualquer monkeypatch (os testes que exercitam o
 # caminho fail-closed/skip restauram este callable, não o stub do fixture).
 _REAL_GITLEAKS_GATE = ingest.gitleaks_gate
-
-
-def _git(repo: Path, *args):
-    subprocess.run(["git", *args], cwd=repo, check=True,
-                   env={**subprocess.os.environ,
-                        "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
-                        "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"},
-                   capture_output=True)
-
-
-@pytest.fixture
-def repo(tmp_path):
-    r = tmp_path / "myrepo"
-    r.mkdir()
-    _git(r, "init", "-q")
-    (r / "hello.py").write_text("def greet():\n    return 'hi'\n")
-    (r / "notes.md").write_text("# Title\n\n## Section A\n\nbody one two three\n")
-    _git(r, "add", ".")
-    _git(r, "commit", "-q", "-m", "init")
-    return r
-
-
-class _NullConn:
-    """Conexão fake só com close() — o orquestrador usa `with conn:` e close().
-
-    Também aceita .execute() no-op (S14: record_sync_state grava estado do git).
-    """
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *a):
-        return False
-
-    def execute(self, *a, **k):  # S14 record_sync_state — nada a gravar no fake
-        return self
-
-    def close(self):
-        pass
-
-
-class FakeDB:
-    """Imita as partes de store que o orquestrador usa, em memoria."""
-    def __init__(self):
-        self.rows: dict[tuple[str, str], store.Row] = {}  # (path, content_hash)
-        self.file_hashes: dict[str, str] = {}             # path -> file_hash
-        self.embedded: list[tuple[str, str]] = []         # (text, kind) chamados
-
-    def existing(self, repo):
-        return dict(self.file_hashes)
-
-    def delete_stale(self, repo, paths):
-        n = 0
-        for p in paths:
-            for key in [k for k in self.rows if k[0] == p]:
-                del self.rows[key]
-                n += 1
-            self.file_hashes.pop(p, None)
-        return n
-
-    def delete_removed(self, repo, live):
-        live = set(live)
-        n = 0
-        for key in [k for k in self.rows if k[0] not in live]:
-            del self.rows[key]
-            n += 1
-        for p in [p for p in self.file_hashes if p not in live]:
-            self.file_hashes.pop(p)
-        return n
-
-    def upsert(self, rows):
-        ins = unch = 0
-        for r in rows:
-            key = (r.path, r.content_hash)
-            if key in self.rows:
-                unch += 1
-            else:
-                self.rows[key] = r
-                ins += 1
-            self.file_hashes[r.path] = r.file_hash
-        return ins, unch
-
-    def count(self, repo):
-        return len(self.rows)
-
-
-@pytest.fixture
-def patched(monkeypatch):
-    """Stub gitleaks + embed + camada de store no orquestrador."""
-    db = FakeDB()
-
-    monkeypatch.setattr(ingest, "gitleaks_gate", lambda root, entries, *, skip=False: (True, "ok"))
-
-    def fake_embed_documents(pairs, *, cfg=None, **kw):
-        db.embedded.extend(pairs)
-        return [[0.5, 0.5] for _ in pairs]
-
-    monkeypatch.setattr(embed, "embed_documents", fake_embed_documents)
-
-    monkeypatch.setattr(store, "connect", lambda url=None: _NullConn())
-    monkeypatch.setattr(store, "existing_file_hashes", lambda conn, repo: db.existing(repo))
-    monkeypatch.setattr(store, "delete_stale", lambda conn, repo, paths: db.delete_stale(repo, paths))
-    monkeypatch.setattr(store, "delete_removed", lambda conn, repo, live: db.delete_removed(repo, live))
-    monkeypatch.setattr(store, "upsert_rows", lambda conn, rows: db.upsert(rows))
-    monkeypatch.setattr(store, "count_chunks", lambda conn, repo: db.count(repo))
-    return db
 
 
 def test_primeira_execucao_inserta_tudo(repo, patched):

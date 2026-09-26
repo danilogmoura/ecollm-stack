@@ -37,6 +37,10 @@ class FakeCursor:
     def fetchall(self):
         return self._rows
 
+    def fetchone(self):
+        # S29: get_published_gen() faz .fetchone()[0]; devolve a 1a linha (ou None).
+        return self._rows[0] if self._rows else None
+
 
 class FakeConn:
     """Devolve filas distintas conforme o SQL executado (denso vs léxico vs léxico-pt)."""
@@ -49,6 +53,9 @@ class FakeConn:
 
     def execute(self, sql, params=None):
         self.calls.append((sql, params))
+        # S29: search() resolve a geração publicada antes dos caminhos de busca.
+        if "published_gen" in sql:
+            return FakeCursor([(0,)])
         if "<=>" in sql:  # operador cosine => caminho denso
             return FakeCursor(self.vec_rows)
         if "tsv_pt" in sql:  # S20: terceira lista, léxico pt-BR (kind='doc')

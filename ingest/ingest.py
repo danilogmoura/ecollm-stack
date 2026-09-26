@@ -191,9 +191,73 @@ def plan_sync(repo_root: Path, existing: dict[str, str]) -> list[PlanFile]:
 # execucao
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# S29 · helpers do sync blue-green (extraídos p/ teste unitário, padrão R5)
+# ---------------------------------------------------------------------------
+
+def _acquire_sync_lock(conn, repo: str) -> None:
+    """Lock advisory por repo: impede dois writers montarem gerações concorrentes.
+
+    Leitores NÃO bloqueiam (lock só entre writers). Liberação no finally; lock de
+    sessão morre junto com a conexão de qualquer forma (R3).
+    """
+    conn.execute("SELECT pg_advisory_lock(hashtext(%s))", ("rag_sync:" + repo,))
+
+
+def _release_sync_lock(conn, repo: str) -> None:
+    try:
+        conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", ("rag_sync:" + repo,))
+    except Exception:  # noqa: BLE001 — conexão pode já estar morta; lock de sessão morre sozinho
+        pass
+
+
+def _embed_and_upsert_file(conn, repo: str, plan: PlanFile, gen: int,
+                           cfg: dict, report: store.SyncReport) -> None:
+    """Embeda e sobe os chunks de UM arquivo na geração `gen`, em transação própria.
+
+    COMMIT por arquivo = átomo de retomada (§3.3): se um 429 estourar aqui, os
+    arquivos anteriores já commitados persistem e a próxima execução retoma deste.
+    """
+    pairs = [(c.content, c.kind) for c in plan.chunks]
+    vectors = embed.embed_documents(pairs, cfg=cfg) if pairs else []
+    rows = store.build_rows(repo, plan.entry.blob_sha, plan.chunks, vectors, gen=gen)
+    ins, unch = store.upsert_rows(conn, rows)
+    conn.commit()  # transação deste arquivo — commit() explícito (não `with conn:`,
+    #                que FECHARIA a conexão em psycopg3 e quebraria o próximo arquivo).
+    report.inserted += ins
+    report.unchanged += unch
+
+
+def _parity_ok(conn, repo: str, published_gen: int, new_gen: int,
+               unchanged_paths: list[str]) -> bool:
+    """R2: toda path unchanged presente na publicada deve existir na nova ANTES do flip.
+
+    Se o copy-forward deixou um arquivo inalterado de fora, abortamos o flip —
+    senão ele sumiria do índice ao publicar. Compara por PATH (um arquivo pode ter
+    nº de chunks diferente só se seu conteúdo mudou, o que o tiraria de unchanged).
+    """
+    if not unchanged_paths:
+        return True
+    missing = conn.execute(
+        "SELECT DISTINCT path FROM chunks WHERE repo = %s AND gen = %s "
+        "AND path = ANY(%s) AND path NOT IN ("
+        "  SELECT path FROM chunks WHERE repo = %s AND gen = %s)",
+        (repo, published_gen, unchanged_paths, repo, new_gen),
+    ).fetchall()
+    return not missing
+
+
 def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
                db_url: str | None = None, cfg: dict | None = None,
                verbose: bool = True, skip_gitleaks: bool | None = None) -> store.SyncReport:
+    """Sync incremental RETOMÁVEL com publicação atômica (S29 / T-OPS-7).
+
+    Blue-green por geração (SPEC-S29 §3): monta gen=published_gen+1 copiando os
+    arquivos inalterados (copy-forward, 0 cota) e embedando new/changed em
+    transação POR ARQUIVO (retomável); publica com um único UPDATE (flip) e faz GC
+    da geração anterior. Leitores veem sempre published_gen → nunca uma geração
+    parcial. Um 429 no meio PRESERVA o progresso (diferente do rollback total antigo).
+    """
     repo_root = Path(repo_root).resolve()
     repo = repo_name(repo_root)
     cfg = cfg or embed.config_from_env()
@@ -212,15 +276,21 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
     # 2) estado atual do DB p/ sync incremental
     conn = None if dry_run else store.connect(db_url)
     try:
+        # I6: dry-run lê a geração publicada real (conexão read-only não é aberta
+        # aqui — existing abaixo usa gen=None legado p/ o plano, suficiente p/ mostrar
+        # o que MUDARIA; o caminho escrito usa published_gen correto).
         existing = store.existing_file_hashes(conn, repo) if conn else {}
         plans = plan_sync(repo_root, existing)
 
         to_embed = [p for p in plans if p.action in ("new", "changed")]
+        unchanged_plans = [p for p in plans if p.action == "unchanged"]
         live_paths = [p.entry.path for p in plans]
         stored_paths = set(existing.keys())
         removed = sorted(stored_paths - set(live_paths))
 
         report = store.SyncReport(repo=repo, files_seen=len(plans))
+        report.changed_files = [p.entry.path for p in plans if p.action == "changed"]
+        report.removed_files = removed
 
         if dry_run:
             n_chunks = sum(len(p.chunks) for p in to_embed)
@@ -236,42 +306,60 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             return report
 
         assert conn is not None
-        with conn:  # transacao unica: tudo ou nada
-            # 3a) apaga chunks de arquivos alterados (blob mudou) ANTES de reinserir
-            changed_paths = [p.entry.path for p in to_embed if p.action == "changed"]
-            report.deleted += store.delete_stale(conn, repo, changed_paths)
-            # 3b) apaga huérfãos (paths que sumiram do corpus)
-            report.deleted += store.delete_removed(conn, repo, live_paths)
+        _acquire_sync_lock(conn, repo)
+        try:
+            published_gen, new_gen = store.next_generation(conn, repo)
+            store.begin_generation(conn, repo, new_gen)
+            conn.commit()
 
-            # 4) embeda em lote unico (aproveita batch/cache do proxy)
-            pairs: list[tuple[str, str]] = []
-            owner: list[tuple[str, str]] = []  # (path, file_hash) alinhado a pairs
+            # 3) copy-forward: arquivos inalterados da publicada → nova (0 cota).
+            #    Paths removidas NÃO entram aqui nem no embed → somem da geração nova.
+            unchanged_paths = [p.entry.path for p in unchanged_plans]
+            store.copy_forward_unchanged(conn, repo, published_gen, new_gen, unchanged_paths)
+            conn.commit()
+
+            # 4) embeda new/changed POR ARQUIVO (transação própria = retomável).
             for p in to_embed:
-                for c in p.chunks:
-                    pairs.append((c.content, c.kind))
-                    owner.append((p.entry.path, p.entry.blob_sha))
-            vectors = embed.embed_documents(pairs, cfg=cfg) if pairs else []
+                if store.file_in_generation(conn, repo, new_gen, p.entry.path,
+                                            p.entry.blob_sha):
+                    # resume: este arquivo já foi commitado nesta geração → pula.
+                    report.unchanged += len(p.chunks)
+                    continue
+                _embed_and_upsert_file(conn, repo, p, new_gen, cfg, report)
 
-            # 5) monta linhas por arquivo e faz upsert
-            rows: list[store.Row] = []
-            idx = 0
-            for p in to_embed:
-                nv = len(p.chunks)
-                sub_vecs = vectors[idx:idx + nv]
-                idx += nv
-                rows.extend(store.build_rows(repo, p.entry.blob_sha, p.chunks, sub_vecs))
-            ins, unch = store.upsert_rows(conn, rows)
-            report.inserted = ins
-            report.unchanged = unch + sum(len(p.chunks) for p in plans if p.action == "unchanged")
-            report.chunks_total = store.count_chunks(conn, repo)
-            report.changed_files = changed_paths
-            report.removed_files = removed
+            # contagem de unchanged dos arquivos inalterados (relatório fiel).
+            report.unchanged += sum(len(p.chunks) for p in unchanged_plans)
 
-            # S14: registra o estado do git neste sync (mesma transacao — só fica
-            # marcado como sincronizado se o ingest inteiro commitar).
+            # 5) paridade ANTES do flip (R2): nenhum unchanged pode ter ficado de fora.
+            if not _parity_ok(conn, repo, published_gen, new_gen, unchanged_paths):
+                raise SystemExit(
+                    "[abort] paridade unchanged falhou antes do flip — geração nova "
+                    "incompleta; publicação cancelada (índice publicado intacto)."
+                )
+
+            # 6) FLIP atômico + registro de frescor (I5: head_sha gravado NO flip).
+            #    commit() explícito — NÃO usar `with conn:` (em psycopg3 o bloco
+            #    FECHA a conexão ao sair, matando GC/count/finally abaixo).
             head_sha, dirty = _git_state(repo_root)
+            store.publish_generation(conn, repo, new_gen)
             store.record_sync_state(conn, repo, head_sha, dirty)
-        return report
+            conn.commit()
+
+            # 7) GC da geração anterior, em transação separada, APÓS o flip (R4).
+            report.deleted = store.gc_old_generations(conn, repo, new_gen)
+            conn.commit()
+
+            report.chunks_total = store.count_chunks(conn, repo, gen=new_gen)
+            return report
+        finally:
+            # Libera o ponteiro em andamento se abortamos no meio (crash/429): a
+            # próxima execução recomeça esta geração do zero (copy-forward idempotente).
+            try:
+                store.set_in_progress_gen(conn, repo, None)
+                conn.commit()
+            except Exception:  # noqa: BLE001
+                pass
+            _release_sync_lock(conn, repo)
     finally:
         if conn is not None:
             conn.close()

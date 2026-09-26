@@ -68,6 +68,7 @@ _VECTOR_SQL = f"""
 SELECT {_COLS}, (embedding <=> %(qvec)s::halfvec) AS dist
 FROM chunks
 WHERE repo = %(repo)s
+  AND gen = %(gen)s
   AND (%(kind)s::text IS NULL OR kind = %(kind)s::text)
   AND (%(path_like)s::text IS NULL OR path LIKE %(path_like)s::text)
 ORDER BY embedding <=> %(qvec)s::halfvec
@@ -78,6 +79,7 @@ _LEXICAL_SQL = f"""
 SELECT {_COLS}, ts_rank(tsv, websearch_to_tsquery('simple', %(q)s)) AS r
 FROM chunks
 WHERE repo = %(repo)s
+  AND gen = %(gen)s
   AND tsv @@ websearch_to_tsquery('simple', %(q)s)
   AND (%(kind)s::text IS NULL OR kind = %(kind)s::text)
   AND (%(path_like)s::text IS NULL OR path LIKE %(path_like)s::text)
@@ -94,6 +96,7 @@ _LEXICAL_PT_SQL = f"""
 SELECT {_COLS}, ts_rank(tsv_pt, websearch_to_tsquery('portuguese', %(q)s)) AS r
 FROM chunks
 WHERE repo = %(repo)s
+  AND gen = %(gen)s
   AND kind = 'doc'
   AND tsv_pt @@ websearch_to_tsquery('portuguese', %(q)s)
   AND (%(path_like)s::text IS NULL OR path LIKE %(path_like)s::text)
@@ -188,6 +191,7 @@ def search(
     lexical_pt_weight: float | None = None,
     ef_search: int | None = None,
     max_top1_dist: float | None = None,
+    gen: int | None = None,
 ) -> list[Hit]:
     """Busca hibrida para `query`. Ou embeda a query (via LiteLLM) ou recebe qvec pronto.
 
@@ -199,17 +203,25 @@ def search(
     (S21). Valores < vector_topk podem truncar o top-k denso realmente retornado.
     `max_top1_dist`=None desliga o gate de distancia; um valor filtra toda saida
     quando o candidato denso mais proximo esta alem dele (S21, ver MAX_TOP1_DIST).
+    `gen`=None (S29) resolve a geração PUBLICADA do repo (rag_sync_state.published_gen,
+    default 0 em volume legado) e filtra por ela — leitores nunca veem uma geração
+    parcial em montagem. Passar um int fixa a geração (testes/integração).
     """
     own_conn = conn is None
     if own_conn:
         conn = psycopg.connect(db_url_from_env())
     try:
+        # S29: filtra pela geração publicada (azul/verde). Uma linha lida do estado
+        # de sync; gen=0 é o default legado → comportamento idêntico ao pré-S29.
+        if gen is None:
+            from .store import get_published_gen  # lazy — evita ciclo no topo
+            gen = get_published_gen(conn, repo)
         if qvec is None:
             prefixed = apply_prefix(query, "query")
             qvec = embed_texts([prefixed], cfg=config_from_env())[0]
         qvec_text = "[" + ",".join(f"{float(x):.6g}" for x in qvec) + "]"
         params_common = {
-            "repo": repo, "kind": kind,
+            "repo": repo, "kind": kind, "gen": gen,
             "path_like": (path_prefix + "%") if path_prefix else None,
         }
         # S21: ajusta a largura da busca HNSW p/ esta transacao antes do scan denso.

@@ -55,11 +55,17 @@ except Exception:  # pragma: no cover - ambiente mínimo do container
 
 
 # Índices obrigatórios -> acesso esperado. (nome, amname)
+# S29/I9: a constraint de unicidade passou a incluir `gen` (migração 004), então o
+# nome do índice único mudou de `chunks_repo_path_content_hash_key` para
+# `chunks_repo_path_content_hash_gen_key`. Este nome e o do healthcheck do compose
+# e o de init.sql DEVEM mudar em lockstep — senão o container fica unhealthy com
+# o schema funcional (R6).
 REQUIRED_INDEXES = {
     "chunks_embedding_hnsw": "hnsw",
     "chunks_tsv_gin": "gin",
-    "chunks_repo_path_content_hash_key": "btree",
+    "chunks_repo_path_content_hash_gen_key": "btree",
     "chunks_tsv_pt_gin": "gin",   # S20: GIN parcial p/ prosa pt-BR (kind='doc')
+    "chunks_repo_gen": "btree",   # S29: filtro de leitura por gen + GC
 }
 
 
@@ -155,6 +161,27 @@ def check(url: str) -> list[tuple[bool, str]]:
     # S20: tsv_pt é gerado por expressão CASE → NULL em code/config, tsvector em doc.
     tsvpt_ok = gen.get("tsv_pt") == "s"
     results.append((tsvpt_ok, f"coluna gerada 'tsv_pt' presente (generated={gen.get('tsv_pt', '-')}))"))
+
+    # 6. S29 (T-OPS-7): coluna `gen` em chunks + ponteiros de geração no estado.
+    gen_rows = _fetch_all(
+        url,
+        """
+        SELECT a.attname FROM pg_attribute a
+        WHERE a.attrelid='chunks'::regclass AND a.attname = 'gen' AND a.attnum > 0
+        """,
+    )
+    results.append((bool(gen_rows), "coluna 'chunks.gen' presente (S29 blue-green)"))
+    state_cols = _fetch_all(
+        url,
+        """
+        SELECT a.attname FROM pg_attribute a
+        WHERE a.attrelid='rag_sync_state'::regclass
+          AND a.attname IN ('published_gen','in_progress_gen') AND a.attnum > 0
+        """,
+    )
+    have = {r[0] for r in state_cols}
+    ptr_ok = {"published_gen", "in_progress_gen"} <= have
+    results.append((ptr_ok, f"rag_sync_state tem published_gen/in_progress_gen (presentes={sorted(have)})"))
 
     return results
 

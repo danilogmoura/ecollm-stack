@@ -41,3 +41,4 @@ Lê `RAG_DB_URL` do `.env` no repo root (override com `--url`).
 | 001 | `001_baseline.sql` | Estado inicial (FASE 0 + S11 + S14), idempotente. No-op num volume recém-bootstrapped. |
 | 002 | `002_add_meta.sql` | Coluna `meta jsonb` em `chunks` (metadados futuros sem nova ALTER por campo). |
 | 003 | `003_add_tsv_pt.sql` | Coluna gerada `tsv_pt` (config `portuguese`, só `kind='doc'`) + GIN parcial. S20/T-RET-2 — caminho léxico pt-BR; mecanismo no código mas **desligado por default** (A/B neutro). |
+| 004 | `004_add_gen.sql` | Coluna `gen` em `chunks` + `published_gen`/`in_progress_gen` em `rag_sync_state`; unicidade passa a `(repo,path,content_hash,gen)` (`chunks_repo_path_content_hash_gen_key`). S29/T-OPS-7 — sync blue-green retomável. ⚠️ Rename da constraint exige lockstep com `verify_schema.py`, healthcheck do `docker-compose.yml` e `init.sql` (I9/R6). |

@@ -75,8 +75,8 @@ def test_upsert_counta_inserted_vs_unchanged():
     conn = FakeConn(rowcounts=[1, 0])  # primeiro insere, segundo conflita
     ins, unch = store.upsert_rows(conn, rows)
     assert (ins, unch) == (1, 1)
-    # SQL de upsert com ON CONFLICT DO NOTHING presente
-    assert "ON CONFLICT (repo, path, content_hash) DO NOTHING" in conn.calls[0][0]
+    # SQL de upsert com ON CONFLICT DO NOTHING presente (S29: chave inclui gen)
+    assert "ON CONFLICT (repo, path, content_hash, gen) DO NOTHING" in conn.calls[0][0]
     # cast ::halfvec aplicado ao embedding
     assert "::halfvec" in conn.calls[0][0]
 
