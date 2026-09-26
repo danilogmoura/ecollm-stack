@@ -220,3 +220,100 @@ def test_gate_falha_conservador_sem_metrica():
 def test_gate_override_de_threshold():
     g = rc.check_gate(_agg_com_recall8(0.95), threshold=0.97)
     assert g["passed"] is False and g["piso"] == 0.97
+
+
+# --------------------------------------------------------------------------
+# S23 · Eval v2 — recusa, cobertura multi-target e breakdown por fonte
+# (só funcoes puras; nada toca DB/rede)
+# --------------------------------------------------------------------------
+
+def _neg(qid="n1"):
+    return rc.Query(id=qid, question=f"fora do assunto {qid}", expect_paths=(),
+                    expect_symbols=(), expect_kinds=(), should_refuse=True)
+
+
+def _ext(qid="e1", paths=("README.md",)):
+    return rc.Query(id=qid, question=f"externas {qid}", expect_paths=tuple(paths),
+                    expect_symbols=(), expect_kinds=(), source="external")
+
+
+def test_query_negativa_e_recusada_so_com_lista_vazia():
+    ret = _fake_retrieve({"n1": []})           # busca cortou tudo => recusa correta
+    rows = rc.evaluate([_neg("n1")], ret, ks=[1, 8])
+    r = rows[0]
+    assert r.is_negative and r.refused
+    assert r.recall(8) == 1.0                  # recusar conta como acerto
+    assert r.coverage(8) == 1.0                # nada a cobrir
+
+
+def test_query_negativa_que_vaza_e_falha():
+    # gate nao cortou: retornou chunks => vazamento, deve contar como ERRO
+    ret = _fake_retrieve({"n1": [("README.md", None, "doc")]})
+    rows = rc.evaluate([_neg("n1")], ret, ks=[1, 8])
+    r = rows[0]
+    assert r.is_negative and not r.refused
+    assert r.recall(8) == 0.0
+
+
+def test_cobertura_multialvo_no_topk():
+    q = rc.Query(id="m1", question="multi", expect_paths=("a.py", "b.py"),
+                 expect_symbols=(), expect_kinds=(), expect_targets=2)
+    # so 'a' cai no top-2 => cobertura 1/2; ambos caem ate @3 => 2/2
+    ret = _fake_retrieve({"m1": [("a.py", None, "code"), ("x.py", None, "code"),
+                                 ("b.py", None, "code")]})
+    rows = rc.evaluate([q], ret, ks=[2, 3])
+    r = rows[0]
+    assert r.targets == 2
+    assert r.covered == 2                       # kmax=3 pega os dois
+    assert r.coverage(3) == 1.0
+
+
+def test_aggregate_reporta_by_source_e_recusa():
+    queries = [_q("c1", ["a.py"]), _ext("e1", ["b.py"]), _neg("n1")]
+    ret = _fake_retrieve({
+        "c1": [("a.py", None, "code")],         # curada acertada
+        "e1": [("zz.py", None, "code")],        # externa errada (miss)
+        "n1": [],                               # negativa bem recusada
+    })
+    rows = rc.evaluate(queries, ret, ks=[1])
+    agg = rc.aggregate(rows, ks=[1])
+    assert set(agg["by_source"]) == {"curated", "external"}
+    assert agg["by_source"]["external"]["recall"][1] == 0.0
+    # a negativa e curated por default => recusa medida dentro do grupo curated
+    assert agg["by_source"]["curated"]["refusal"] == 1.0
+    assert agg["by_source"]["external"]["refusal"] is None   # sem negativas aqui
+    assert agg["overall"]["refusal"] == 1.0
+    assert "e1" in agg["misses"]
+
+
+def test_load_dataset_v2_preserva_campos_extras(tmp_path: Path):
+    p = tmp_path / "ds.jsonl"
+    p.write_text(json.dumps({
+        "id": "e9", "question": "oi", "expect_paths": ["a.py"],
+        "source": "external", "should_refuse": False, "expect_targets": 3,
+    }) + "\n" + json.dumps({
+        "id": "n9", "question": "fora", "expect_paths": [], "should_refuse": True,
+    }) + "\n", encoding="utf-8")
+    qs = rc.load_dataset(p)
+    by = {q.id: q for q in qs}
+    assert by["e9"].source == "external"
+    assert by["e9"].targets == 3
+    assert by["n9"].is_negative()
+    assert by["n9"].targets == 0 or by["n9"].expect_targets == 0
+
+
+def test_dataset_v2_real_carrega_com_treseixos():
+    """dataset-v2.jsonl deve ter externas, multi-target e negativas de verdade."""
+    v2 = rc.EVAL_DIR / "dataset-v2.jsonl"
+    if not v2.exists():
+        pytest.skip("dataset-v2 ausente")
+    qs = rc.load_dataset(v2)
+    ext = [q for q in qs if q.source == "external"]
+    multi = [q for q in qs if q.targets > 1]
+    neg = [q for q in qs if q.is_negative()]
+    assert len(ext) >= 15, "S23 exige >=15 perguntas externas"
+    assert len(multi) >= 3, "S23 exige perguntas multi-target"
+    assert len(neg) >= 5, "S23 exige casos negativos/recusa"
+    # negativas NAO devem ter alvo esperado (senao a recusa e mal definida)
+    for q in neg:
+        assert not q.expect_paths, f"{q.id} negativa com expect_paths"

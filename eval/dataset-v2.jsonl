@@ -1,0 +1,47 @@
+# ============================================================================
+# S23 · Eval v2 — dataset ampliado (resto de T-EVAL-1)
+# ----------------------------------------------------------------------------
+# Tres eixos novos alem das perguntas curadas da FASE 4:
+#   1. MULTI-TARGET : perguntas com varios alvos corretos; mede COBERTURA (@k =
+#      % dos alvos distintos no top-k), nao so "primeiro acerto".
+#   2. RECUSA       : should_refuse=true -> pergunta fora-do-assunto cuja resposta
+#      certa e a busca devolver NADA. Valida o gate de distancia MAX_TOP1_DIST
+#      (S21): vazamento (lista nao-vazia) conta como falha na curva recall@k.
+#   3. EXTERNAS     : source="external" — perguntas formuladas por quem NAO
+#      escreveu o codigo-alvo, derivadas do README/comentarios publicos. Recall
+#      externo reportado a parte (by_source) p/ expor overfitting das curadas.
+# Campos extras aceitos pelo loader (eval/recall.py): source, should_refuse,
+# expect_targets. Perguntas curadas antigas ficam em dataset.jsonl (baseline).
+# ids: e## = externa, m## = multi-target, n## = negativa/recusa.
+# ============================================================================
+
+# ---------- EXTERNAS (source=external) — 15 perguntas de fonte independente ----------
+{"id": "e01", "question": "Como subir a stack pela primeira vez?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "source": "external", "note": "README 'Setup rapido': cp .env.example .env + docker compose up -d"}
+{"id": "e02", "question": "Qual porta o gateway LiteLLM escuta?", "expect_paths": ["README.md", "docker-compose.yml"], "expect_kinds": [], "source": "external", "note": "README servicos table / compose ports 4000"}
+{"id": "e03", "question": "Que modelo local serve de fallback quando o chat Gemini falha?", "expect_paths": ["litellm/config.yaml", "ollama/entrypoint.sh"], "expect_kinds": [], "source": "external", "note": "rag-chat -> qwen3:4b-instruct-2507-q4_K_M via Ollama"}
+{"id": "e04", "question": "Por que os embeddings sao armazenados como halfvec e nao vector?", "expect_paths": ["rag-db/init.sql", "README.md"], "expect_kinds": [], "source": "external", "note": "BUG-001 teto HNSW 2000 dim; init.sql comentario halfvec(3072)"}
+{"id": "e05", "question": "Como o chunker divide arquivos de codigo?", "expect_paths": ["ingest/chunker.py"], "expect_kinds": ["code"], "source": "external", "note": "chunk_code: tree-sitter 1 chunk por funcao/classe-top-level, cap 512 tok"}
+{"id": "e06", "question": "O que faz o comando rag-sync?", "expect_paths": ["ingest/cli.py", "ingest/ingest.py"], "expect_kinds": [], "source": "external", "note": "CLI sync -> ingest incremental loader->chunker->embed->store"}
+{"id": "e07", "question": "Como consultar o indice a partir de um agente externo?", "expect_paths": ["mcp/rag_server.py"], "expect_kinds": ["code"], "source": "external", "note": "servidor MCP stdio rag_search tool"}
+{"id": "e08", "question": "De onde vem a chave de acesso dos clientes do proxy?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "source": "external", "note": "LITELLM_MASTER_KEY uma chave por camada"}
+{"id": "e09", "question": "Como evoluir o schema do indice depois do bootstrap?", "expect_paths": ["rag-db/migrations/README.md", "rag-db/run_migrations.py"], "expect_kinds": [], "source": "external", "note": "convencao NNN_*.sql + run_migrations.py ledger schema_migrations"}
+{"id": "e10", "question": "Que tipo de indice acelera a busca vetorial?", "expect_paths": ["rag-db/init.sql", "ingest/search.py"], "expect_kinds": [], "source": "external", "note": "HNSW cosine (halfvec_cosine_ops) sobre embedding"}
+{"id": "e11", "question": "Como o pipeline evita embedar segredos?", "expect_paths": ["ingest/ingest.py"], "expect_kinds": ["code"], "source": "external", "note": "gate gitleaks no corpus versionado antes do embed"}
+{"id": "e12", "question": "Qual a diferenca entre os grupos de modelo -fast?", "expect_paths": ["litellm/config.yaml", "README.md"], "expect_kinds": [], "source": "external", "note": "-fast fixa enable_thinking:false no proxy"}
+{"id": "e13", "question": "Como funciona a busca hibrida internamente?", "expect_paths": ["ingest/search.py"], "expect_kinds": ["code"], "source": "external", "note": "denso HNSW + lexico tsvector fundidos por RRF k=60"}
+{"id": "e14", "question": "Por que o Ollama nao pre-aquece o modelo no boot?", "expect_paths": ["ollama/entrypoint.sh", "litellm/config.yaml"], "expect_kinds": [], "source": "external", "note": "NO WARMUP by design: fallback raramente atingido, carrega sob demanda"}
+{"id": "e15", "question": "Que extensoes de arquivo entram no corpus indexado?", "expect_paths": ["ingest/loader.py"], "expect_kinds": ["code"], "source": "external", "note": "EXT_KIND py/js/ts/tsx/go/sh/bash/md/yaml/yml/toml/json"}
+
+# ---------- MULTI-TARGET (expect_targets>1) — cobertura de varios chunks ----------
+{"id": "m01", "question": "Quais containers compoem a stack e o que cada um faz?", "expect_paths": ["README.md", "docker-compose.yml"], "expect_kinds": [], "expect_targets": 2, "source": "curated", "note": "multi-alvo: tabela de servicos no README + definicao no compose"}
+{"id": "m02", "question": "Onde esta definida a decisao de usar halfvec(3072) e por que?", "expect_paths": ["rag-db/init.sql", "README.md"], "expect_kinds": [], "expect_targets": 2, "source": "curated", "note": "decisao aparece no schema (init.sql) E documentada no README gotchas"}
+{"id": "m03", "question": "Como o task-prefix assimetrico e aplicado e onde mora a regra?", "expect_paths": ["ingest/embed.py", "ingest/search.py"], "expect_kinds": [], "expect_targets": 2, "source": "curated", "note": "prefixo doc/query em embed.py; query usa 'query:' em search.py"}
+{"id": "m04", "question": "Que mecanismos garantem que mexer no schema nao quebre silenciosamente?", "expect_paths": ["rag-db/verify_schema.py", "rag-db/run_migrations.py"], "expect_kinds": [], "expect_targets": 2, "source": "curated", "note": "verify_schema (healthcheck) + migrations idempotentes com transacao propria"}
+
+# ---------- NEGATIVAS / RECUSA (should_refuse=true) — fora do dominio do repo ----------
+{"id": "n01", "question": "Como temperar um strogonoff de frango?", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "receita de cozinha: nada no indice deve casar; gate MAX_TOP1_DIST deve cortar tudo"}
+{"id": "n02", "question": "Qual a capital da Austrália e sua população?", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "geografia: fora-do-assunto, espera recusa"}
+{"id": "n03", "question": "Como trocar a correia dentada de um Fusca 1978?", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "mecanica automotiva: valida recusa (mesmo caso end-to-end da S21)"}
+{"id": "n04", "question": "Explique a fotossíntese em plantas carnívoras.", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "biologia: fora do corpus tecnico de software"}
+{"id": "n05", "question": "Qual o melhor fundo de investimento para 2026?", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "financas: nenhuma correlacao com a stack"}
+{"id": "n06", "question": "Como fazer rollback de uma migração Kubernetes num cluster EKS?", "expect_paths": [], "expect_kinds": [], "should_refuse": true, "source": "curated", "note": "adjacente mas FORA: repo nao tem K8s/EKS; testa recusa em topico de infra vizinho (mais dificil que n01-n05)"}

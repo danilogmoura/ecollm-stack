@@ -19,6 +19,17 @@ contra o indice e SAI 1 se recall@8 cair abaixo do piso registrado
 (BASELINE_RECALL_AT_8 - MARGEM_REGRESSAO ~ 0,90). Rodar SEMPRE que mexer em
 ingest/search/chunker/embeddings — ver .planning/PLANO-SANEAMENTO.md S15.
 
+S23 · Eval v2 — o dataset ganha tres eixos (ver campos em Query):
+  - multi-target : perguntas com varios alvos corretos; alem de hit-rate mede-se
+                   COBERTURA (@k = % dos alvos distintos no top-k).
+  - recusa       : perguntas fora-do-assunto (should_refuse=true) cuja resposta
+                   certa e a busca devolver NADA; valida o gate de distancia
+                   MAX_TOP1_DIST (S21). Recusa entra na curva recall@k como acerto
+                   quando a lista vem vazia, entao o gate S15 tambem pune vazamento.
+  - fonte        : source="external" (>=15 perguntas de fonte independente do autor)
+                   tem recall reportado a parte (breakdown by_source) p/ expor
+                   overfitting das perguntas curadas.
+
 Design testavel: as metricas sao funcoes puras (hit_for_query, aggregate); a
 retrieval e injetavel via `retrieve` (default = ingest.search.search real). Os
 unit tests exercitam as metricas sem tocar em rede/DB.
@@ -59,6 +70,25 @@ class Query:
     expect_symbols: tuple[str, ...]
     expect_kinds: tuple[str, ...]
     note: str = ""
+    # S23 · Eval v2 — três eixos novos no esquema do dataset:
+    #   source        : "curated" (default, autor do código) | "external"
+    #                   (fonte independente). Recall externo é reportado à parte
+    #                   p/ expor overfitting das perguntas curadas.
+    #   should_refuse : True = pergunta fora-do-assunto; a resposta certa é NÃO
+    #                   achar nada (recusa). Mede a precisão do gate de distância.
+    #   expect_targets: nº de alvos distintos que DEVEM aparecer no top-k (mede
+    #                   cobertura multi-chunk); default = len(expect_paths).
+    source: str = "curated"
+    should_refuse: bool = False
+    expect_targets: int = 0
+
+    @property
+    def targets(self) -> int:
+        """Quantos alvos distintos esta pergunta exige no top-k (multi-target)."""
+        return self.expect_targets or len(self.expect_paths)
+
+    def is_negative(self) -> bool:
+        return self.should_refuse
 
     def matches(self, path: str, symbol: str | None, kind: str) -> bool:
         """Um chunk de saida e 'o alvo' desta pergunta?
@@ -90,6 +120,9 @@ def load_dataset(path: Path = DEFAULT_DATASET) -> list[Query]:
                 expect_symbols=tuple(rec.get("expect_symbols", [])),
                 expect_kinds=tuple(rec.get("expect_kinds", [])),
                 note=rec.get("note", ""),
+                source=rec.get("source", "curated"),
+                should_refuse=bool(rec.get("should_refuse", False)),
+                expect_targets=int(rec.get("expect_targets", 0)),
             ))
         except (KeyError, json.JSONDecodeError) as exc:
             raise ValueError(f"{path}:{ln}: registro invalido: {exc}") from exc
@@ -126,13 +159,47 @@ class PerQuery:
     kind_group: str          # bucket p/ breakdown = primeiro expect_kind ou "mixed"
     rank: int | None         # posicao do primeiro acerto (None = miss total)
     ks: tuple[int, ...]
+    # S23 · campos opcionais (defaultados p/ tras-compatibilidade dos testes):
+    source: str = "curated"       # "curated" | "external"
+    is_negative: bool = False     # pergunta de recusa (fora-do-assunto)
+    refused: bool = False         # a busca devolveu lista VAZIA (gate cortou tudo)
+    targets: int = 1              # nº de alvos distintos exigidos (multi-target)
+    covered: int = 0              # quantos alvos distintos caíram no top-k max(ks)
 
     @property
     def rr(self) -> float:
         return reciprocal_rank(self.rank)
 
     def recall(self, k: int) -> float:
+        """Hit-rate@k p/ perguntas positivas; p/ negativas vale a RECUSA.
+
+        Pergunta de recusa (S23): o "acerto" é a busca não devolver nada — o
+        gate de distância (MAX_TOP1_DIST) deve cortar o fora-do-assunto. Assim
+        recusa entra na MESMA curva recall@k e no gate S15 sem trair o piso.
+        """
+        if self.is_negative:
+            return 1.0 if self.refused else 0.0
         return recall_at_k(self.rank, k)
+
+    def coverage(self, k: int) -> float:
+        """Fração dos alvos distintos que aparecem no top-k (multi-chunk).
+
+        Só faz sentido p/ perguntas positivas multi-alvo; single-target dá 0/1
+        igual a recall(). Negativas retornam 1.0 por convenção (nada a cobrir).
+        """
+        if self.is_negative or self.targets <= 0:
+            return 1.0
+        return min(1.0, self.covered / self.targets)
+
+
+def _count_targets(query: Query, results: Sequence[tuple[str, str | None, str]],
+                   kmax: int) -> int:
+    """Quantos caminhos esperados distintos aparecem no top-`kmax`."""
+    seen: set[str] = set()
+    for (path, symbol, kind) in results[:kmax]:
+        if query.matches(path, symbol, kind):
+            seen.add(path)
+    return len(seen)
 
 
 def _kind_group(query: Query) -> str:
@@ -150,36 +217,58 @@ def evaluate(
     """Roda `retrieve` p/ cada pergunta e produz o resultado por-pergunta.
 
     `retrieve` devolve a lista ordenada de (path, symbol, kind) do top-k max(k).
+    S23: registra também se a busca recusou (lista vazia) e quantos alvos
+    distintos caíram no top-k (cobertura multi-chunk), além da fonte da pergunta.
     """
     ks_t = tuple(sorted(set(ks)))
+    kmax = max(ks_t) if ks_t else 0
     rows: list[PerQuery] = []
     for q in queries:
         results = retrieve(q)
         rank = first_hit_rank(q, results)
-        rows.append(PerQuery(id=q.id, question=q.question, kind_group=_kind_group(q),
-                             rank=rank, ks=ks_t))
+        rows.append(PerQuery(
+            id=q.id, question=q.question, kind_group=_kind_group(q),
+            rank=rank, ks=ks_t, source=q.source, is_negative=q.is_negative(),
+            refused=len(results) == 0, targets=max(1, q.targets),
+            covered=_count_targets(q, results, kmax),
+        ))
     return rows
 
 
 def aggregate(rows: Sequence[PerQuery], ks: Sequence[int] | None = None) -> dict:
-    """Resumo global + por kind: recall@k medio e MRR."""
+    """Resumo global + por kind + por fonte (S23): recall@k, MRR, cobertura e recusa."""
     ks_t = tuple(sorted(set(ks))) if ks else tuple(sorted({k for r in rows for k in r.ks}))
 
     def summarize(subset: Sequence[PerQuery]) -> dict:
         n = len(subset)
         if n == 0:
-            return {"n": 0, "recall": {}, "mrr": 0.0}
+            return {"n": 0, "recall": {}, "mrr": 0.0, "coverage": {},
+                    "refusal": None}
+        pos = [r for r in subset if not r.is_negative]
+        neg = [r for r in subset if r.is_negative]
         return {
             "n": n,
             "recall": {k: round(statistics.fmean(r.recall(k) for r in subset), 4) for k in ks_t},
-            "mrr": round(statistics.fmean(r.rr for r in subset), 4),
+            "mrr": round(statistics.fmean(r.rr for r in pos), 4) if pos else 0.0,
+            # cobertura média só das positivas multi-alvo (targets>1)
+            "coverage": {k: round(statistics.fmean(r.coverage(k) for r in pos), 4)
+                         for k in ks_t} if pos else {},
+            # taxa de recusa = % das negativas que a busca devolveu vazia
+            "refusal": (round(statistics.fmean(1.0 if r.refused else 0.0 for r in neg), 4)
+                        if neg else None),
         }
 
     by_kind: dict[str, dict] = {}
     for grp in sorted({r.kind_group for r in rows}):
         by_kind[grp] = summarize([r for r in rows if r.kind_group == grp])
-    return {"overall": summarize(rows), "by_kind": by_kind,
-            "misses": [r.id for r in rows if r.rank is None]}
+    # S23 · breakdown por FONTE: curadas vs externas (overfitting) — só positivas
+    # têm recall; recusa aparece no grupo onde as negativas foram lançadas.
+    by_source: dict[str, dict] = {}
+    for src in sorted({r.source for r in rows}):
+        by_source[src] = summarize([r for r in rows if r.source == src])
+    return {"overall": summarize(rows), "by_kind": by_kind, "by_source": by_source,
+            "misses": [r.id for r in rows
+                       if (r.is_negative and not r.refused) or (not r.is_negative and r.rank is None)]}
 
 
 # ---------------------------------------------------------------------------
@@ -229,12 +318,17 @@ def make_live_retriever(repo: str, final_k: int,
                         lexical_pt_weight: float | None = None,
                         ef_search: int | None = None, rrf_k: int | None = None,
                         vector_topk: int | None = None,
+                        max_top1_dist: float | None = None,
                         ) -> Callable[[Query], list[tuple[str, str | None, str]]]:
     """Retriever que chama a busca hibrida real (rede LiteLLM + Postgres).
 
     Encaminha os knobs de tuning de retrieval (S20/S21) p/ search.search() para que
     o harness meça curvas sem editar código. None em cada um => default do módulo.
     `lexical_pt_weight` (S20): 0.0 desliga o caminho léxico pt-BR (lado B do A/B).
+    `max_top1_dist` (S23): limiar de distancia do gate de recusa (S21). Default None
+        deixa o gate DESLIGADO (recall@k mede só ordenacao). Para medir RECUSA nas
+        perguntas negativas, passe MAX_TOP1_DIST (= comportamento do CLI em prod):
+        assim uma negativa fora-do-assunto volta lista vazia e conta como recusa.
     """
     from ingest import search as search_mod
 
@@ -247,6 +341,8 @@ def make_live_retriever(repo: str, final_k: int,
         kw["rrf_k"] = rrf_k
     if vector_topk is not None:
         kw["vector_topk"] = vector_topk
+    if max_top1_dist is not None:
+        kw["max_top1_dist"] = max_top1_dist
 
     def _retrieve(q: Query) -> list[tuple[str, str | None, str]]:
         hits = search_mod.search(q.question, repo=repo, final_k=final_k, **kw)
@@ -269,7 +365,11 @@ def render_report(rows: Sequence[PerQuery], agg: dict, *, ks: Sequence[int],
     lines.append(f"- Data: **{today}**")
     lines.append(f"- Repo indexado: `{repo}`")
     lines.append(f"- Embedder: `{embedder}`")
-    lines.append(f"- Dataset: `{dataset_path.relative_to(REPO_ROOT)}` ({len(rows)} perguntas)")
+    try:
+        ds_disp = dataset_path.relative_to(REPO_ROOT)
+    except ValueError:
+        ds_disp = dataset_path
+    lines.append(f"- Dataset: `{ds_disp}` ({len(rows)} perguntas)")
     lines.append(f"- Busca: híbrida (HNSW cosine + tsvector BM25 → RRF k=60), "
                  f"final_k={max(ks)}")
     gate = overall["recall"].get(8)
@@ -294,14 +394,32 @@ def render_report(rows: Sequence[PerQuery], agg: dict, *, ks: Sequence[int],
         cells = " | ".join(f"{d['recall'].get(k, float('nan')):.2f}" for k in sorted(ks))
         lines.append(f"| {grp} | {d['n']} | {cells} | {d['mrr']:.2f} |")
     lines.append("")
+    # S23 · recall por FONTE (curadas vs externas): expõe overfitting.
+    if agg.get("by_source"):
+        lines.append("## Por fonte da pergunta (overfitting)")
+        lines.append("")
+        lines.append("`external` = perguntas de fonte independente do autor do código;")
+        lines.append("recall externo mais baixo que o curado indica sobre-ajuste ao crivo local.")
+        lines.append("")
+        lines.append("| fonte | n | " + " | ".join(f"r@{k}" for k in sorted(ks)) + " | MRR | cobertura@" + str(max(ks)) + " | recusa |")
+        lines.append("| --- | --- | " + " | ".join("---" for _ in ks) + " | --- | --- | --- |")
+        for src, d in agg["by_source"].items():
+            cells = " | ".join(f"{d['recall'].get(k, float('nan')):.2f}" for k in sorted(ks))
+            cov = d["coverage"].get(max(ks), float("nan"))
+            ref = "—" if d["refusal"] is None else f"{d['refusal']:.2f}"
+            lines.append(f"| {src} | {d['n']} | {cells} | {d['mrr']:.2f} | {cov:.2f} | {ref} |")
+        lines.append("")
     lines.append("## Acertos por pergunta")
     lines.append("")
-    lines.append("| id | rank | RR | grupo | pergunta |")
-    lines.append("| --- | --- | --- | --- | --- |")
+    lines.append("| id | rank | RR | grupo | fonte | alvos | cobertos | pergunta |")
+    lines.append("| --- | --- | --- | --- | --- | --- | --- | --- |")
     for r in sorted(rows, key=lambda x: (x.rank is None, x.rank or 999, x.id)):
         rank = "-" if r.rank is None else str(r.rank)
         qtxt = r.question.replace("|", "\\|")
-        lines.append(f"| {r.id} | {rank} | {r.rr:.2f} | {r.kind_group} | {qtxt} |")
+        neg = " 🚫" if r.is_negative else ""
+        cov = f"{r.covered}/{r.targets}" if not r.is_negative else ("recusada" if r.refused else "VAZOU")
+        lines.append(f"| {r.id}{neg} | {rank} | {r.rr:.2f} | {r.kind_group} | "
+                     f"{r.source} | {r.targets} | {cov} | {qtxt} |")
     lines.append("")
     if agg["misses"]:
         lines.append("### Perguntas sem acerto no top-" + str(max(ks)))
@@ -342,6 +460,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--vector-topk", type=int, default=None, dest="vector_topk",
                     help="S21: tamanho do candidato denso que alimenta a fusao "
                          "(default do modulo = 50).")
+    # S23 · gate de recusa (distancia) para medir as perguntas negativas.
+    ap.add_argument("--gate-dist", action="store_true", dest="gate_dist",
+                    help="S23: aplica o gate de distancia MAX_TOP1_DIST (= comportamento "
+                         "do CLI em prod) para que as negativas fora-do-assunto sejam "
+                         "cortadas e a RECUSA seja medida. Sem isto o gate fica desligado.")
     args = ap.parse_args(argv)
 
     ks = tuple(int(x) for x in str(args.k).split(",") if x.strip())
@@ -352,9 +475,11 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from ingest import ingest as ingest_mod
     repo = args.repo or ingest_mod.repo_name(REPO_ROOT)
+    from ingest import search as _search_mod
+    gate_dist = _search_mod.MAX_TOP1_DIST if args.gate_dist else None
     retriever = make_live_retriever(repo, final_k=max(ks), lexical_pt_weight=args.lexical_pt,
                                     ef_search=args.ef_search, rrf_k=args.rrf_k,
-                                    vector_topk=args.vector_topk)
+                                    vector_topk=args.vector_topk, max_top1_dist=gate_dist)
     rows = evaluate(queries, retriever, ks=ks)
     agg = aggregate(rows, ks=ks)
 
@@ -378,6 +503,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         for k in sorted(ks):
             print(f"  recall@{k} = {o['recall'][k]:.3f}")
         print(f"  MRR = {o['mrr']:.3f}")
+        # S23 · recusa + recall por fonte (overfitting)
+        if o.get("refusal") is not None:
+            print(f"  recusa (negativas cortadas) = {o['refusal']:.3f}")
+        for src, d in agg.get("by_source", {}).items():
+            ext = " (externas)" if src == "external" else ""
+            print(f"  [{src}{ext}] n={d['n']} "
+                  f"recall@8={d['recall'].get(8, float('nan')):.3f} MRR={d['mrr']:.3f}")
         if agg["misses"]:
             print(f"  misses: {', '.join(agg['misses'])}")
     print(f"[eval] relatório -> {out}")
