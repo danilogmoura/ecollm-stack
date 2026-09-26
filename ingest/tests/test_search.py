@@ -17,8 +17,17 @@ from ingest import search
 
 
 # linha na ordem de _COLS: id, repo, path, lang, kind, symbol, content, content_hash
-def _row(i, path, kind="code", symbol=None, content="c"):
-    return (f"id{i}", "repo", path, "py", kind, symbol, content, f"h{i}")
+def _row(i, path, kind="code", symbol=None, content="c", extra=None):
+    # Emula a forma real vinda do SQL: 8 colunas de _COLS + 1 extra. Para o caminho
+    # denso o extra e a DISTANCIA coseno (float); p/ lexicos e ts_rank. Default usa
+    # um valor plausivel so lexicamente; testes densos passam extra=float explicito.
+    return (f"id{i}", "repo", path, "py", kind, symbol, content, f"h{i}",
+            0.2 if extra is None else extra)
+
+
+def _drow(i, path, dist, **kw):
+    # linha do caminho DENSO com distancia coseno explicita
+    return _row(i, path, extra=dist, **kw)
 
 
 class FakeCursor:
@@ -55,18 +64,20 @@ class FakeConn:
 # ---------------------------------------------------------------------------
 
 def test_rrf_score_de_uma_lista():
-    fused = search.reciprocal_rank_fusion([[_row(1, "a"), _row(2, "b")]], k=60)
+    fused = search.reciprocal_rank_fusion([[_drow(1, "a", 0.1), _drow(2, "b", 0.2)]], k=60)
     # rank1 -> 1/61, rank2 -> 1/62
     assert fused["id1"][1] == pytest.approx(1 / 61)
     assert fused["id2"][1] == pytest.approx(1 / 62)
     assert fused["id1"][2] == 1   # vec_rank
     assert fused["id1"][3] is None  # só estava na 1ª lista (densa)
+    # S21: a distancia coseno da linha densa e propagada no slot final
+    assert fused["id1"][4] == pytest.approx(0.1)
 
 
 def test_rrf_soma_das_duas_listas_e_marca_ranks():
-    shared = _row(2, "b")  # MESMO id nas duas listas -> soma dos dois ranks
-    dense = [_row(1, "a"), shared]
-    lexical = [shared, _row(7, "c")]  # id2 aparece nos dois
+    shared = _drow(2, "b", 0.3)  # MESMO id nas duas listas -> soma dos dois ranks
+    dense = [_drow(1, "a", 0.1), shared]
+    lexical = [_row(2, "b"), _row(7, "c")]  # id2 aparece nos dois
     fused = search.reciprocal_rank_fusion([dense, lexical], k=60)
     # id2: 1/(60+2) [densa] + 1/(60+1) [léxica]
     assert fused["id2"][1] == pytest.approx(1 / 62 + 1 / 61)
@@ -76,10 +87,13 @@ def test_rrf_soma_das_duas_listas_e_marca_ranks():
     assert fused["id1"][3] is None
     assert fused["id7"][2] is None
     assert fused["id7"][3] == 2
+    # S21: so o caminho denso carrega distancia; id7 (so lexico) fica None
+    assert fused["id2"][4] == pytest.approx(0.3)
+    assert fused["id7"][4] is None
 
 
 def test_rrf_pesos_aplicam_por_lista():
-    dense = [_row(1, "a")]
+    dense = [_drow(1, "a", 0.1)]
     lexical = [_row(1, "a")]
     fused = search.reciprocal_rank_fusion([dense, lexical], weights=[2.0, 1.0], k=60)
     # 2*(1/61) + 1*(1/61) = 3/61
@@ -91,9 +105,9 @@ def test_rrf_pesos_aplicam_por_lista():
 # ---------------------------------------------------------------------------
 
 def test_search_combina_ordena_e_limita():
-    shared = _row(2, "y.py")  # aparece nas duas listas -> maior score combinado
-    dense = [_row(1, "z.py"), shared, _row(3, "x.py")]
-    lexical = [shared, _row(9, "w.py")]
+    shared = _drow(2, "y.py", 0.15)  # aparece nas duas listas -> maior score combinado
+    dense = [_drow(1, "z.py", 0.1), shared, _drow(3, "x.py", 0.4)]
+    lexical = [_row(2, "y.py"), _row(9, "w.py")]
     conn = FakeConn(dense, lexical)
     hits = search.search("q", repo="repo", conn=conn, qvec=[0.1, 0.2], final_k=2)
     assert len(hits) == 2
@@ -107,8 +121,12 @@ def test_search_passa_filtros_nos_params():
     conn = FakeConn([], [])
     search.search("qq", repo="meu", conn=conn, qvec=[0.0],
                   kind="config", path_prefix="litellm/")
-    # duas chamadas: densa e léxica; ambas com kind/path_like/repo corretos
-    for _, params in conn.calls:
+    # S21: a 1a chamada e o set_config('hnsw.ef_search', ...) (params em formato
+    # posicional/tupla), nao uma busca com filtros. Filtra pelas chamadas nomeadas.
+    query_calls = [(sql, p) for sql, p in conn.calls if isinstance(p, dict)]
+    assert len(query_calls) == 2, "esperado: densa + léxica"
+    # ambas com kind/path_like/repo corretos
+    for _, params in query_calls:
         assert params["repo"] == "meu"
         assert params["kind"] == "config"
         assert params["path_like"] == "litellm/%"
@@ -116,8 +134,8 @@ def test_search_passa_filtros_nos_params():
 
 def test_search_deterministico_empate_por_path():
     # dois chunks com MESMO score (cada um em posição espelhada) -> desempate por path
-    a = _row(1, "aaa.py")
-    b = _row(2, "bbb.py")
+    a = _drow(1, "aaa.py", 0.1)
+    b = _drow(2, "bbb.py", 0.2)
     conn = FakeConn([a, b], [b, a])  # simétrico => scores iguais
     hits = search.search("q", repo="r", conn=conn, qvec=[0.0])
     assert hits[0].score == pytest.approx(hits[1].score)
@@ -178,6 +196,58 @@ def test_s20_predicado_kind_doc_explicito_no_sql_pt():
     search.search("q", repo="r", conn=conn, qvec=[0.0], lexical_pt_weight=0.5)
     pt_sql = next(s for s, _ in conn.calls if "tsv_pt" in s)
     assert "kind = 'doc'" in pt_sql
+
+
+# ---------------------------------------------------------------------------
+# S21 · gate de relevancia por distancia coseno bruta (substitui MIN_SCORE morto)
+# ---------------------------------------------------------------------------
+
+def test_s21_hit_carrega_distancia_do_caminho_denso():
+    doc = _drow(5, "README.md", 0.18, kind="doc")
+    conn = FakeConn([doc], [])
+    hits = search.search("q", repo="r", conn=conn, qvec=[0.0])
+    assert hits[0].dist == pytest.approx(0.18)
+
+
+def test_s21_gate_desligado_por_default_nao_filtra():
+    # vizinho denso longe (0.9); sem max_top1_dist a saida permanece
+    far = _drow(1, "a.py", 0.9)
+    conn = FakeConn([far], [])
+    hits = search.search("q", repo="r", conn=conn, qvec=[0.0])
+    assert len(hits) == 1
+
+
+def test_s21_gate_filtra_quando_vizinho_denso_aldo_limiar():
+    # query fora-de-corpus: melhor candidato denso a 0.37 > limiar 0.34 => vazio
+    far = _drow(1, "a.py", 0.37)
+    conn = FakeConn([far], [])
+    hits = search.search("bolo de cenoura", repo="r", conn=conn, qvec=[0.0],
+                         max_top1_dist=search.MAX_TOP1_DIST)
+    assert hits == []
+
+
+def test_s21_gate_preserva_quando_vizinho_denso_perto():
+    near = _drow(1, "a.py", 0.20)
+    conn = FakeConn([near], [])
+    hits = search.search("q", repo="r", conn=conn, qvec=[0.0],
+                         max_top1_dist=search.MAX_TOP1_DIST)
+    assert len(hits) == 1
+
+
+def test_s21_gate_usa_o_mais_proximo_entre_densos():
+    # um candidato perto (0.2) e outro longe (0.5): min dist <= limiar => mantem
+    near = _drow(1, "a.py", 0.2)
+    far = _drow(2, "b.py", 0.5)
+    conn = FakeConn([near, far], [])
+    hits = search.search("q", repo="r", conn=conn, qvec=[0.0],
+                         max_top1_dist=search.MAX_TOP1_DIST)
+    assert {h.id for h in hits} == {"id1", "id2"}
+
+
+def test_s21_limiar_medido_esta_entre_corpus_e_fora():
+    # calibracao: MAX_TOP1_DIST acima do pior caso legitimo medido (~0.30) e abaixo
+    # da zona de nao-relevancia observada (~0.37)
+    assert 0.30 < search.MAX_TOP1_DIST < 0.37
 
 
 # ---------------------------------------------------------------------------

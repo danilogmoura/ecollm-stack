@@ -31,9 +31,12 @@ from .search import Hit
 # p/ ollama local quando o roteador Gemini da 503 (~10s), estourando a meta.
 ASK_MODEL_DEFAULT = "qwen3.8-flash-fast"
 TIMEOUT_S = 60
-# limiar conservador: score RRF maximo ~ 1/(k+1)+1/(k+1) ~ 0.033 (k=60). Abaixo
-# disto nenhum chunk apareceu em NENHUM dos dois rankings relevantes -> "NAO SEI".
-MIN_SCORE = 0.005
+# S21 · limiar de relevancia p/ o "NAO SEI". O antigo MIN_SCORE=0,005 media o score
+# RRF do top-1, mas esse score e POSICIONAL e sempre sai 0,0164 (rank1+rank1 =>
+# 1/61+1/61) — uma zona morta que so disparava quando a lista ficava VAZIA, nunca
+# separando "relevante" de "fora-do-assunto". Passamos a medir a DISTANCIA coseno bruta
+# do vizinho denso mais proximo (search.MAX_TOP1_DIST), calibrada no corpus atual.
+MIN_SCORE = search.MAX_TOP1_DIST
 
 
 def _chat_cfg() -> dict:
@@ -124,12 +127,15 @@ def cmd_rag(args) -> int:
         qvec = embed.embed_texts([prefixed], cfg=embed.config_from_env())[0]
     hits = search.search(
         args.query, repo=repo, qvec=qvec, kind=args.kind,
-        path_prefix=args.path, final_k=args.k,
+        path_prefix=args.path, final_k=args.k, max_top1_dist=MIN_SCORE,
     )
     print(format_hits(hits, show_content=0 if args.no_snippet else 280))
     if not args.ask:
         return 0
-    if not hits or hits[0].score < MIN_SCORE:
+    # S21: com o gate por distancia ativo na busca, uma saida vazia ja significa
+    # "nada relevante" (vizinho denso mais proximo alem de MAX_TOP1_DIST). Mantem o
+    # fallback por seguranca caso hits venha de um caminho sem distancia.
+    if not hits:
         print("\nNÃO SEI (nada relevante no índice).")
         return 0
     answer = ask_llm(args.query, build_context(hits))

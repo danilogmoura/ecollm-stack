@@ -48,9 +48,10 @@ class Hit:
     kind: str
     symbol: str | None
     content: str
-    score: float          # score RRF combinado
+    score: float          # score RRF combinado (posicional — nao discrimina relevancia)
     vec_rank: int | None  # posicao na lista densa (None = so lexico)
     lex_rank: int | None  # posicao na lista lexica
+    dist: float | None = None  # S21: distancia coseno bruta ao chunk denso (None = so lexico)
 
     def source(self) -> str:
         loc = self.path if not self.symbol else f"{self.path}::{self.symbol}"
@@ -110,12 +111,28 @@ LIMIT %(n)s
 # parcial permanecem (custo ~0, pré-requisito do botão).
 LEXICAL_PT_WEIGHT = 0.0
 
+# S21 · `hnsw.ef_search` padrao do pgvector e 40; ele limita a largura da varredura
+# no grafo HNSW ANTES do ORDER BY, entao ef_search < vector_topk faz o top-k pedido
+# NUNCA ser alcancado (a busca para cedo). Default = VECTOR_TOPK p/ cobrir todo o k
+# solicitado; exposto como parametro p/ a curva ef_search x recall medida em S21.
+EF_SEARCH_DEFAULT = VECTOR_TOPK
 
-def _row_to_hit(row, score, vec_rank=None, lex_rank=None) -> Hit:
+# S21 · limiar de relevancia por DISTANCIA coseno bruta, medido no corpus atual
+# (375 chunks, 30 perguntas). As perguntas in-corpus tem distancia do vizinho denso
+# mais proximo entre 0,138 e 0,300 (p90=0,260); queries fora-de-corpus ("bolo de
+# cenoura", "correia do fusca") ficam em ~0,37 — gap claro de separacao. 0,34 fica
+# acima do pior caso legitimo (0,30) com folga e abaixo da zona de nao-relevancia.
+# Substitui o antigo MIN_SCORE=0,005 sobre score RRF, que era uma zona morta: o
+# score RRF do top-1 e SEMPRE 0,0164 (rank1+rank1 => 1/61+1/61), posicional, e nao
+# discrimina relevancia. Usado pelo CLI 'rag --ask' p/ o gate "NAO SEI".
+MAX_TOP1_DIST = 0.34
+
+
+def _row_to_hit(row, score, vec_rank=None, lex_rank=None, dist=None) -> Hit:
     return Hit(
         id=str(row[0]), repo=row[1], path=row[2], lang=row[3], kind=row[4],
         symbol=row[5], content=row[6], score=score,
-        vec_rank=vec_rank, lex_rank=lex_rank,
+        vec_rank=vec_rank, lex_rank=lex_rank, dist=dist,
     )
 
 
@@ -123,25 +140,28 @@ def reciprocal_rank_fusion(
     lists: Sequence[Sequence[tuple]], weights: Sequence[float] | None = None,
     k: int = RRF_K,
 ) -> dict[str, tuple]:
-    """Combina listas ordenadas de (row, ...) via RRF. Retorna {id: (row, score, vr, lr)}.
+    """Combina listas ordenadas de (row, ...) via RRF. Retorna {id: (row, score, vr, lr, dist)}.
 
     Cada lista e um ranking (posicao 1 = melhor). score(id) += w/(k+rank).
     `weights` permite dar mais peso a um caminho (default 1.0 cada).
     Preserva a PRIMEIRA linha vista por id (todas apontam pro mesmo chunk).
+    S21: o `dist` (coluna extra da lista DENSA, idx 0) e capturado p/ o gate de
+    relevancia por distancia; caminhos lexicais nao tem distancia (None).
     """
     if weights is None:
         weights = [1.0] * len(lists)
-    acc: dict[str, list] = {}  # id -> [row, score, vec_rank, lex_rank]
+    acc: dict[str, list] = {}  # id -> [row, score, vec_rank, lex_rank, dist]
     for idx, ranked in enumerate(lists):
         for rank, row in enumerate(ranked, start=1):
             cid = str(row[0])
-            entry = acc.setdefault(cid, [row, 0.0, None, None])
+            entry = acc.setdefault(cid, [row, 0.0, None, None, None])
             entry[1] += weights[idx] / (k + rank)
             if idx == 0:
                 entry[2] = rank
+                entry[4] = float(row[-1])  # densa: ultima coluna = distancia coseno
             elif idx == 1:
                 entry[3] = rank
-    return {cid: (v[0], v[1], v[2], v[3]) for cid, v in acc.items()}
+    return {cid: (v[0], v[1], v[2], v[3], v[4]) for cid, v in acc.items()}
 
 
 def _sort_final(hits: list[Hit], final_k: int) -> list[Hit]:
@@ -166,6 +186,8 @@ def search(
     weights: Sequence[float] | None = None,
     rrf_k: int = RRF_K,
     lexical_pt_weight: float | None = None,
+    ef_search: int | None = None,
+    max_top1_dist: float | None = None,
 ) -> list[Hit]:
     """Busca hibrida para `query`. Ou embeda a query (via LiteLLM) ou recebe qvec pronto.
 
@@ -173,6 +195,10 @@ def search(
     omitido, abre com RAG_DB_URL e fecha ao terminar.
     `lexical_pt_weight`=None usa o default do módulo (LEXICAL_PT_WEIGHT, hoje 0.0
     = desligado — ver nota S20). Passar >0 liga o caminho léxico pt-BR p/ A/B.
+    `ef_search`=None usa EF_SEARCH_DEFAULT; controla a largura da varredura HNSW
+    (S21). Valores < vector_topk podem truncar o top-k denso realmente retornado.
+    `max_top1_dist`=None desliga o gate de distancia; um valor filtra toda saida
+    quando o candidato denso mais proximo esta alem dele (S21, ver MAX_TOP1_DIST).
     """
     own_conn = conn is None
     if own_conn:
@@ -186,6 +212,9 @@ def search(
             "repo": repo, "kind": kind,
             "path_like": (path_prefix + "%") if path_prefix else None,
         }
+        # S21: ajusta a largura da busca HNSW p/ esta transacao antes do scan denso.
+        ef = EF_SEARCH_DEFAULT if ef_search is None else ef_search
+        conn.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(ef),))
         vec_rows = conn.execute(
             _VECTOR_SQL, {**params_common, "qvec": qvec_text, "n": vector_topk}
         ).fetchall()
@@ -204,8 +233,17 @@ def search(
             all_weights.append(lexical_pt_weight)
 
         fused = reciprocal_rank_fusion(lists, weights=all_weights, k=rrf_k)
-        hits = [_row_to_hit(row, score, vr, lr)
-                for (row, score, vr, lr) in fused.values()]
+        hits = [_row_to_hit(row, score, vr, lr, dist)
+                for (row, score, vr, lr, dist) in fused.values()]
+        # S21 · gate de relevancia por DISTANCIA bruta (nao por score RRF posicional).
+        # So um chunk recuperado pelo caminho DENSO tem `dist`; se o melhor candidato
+        # denso esta longe demais (dist > max_top1_dist), nada no indice e relevante.
+        # None desliga o gate (default em busca pura; o CLI 'rag --ask' passa o limiar
+        # medido). Nao afeta a ordem nem o recall@k — so filtra saida nao-relevante.
+        if max_top1_dist is not None:
+            dense_dists = [h.dist for h in hits if h.dist is not None]
+            if not dense_dists or min(dense_dists) > max_top1_dist:
+                return []
         return _sort_final(hits, final_k)
     finally:
         if own_conn:

@@ -85,12 +85,13 @@ def test_cmd_rag_busca_sua_imprime_hits(monkeypatch, capsys):
     assert "[1] a.py [code]" in capsys.readouterr().out
 
 
-def test_cmd_rag_ask_nao_sei_por_score_baixo(monkeypatch, capsys):
+def test_cmd_rag_ask_nao_sei_quando_busca_filtra_tudo(monkeypatch, capsys):
+    """S21: o gate por distancia vive DENTRO de search(); quando nada e relevante a
+    busca devolve lista vazia e o CLI imprime 'NAO SEI' sem chamar o LLM."""
     monkeypatch.setattr(cli.ingest_mod, "repo_name", lambda p: "r")
     monkeypatch.setattr(cli.embed, "embed_texts", lambda *a, **k: [[0.0]])
     monkeypatch.setattr(cli.embed, "config_from_env", lambda: {})
-    monkeypatch.setattr(cli.search, "search",
-                        lambda *a, **k: [_hit(1, "a.py", score=0.0001)])
+    monkeypatch.setattr(cli.search, "search", lambda *a, **k: [])
     called = {"llm": False}
 
     def _boom(*a, **k):
@@ -102,7 +103,25 @@ def test_cmd_rag_ask_nao_sei_por_score_baixo(monkeypatch, capsys):
     out = capsys.readouterr().out
     assert rc == 0
     assert "NÃO SEI" in out
-    assert called["llm"] is False  # nem chama o LLM sem contexto relevante
+    assert called["llm"] is False  # nada relevante => nem chama o LLM
+
+
+def test_cmd_rag_ask_passa_o_limiar_de_distancia_pra_busca(monkeypatch, capsys):
+    """S21: o CLI deve encaminhar max_top1_dist=MIN_SCORE (limiar medido) p/ search()."""
+    monkeypatch.setattr(cli.ingest_mod, "repo_name", lambda p: "r")
+    monkeypatch.setattr(cli.embed, "embed_texts", lambda *a, **k: [[0.0]])
+    monkeypatch.setattr(cli.embed, "config_from_env", lambda: {})
+    seen = {}
+
+    def _capture(*a, **k):
+        seen.update(k)
+        return [_hit(1, "a.py", score=0.03, content="X")]
+
+    monkeypatch.setattr(cli.search, "search", _capture)
+    monkeypatch.setattr(cli, "ask_llm", lambda q, ctx, cfg=None: "RESPOSTA")
+    cli.cmd_rag(_args("algo", ask=True))
+    assert seen.get("max_top1_dist") == cli.MIN_SCORE
+    assert cli.MIN_SCORE == cli.search.MAX_TOP1_DIST  # limiar agora e por distancia
 
 
 def test_cmd_rag_ask_chama_llm_e_mostra_resposta(monkeypatch, capsys):

@@ -36,7 +36,7 @@ import sys
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Callable, Sequence
+from typing import Any, Callable, Sequence
 
 EVAL_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EVAL_DIR.parent
@@ -227,15 +227,26 @@ def check_gate(agg: dict, *, k: int = GATE_K, threshold: float | None = None) ->
 
 def make_live_retriever(repo: str, final_k: int,
                         lexical_pt_weight: float | None = None,
+                        ef_search: int | None = None, rrf_k: int | None = None,
+                        vector_topk: int | None = None,
                         ) -> Callable[[Query], list[tuple[str, str | None, str]]]:
     """Retriever que chama a busca hibrida real (rede LiteLLM + Postgres).
 
-    `lexical_pt_weight` (S20): None => usa o default do search; 0.0 => desliga o
-    caminho léxico pt-BR (lado "B" do A/B de S20). Só faz sentido com DB vivo.
+    Encaminha os knobs de tuning de retrieval (S20/S21) p/ search.search() para que
+    o harness meça curvas sem editar código. None em cada um => default do módulo.
+    `lexical_pt_weight` (S20): 0.0 desliga o caminho léxico pt-BR (lado B do A/B).
     """
     from ingest import search as search_mod
 
-    kw = {} if lexical_pt_weight is None else {"lexical_pt_weight": lexical_pt_weight}
+    kw: dict[str, Any] = {}
+    if lexical_pt_weight is not None:
+        kw["lexical_pt_weight"] = lexical_pt_weight
+    if ef_search is not None:
+        kw["ef_search"] = ef_search
+    if rrf_k is not None:
+        kw["rrf_k"] = rrf_k
+    if vector_topk is not None:
+        kw["vector_topk"] = vector_topk
 
     def _retrieve(q: Query) -> list[tuple[str, str | None, str]]:
         hits = search_mod.search(q.question, repo=repo, final_k=final_k, **kw)
@@ -322,6 +333,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--lexical-pt", type=float, default=None, dest="lexical_pt",
                     help="peso do caminho léxico pt-BR (S20). 0 = desliga (A/B off); "
                          "omitido = default do search.")
+    # S21 · knobs de tuning de retrieval p/ curvas medidas (ef_search, RRF k, top-k).
+    ap.add_argument("--ef-search", type=int, default=None, dest="ef_search",
+                    help="S21: hnsw.ef_search (largura da varredura HNSW). Omitir usa "
+                         "o default do modulo (= vector_topk).")
+    ap.add_argument("--rrf-k", type=int, default=None, dest="rrf_k",
+                    help="S21: constante k do RRF (default do modulo = 60).")
+    ap.add_argument("--vector-topk", type=int, default=None, dest="vector_topk",
+                    help="S21: tamanho do candidato denso que alimenta a fusao "
+                         "(default do modulo = 50).")
     args = ap.parse_args(argv)
 
     ks = tuple(int(x) for x in str(args.k).split(",") if x.strip())
@@ -332,7 +352,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     from ingest import ingest as ingest_mod
     repo = args.repo or ingest_mod.repo_name(REPO_ROOT)
-    retriever = make_live_retriever(repo, final_k=max(ks), lexical_pt_weight=args.lexical_pt)
+    retriever = make_live_retriever(repo, final_k=max(ks), lexical_pt_weight=args.lexical_pt,
+                                    ef_search=args.ef_search, rrf_k=args.rrf_k,
+                                    vector_topk=args.vector_topk)
     rows = evaluate(queries, retriever, ks=ks)
     agg = aggregate(rows, ks=ks)
 
