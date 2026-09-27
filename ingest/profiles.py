@@ -39,9 +39,23 @@ DEFAULT_PROFILE = "gemini"
 # ^[a-z][a-z0-9_]{1,31}$ — minusculo, digito/underscore no resto, 2..32 chars.
 SLUG_RE = re.compile(r"^[a-z][a-z0-9_]{1,31}$")
 
+# Nomes de tabela RESERVADOS — jamais usaveis por um perfil novo. Sao os residuos
+# dos experimentos A/B de sessoes passadas (tabelas criadas em runtime, SEM coluna
+# `gen`, fora do registry). O banco fisico foi limpo (DROP 2026-09-27), mas o risco
+# persiste no espaco de nomes: se alguem registrar um perfil cujo `table` colida com
+# um desses, `ensure_profile_table` veria `to_regclass` nao-nulo (uma tabela legada
+# ainda presente, ex.: apos restaurar volume antigo) e PULARIA a criacao — entao
+# leitura/GC (`WHERE gen < ...`) quebrariam em "column gen does not exist". Travar
+# aqui (fonte unica) elimina a ambiguidade de nome de forma duravel e versionada.
+RESERVED_TABLES: frozenset[str] = frozenset({
+    "chunks_gemini", "chunks_qwen", "chunks_nomic",
+    "chunks_nop_bgem3", "chunks_nop_nomic", "chunks_nop_qwapi",
+    "chunks_nop_qwen", "chunks_nop_v4",
+})
+
 
 class InvalidProfile(ValueError):
-    """Slug de perfil invalido (formato) ou desconhecido (fora do registry)."""
+    """Slug de perfil invalido (formato), desconhecido, ou tabela reservada."""
 
 
 @dataclass(frozen=True)
@@ -63,6 +77,13 @@ class Profile:
         # — antes de qualquer SQL.
         if not SLUG_RE.match(self.slug):
             raise InvalidProfile(f"slug invalido: {self.slug!r}")
+        # Anti-colisao de nome: a tabela de um perfil nunca pode ser um dos residuos
+        # legados (sem `gen`). Ver nota em RESERVED_TABLES.
+        if self.table in RESERVED_TABLES:
+            raise InvalidProfile(
+                f"nome de tabela reservado (residuo legado, sem coluna gen): "
+                f"{self.table!r}"
+            )
 
 
 # ---------------------------------------------------------------------------

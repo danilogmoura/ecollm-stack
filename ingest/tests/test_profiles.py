@@ -193,6 +193,33 @@ def test_profile_construido_com_slug_invalido_levanta():
 
 
 # ---------------------------------------------------------------------------
+# teste 5b — anti-colisao de nome: tabela de perfil nunca pode ser residuo legado
+# ---------------------------------------------------------------------------
+
+@pytest.mark.parametrize("reserved", sorted(profiles.RESERVED_TABLES))
+def test_tabela_reservada_recusada_pelo_registry(reserved):
+    # Um perfil novo cujo `table` colida com uma das 8 tabelas órfãs históricas
+    # (sem coluna gen) deve falhar na construção — elimina ambiguidade de nome.
+    with pytest.raises(profiles.InvalidProfile):
+        profiles.Profile(slug="novo_perfil", table=reserved, model="m", dim=8,
+                         prefix_policy="none", gate=0.5, batch_size=8, sleep_s=0.0)
+
+
+def test_nome_de_tabela_valido_fora_das_reservadas_e_aceito():
+    # Sanidade: o guard não é amplo demais — um nome novo legítimo passa.
+    p = profiles.Profile(slug="novo_perfil", table="chunks_novo_perfil", model="m",
+                         dim=8, prefix_policy="none", gate=0.5, batch_size=8, sleep_s=0.0)
+    assert p.table == "chunks_novo_perfil"
+
+
+def test_perfis_do_registry_nao_usam_tabela_reservada():
+    # O registry vigente jamais aponta para um nome reservado (chunks/chunks_qwen37/
+    # chunks_bgem3 ficam; os residuos chunks_gemini/... nao).
+    for slug, prof in profiles.PROFILES.items():
+        assert prof.table not in profiles.RESERVED_TABLES, slug
+
+
+# ---------------------------------------------------------------------------
 # teste 6 — gate por perfil (substitui o assert fixo antigo)
 # ---------------------------------------------------------------------------
 
