@@ -39,3 +39,8 @@ package = false
 # rootdir do repo; testes vivem em */tests. addopts mantém saída enxuta.
 testpaths = ["ingest/tests", "eval/tests", "mcpsrv/tests"]
 addopts = "-q"
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=7.1.0",
+]
