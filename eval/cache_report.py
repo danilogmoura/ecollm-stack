@@ -6,7 +6,11 @@ de cache que o Token Plan já devolve no usage e produz um RELATÓRIO com:
   - % de prompt-tokens que caíram em HIT de cache (economia REAL medida, não projetada);
   - custo estimado COM cache (o ``spend`` que o LiteLLM já cobra) vs SEM cache
     (reprecificar todos os tokens de entrada ao preço cheio de input);
-  - distribuição por modelo-group e por dia.
+  - distribuição por modelo-group e por dia;
+  - **cauda NÃO-cacheada por chamada (H1)** — ``uncached = prompt − cached`` com
+    média e percentis (p50/p90/p95) e custo a preço cheio. É o único alvo das
+    alavancas de compactação/janela: a zona em HIT já custa ~0 (break-even quente
+    0,5% — ver ``10-STATE.md`` §5 "FASE 8 / headroom").
 
 Onde vivem os campos (mapeado empiricamente em 2026-09-27):
   metadata->usage_object->prompt_tokens_details->cached_tokens   (hit implícito)
@@ -33,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -77,6 +82,17 @@ class CallRow:
     cached_tokens: int
     spend: float
     day: str  # YYYY-MM-DD (UTC)
+
+    @property
+    def uncached(self) -> int:
+        """H1: prompt-tokens desta chamada que NÃO caíram em hit (custo cheio).
+
+        É a única grandeza que as alavancas de compactação/janela atacam: reduzir
+        ``cached`` não economiza nada (preço de hit ≈ 0). Chão em 0 por robustez —
+        um ``cached`` maior que ``prompt`` (resposta anômala do upstream) não pode
+        produzir cauda negativa nem inflar a economia.
+        """
+        return max(0, self.prompt_tokens - self.cached_tokens)
 
 
 @dataclass(frozen=True)
@@ -168,6 +184,65 @@ def group_by(rows: Sequence[CallRow], key: Callable[[CallRow], str]) -> dict[str
     for r in rows:
         buckets.setdefault(key(r), []).append(r)
     return buckets
+
+
+# ---------------------------------------------------------------------------
+# H1 — cauda NÃO-cacheada (uncached = prompt − cached), por chamada
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class UncachedStats:
+    """Distribuição da cauda não-cacheada de um conjunto de chamadas.
+
+    ``mean`` e percentis são em TOKENS por chamada; ``cost`` é o custo PAYG dessa
+    cauda (o que se paga a preço cheio de input por ela). É o número que o H6
+    precisa baixar — não o hit-rate, que já está no teto (95,6%, C6).
+    """
+
+    calls: int
+    total: int
+    mean: float
+    p50: int
+    p90: int
+    p95: int
+    max: int
+    cost: float
+
+
+def percentile_nearest_rank(sorted_values: Sequence[int], pct: float) -> int:
+    """Percentil por nearest-rank: determinístico, sem interpolação fracionária,
+    ⇒ devolve SEMPRE o valor de uma linha real (nada inventado entre pontos).
+
+    Exige ``sorted_values`` ordenado. ``pct`` em [0, 100]; vazio → 0.
+    """
+    if not sorted_values:
+        return 0
+    rank = max(1, math.ceil((pct / 100.0) * len(sorted_values)))
+    return sorted_values[min(rank, len(sorted_values)) - 1]
+
+
+def compute_uncached(rows: Sequence[CallRow]) -> UncachedStats:
+    """Resume a cauda não-cacheada (tokens + custo a preço cheio) de ``rows``.
+
+    Custo por linha = ``uncached`` × preço_input(model_group) ÷ 1e6 — exatamente o
+    trecho que reduzir `k` / cap de chunk / podar histórico atacaria. Vazio → zeros.
+    """
+    if not rows:
+        return UncachedStats(calls=0, total=0, mean=0.0, p50=0, p90=0, p95=0, max=0, cost=0.0)
+    values = sorted(r.uncached for r in rows)
+    total = sum(values)
+    cost = sum((r.uncached * price_for(r.model_group)["input"]) / 1e6 for r in rows)
+    return UncachedStats(
+        calls=len(values),
+        total=total,
+        mean=total / len(values),
+        p50=percentile_nearest_rank(values, 50),
+        p90=percentile_nearest_rank(values, 90),
+        p95=percentile_nearest_rank(values, 95),
+        max=values[-1],
+        cost=cost,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +340,12 @@ def build_report(
     lines.append(f"| Completion-tokens | {overall.completion_tokens:,} |")
     lines.append(f"| Cached-tokens (hit) | {overall.cached_tokens:,} |")
     lines.append(f"| **% prompt-tok em HIT** | **{overall.hit_rate*100:.1f}%** |")
+    unc = compute_uncached(rows)
+    lines.append(f"| Cauda NÃO-cacheada (total tok) | {unc.total:,} |")
+    lines.append(f"| **Cauda Não-cacheada por chamada (média)** | **{unc.mean:,.0f} tok** |")
+    lines.append(f"| Cauda Não-cacheada p50/p90/p95/max | "
+                 f"{unc.p50:,}/{unc.p90:,}/{unc.p95:,}/{unc.max:,} tok |")
+    lines.append(f"| Custo da cauda não-cacheada (preço cheio) | ${unc.cost:,.4f} |")
     lines.append(f"| Custo COM cache (spend real) | ${overall.spend_with_cache:,.4f} |")
     lines.append(f"| Custo SEM cache (projeção) | ${overall.cost_no_cache:,.4f} |")
     lines.append(f"| **Economia** | **${overall.savings:,.4f} ({overall.savings_pct*100:.1f}%)** |")
@@ -280,6 +361,26 @@ def build_report(
             f"| `{grp}` | {m.calls:,} | {m.prompt_tokens:,} | {m.hit_rate*100:.1f}% | "
             f"{m.spend_with_cache:,.4f} | {m.cost_no_cache:,.4f} | {m.savings:,.4f} |"
         )
+    lines.append("")
+
+    lines.append("## Cauda não-cacheada por chamada (H1 — alvo das alavancas)")
+    lines.append("")
+    lines.append("`uncached = prompt − cached`, por chamada. Só esta cauda responde a")
+    lines.append("reduzir `k` / cap de chunk / podar histórico: a zona em HIT já custa ~0")
+    lines.append("(break-even quente 0,5% — `10-STATE.md` §5). Percentis nearest-rank.")
+    lines.append("")
+    lines.append("| Recorte | Calls | Uncached média | p50 | p90 | p95 | max | Custo $ |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
+    lines.append(f"| **TODAS** | {unc.calls:,} | {unc.mean:,.0f} | {unc.p50:,} | "
+                 f"{unc.p90:,} | {unc.p95:,} | {unc.max:,} | {unc.cost:,.4f} |")
+    for grp, brows in sorted(group_by(rows, lambda r: r.model_group).items()):
+        u = compute_uncached(brows)
+        lines.append(f"| `{grp}` | {u.calls:,} | {u.mean:,.0f} | {u.p50:,} | {u.p90:,} | "
+                     f"{u.p95:,} | {u.max:,} | {u.cost:,.4f} |")
+    for day, drows in sorted(group_by(rows, lambda r: r.day).items()):
+        u = compute_uncached(drows)
+        lines.append(f"| dia {day or '?'} | {u.calls:,} | {u.mean:,.0f} | {u.p50:,} | "
+                     f"{u.p90:,} | {u.p95:,} | {u.max:,} | {u.cost:,.4f} |")
     lines.append("")
 
     lines.append("## Por dia (UTC)")
