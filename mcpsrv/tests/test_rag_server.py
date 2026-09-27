@@ -116,7 +116,7 @@ def _capture_stderr(monkeypatch):
 
 def test_log_estruturado_campos_obrigatorios(monkeypatch):
     lines = _capture_stderr(monkeypatch)
-    fake = FakeSearch([_hit(), _hit()])
+    fake = FakeSearch([_hit(), _hit(path="README.md", symbol=None, kind="doc")])
     monkeypatch.setattr(rag_server, "search", fake)
     rag_server.run_search("gitleaks gate", k=4, repo="r")
     assert len(lines) == 1
@@ -233,3 +233,127 @@ def test_staleness_note_nunca_levanta(monkeypatch):
     # deve retornar None (ou string), jamais propagar exceção
     out = rag_server.staleness_note()
     assert out is None or isinstance(out, str)
+
+
+# ---------------------------------------------------------------------------
+# H3 (SPEC-H-HEADROOM-SEGURO §8) — golden-file tests das transformações PURAS
+# na EMISSÃO: trunc de content, envelope minificado, dedupe intra. Todos sem
+# DB/rede; nenhum pode exigir mudança de ordem/score/n_results (invariante 1).
+# ---------------------------------------------------------------------------
+
+def test_compact_content_fronteira_de_linha():
+    """cap no meio de uma linha => corta na ÚLTIMA quebra que caiba, marcador com n."""
+    content = "linha1\nlinha2\nlinha3-longa-alem-do-cap\nfim"
+    cap = len("linha1\nlinha2\n")  # teto cai logo após a 2ª linha
+    out = rag_server.compact_content(content, "x/y.py::f [code]", cap=cap)
+    assert out.startswith("linha1\nlinha2")
+    assert "linha3-longa" not in out
+    assert "…[truncado" in out and "consulte x/y.py::f [code]" in out
+    # n = code points removidos (content inteiro menos o retido sem \\n trailing)
+    esperado_n = len(content) - len("linha1\nlinha2")
+    assert f"truncado {esperado_n} chars" in out
+
+
+def test_compact_content_sem_corte_quando_cabe():
+    """len <= cap => saída IDÊNTICA, sem marcador (é TODO o corpus atual)."""
+    content = "def search():\n    return hits\n"
+    out = rag_server.compact_content(content, "a.py::b [code]", cap=4000)
+    assert out == content
+    assert "truncado" not in out
+
+
+def test_compact_content_linha_unica_longa():
+    """sem '\\n' dentro do cap => corte exato em cap + marcador (fallback puro)."""
+    content = "x" * 5000  # uma única linha, sem newline
+    cap = 100
+    out = rag_server.compact_content(content, "big.log [doc]", cap=cap)
+    assert out.startswith("x" * 100)
+    assert "y" not in out
+    assert "…[truncado 4900 chars — consulte big.log [doc]]" in out
+
+
+def test_compact_content_deterministica():
+    """mesma entrada N vezes => bytes idênticos (contrato de pureza §2)."""
+    content = ("a" * 3000 + "\n" + "b" * 3000 + "\n" + "c" * 3000)
+    results = {rag_server.compact_content(content, "m.py::f [code]", cap=4000)
+               for _ in range(20)}
+    assert len(results) == 1  # todas as 20 saídas iguais
+
+
+def test_compact_content_noop_no_corpus_atual():
+    """content típico (<= 2.089 B) com cap=4000 => intocado (no-op hoje, §3.2)."""
+    content = "z" * 2089
+    out = rag_server.compact_content(content, "f.py::g [code]")
+    assert out == content
+
+
+def test_envelope_bytes_identico_entre_execucoes(monkeypatch):
+    """rag_search 2x com mesmos hits => res.content[0].text byte-idêntico."""
+    fake = FakeSearch([_hit(), _hit(path="README.md", symbol=None, kind="doc")])
+    monkeypatch.setattr(rag_server, "search", fake)
+    monkeypatch.setattr(rag_server, "staleness_note", lambda repo=None: None)
+    a = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "q", "k": 2}))
+    b = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "q", "k": 2}))
+    assert a.content[0].text == b.content[0].text
+
+
+def test_envelope_minificado_sem_espacos(monkeypatch):
+    """saída contém 'results':[{'path'... sem espaço após ':' e ',' (§4)."""
+    fake = FakeSearch([_hit()])
+    monkeypatch.setattr(rag_server, "search", fake)
+    monkeypatch.setattr(rag_server, "staleness_note", lambda repo=None: None)
+    res = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "oi"}))
+    text = res.content[0].text
+    assert '{"results":[{"path"' in text
+    # não há ', ' nem ': ' estruturais (só dentro de strings de content, aqui simples)
+    assert '", "' not in text
+    json.loads(text)  # continua JSON válido p/ todos os testes existentes
+
+
+def test_ordem_campos_congelada():
+    """list(hit.keys()) == [path,symbol,kind,score,source,content] (§2)."""
+    d = rag_server.hit_to_dict(_hit())
+    assert list(d.keys()) == ["path", "symbol", "kind", "score", "source", "content"]
+
+
+def test_dedupe_intra_noop_sem_duplicata():
+    """hits únicos => saída igual (anti-regressão, §5.1)."""
+    hits = [{"path": "a.py", "symbol": "f", "kind": "code", "content": "aaa"},
+            {"path": "b.py", "symbol": "g", "kind": "code", "content": "bbb"}]
+    assert rag_server.dedupe_intra(hits) == hits
+
+
+def test_dedupe_intra_remove_duplicata_preserva_ordem():
+    """duplicata => mantém 1ª (maior score), remove 2ª, ORDEM intacta (§5.1)."""
+    h = {"path": "a.py", "symbol": "f", "kind": "code", "content": "aaa"}
+    dup = [h, {"path": "z.py", "symbol": "q", "kind": "code", "content": "zzz"}, dict(h)]
+    out = rag_server.dedupe_intra(dup)
+    assert out == [h, {"path": "z.py", "symbol": "q", "kind": "code", "content": "zzz"}]
+    assert len(out) == 2
+
+
+def test_trunc_preserva_contagem_e_ordem(monkeypatch):
+    """run_search com trunc ativo => n_results e ordem INALTERADOS, só content muda."""
+    long_a = _hit(path="a.py", symbol="fa", score=0.03, content=("L1\n" * 3000)[:6000])
+    long_b = _hit(path="b.py", symbol="fb", score=0.02, content=("M1\n" * 3000)[:6000])
+    fake = FakeSearch([long_a, long_b])
+    monkeypatch.setattr(rag_server, "search", fake)
+    # patcha a FUNÇÃO (o default do parâmetro cap congela na def, então mudar só a
+    # constante nao bastaria); wrapper chama a função real com cap pequeno => trunc ativo.
+    real_compact = rag_server.compact_content
+    monkeypatch.setattr(
+        rag_server, "compact_content",
+        lambda content, loc, cap=100: real_compact(content, loc, 100),
+    )
+    out = rag_server.run_search("q", k=2, repo="r")
+    assert len(out) == 2  # contagem preservada
+    assert [o["path"] for o in out] == ["a.py", "b.py"]  # ordem preservada
+    assert all("…[truncado" in o["content"] for o in out)  # só content mudou
+
+
+def test_marcador_contem_source():
+    """marcador contém o source() do hit (path#symbol) (§3.1)."""
+    content = "q" * 5000
+    loc = "mod.py::fun [code]"
+    out = rag_server.compact_content(content, loc, cap=100)
+    assert loc in out

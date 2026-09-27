@@ -73,15 +73,77 @@ def _default_repo() -> str:
     return os.environ.get("RAG_REPO") or repo_name(REPO_ROOT)
 
 
+# --- H3 (SPEC-H-HEADROOM-SEGURO): transformações PURAS na EMISSÃO -----------------
+# Contrato de pureza (§2): sem relógio/random/locale/I-O/estado entre chamadas.
+# Mesma entrada => mesmos bytes de saída, sempre (preserva prompt-cache C5 §6).
+# Risco de cache = ZERO: age só no tool-result (Zona C, nasce agora), NUNCA toca
+# instructions/description da tool (Zona A) nem a ordenação final (invariante 1).
+
+# Cap de PROTEÇÃO (backstop), não de poda. Acima de TODO o corpus publicado hoje
+# (max content observado = 2.089 B, H1), logo NO-OP no índice atual; só ativa se um
+# ingest futuro publicar um outlier grande. Ajustável DENTRO da janela de Zona A
+# (SPEC-H §6) se o corpus crescer. Code points, não bytes (não depende de locale).
+CONTENT_CAP_CHARS = 4000
+
+# Marcador FIXO appended quando trunc ativa. Só {n} varia (determinístico). Nunca
+# contém relógio/UUID/locale. SPEC-H §3.1.
+TRUNC_MARKER_FMT = "…[truncado {n} chars — consulte {loc}]"
+
+
+def compact_content(content: str, loc: str, cap: int = CONTENT_CAP_CHARS) -> str:
+    """Pura: teto de ``cap`` code points em ``content``, cortando na ÚLTIMA quebra de
+    linha que caiba dentro de ``cap`` (preserva legibilidade; nunca corta no meio de
+    uma linha de código). Se não houver '\\n' aproveitável dentro do teto, corta no
+    char exato ``cap`` (fallback determinístico). Acrescenta marcador fixo.
+
+    Retorna ``content`` inalterado (SEM marcador) quando ``len(content) <= cap`` —
+    é o caso de TODO o corpus atual (no-op hoje, SPEC-H §3.2).
+    """
+    if len(content) <= cap:
+        return content
+    # Maior índice i <= cap tal que content[i] == '\n' (guarda o '\n'); senão i = cap.
+    window = content[: cap + 1]
+    nl = window.rfind("\n")
+    i = nl if nl != -1 else cap
+    retained = content[:i]
+    n = len(content) - len(retained.rstrip("\n"))
+    return retained.rstrip("\n") + "\n" + TRUNC_MARKER_FMT.format(n=n, loc=loc)
+
+
+def dedupe_intra(out: list[dict]) -> list[dict]:
+    """Pura: mantém a PRIMEIRA ocorrência de cada chunk, na ordem original. Identidade
+    = (path, symbol, kind) + prefixo de content. No-op hoje (a fusão RRF de
+    ingest.search já não repete chunk na mesma query); adotado como anti-regressão:
+    se um dia a fusão mudar e produzir duplicata, a emissão remove a repetida
+    mantendo a de maior score (a 1ª, pois RRF ordena por score) e a ORDEM intacta.
+    Não reordena: só remove ocorrências repetidas posteriores (SPEC-H §5.1)."""
+    seen: set[tuple] = set()
+    result: list[dict] = []
+    for hit in out:
+        key = (hit.get("path"), hit.get("symbol"), hit.get("kind"),
+               (hit.get("content") or "")[:200])
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(hit)
+    return result
+
+
 def hit_to_dict(h) -> dict:
-    """Serializa um Hit da forma que o contrato da tool promete."""
+    """Serializa um Hit da forma que o contrato da tool promete.
+
+    Ordem dos campos CONGELADA (path, symbol, kind, score, source, content) — Python
+    >=3.7 preserva ordem de inserção e json.dumps respeita (SPEC-H §2). Aplica o
+    trunc puro (H3) ao content; não reordena nem muda contagem/score.
+    """
+    source = h.source()
     return {
         "path": h.path,
         "symbol": h.symbol,
         "kind": h.kind,
         "score": round(float(h.score), 6),
-        "source": h.source(),
-        "content": h.content,
+        "source": source,
+        "content": compact_content(h.content, source),
     }
 
 
@@ -121,7 +183,7 @@ def run_search(
             path_prefix=path_prefix,
             final_k=k,
         )
-        out = [hit_to_dict(h) for h in hits]
+        out = dedupe_intra([hit_to_dict(h) for h in hits])
         n = len(out)
         return out
     except Exception as exc:  # noqa: BLE001 — registra e propaga (caller vira payload)
@@ -199,7 +261,8 @@ async def rag_search(
             query, k, repo=None, kind=kind, path_prefix=path_prefix
         )
     except Exception as exc:  # noqa: BLE001 — erro vira payload p/ o agente, nao crash
-        return json.dumps({"error": str(exc), "results": []}, ensure_ascii=False)
+        return json.dumps({"error": str(exc), "results": []}, ensure_ascii=False,
+                          separators=(",", ":"))
     payload: dict = {"results": results}
     # S14: se o indice pode estar desatualizado, sinaliza no envelope (sem quebrar
     # o contrato {results:[...]} — campo extra e retrocompativel).
@@ -207,7 +270,9 @@ async def rag_search(
     if note:
         payload["stale"] = True
         payload["notice"] = note
-    return json.dumps(payload, ensure_ascii=False)
+    # H3 (SPEC-H §4): envelope minificado — remove espaços após ',' e ':' (~2,5% do
+    # envelope). Determinístico, transparente a json.loads; não muda semântica nem ordem.
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
 
 
 def main() -> None:
