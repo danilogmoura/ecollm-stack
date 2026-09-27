@@ -42,6 +42,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import sys
 from dataclasses import dataclass
@@ -462,9 +463,15 @@ def main(argv: Sequence[str] | None = None) -> int:
                          "(default do modulo = 50).")
     # S23 · gate de recusa (distancia) para medir as perguntas negativas.
     ap.add_argument("--gate-dist", action="store_true", dest="gate_dist",
-                    help="S23: aplica o gate de distancia MAX_TOP1_DIST (= comportamento "
+                    help="S23: aplica o gate de distancia do PERFIL (= comportamento "
                          "do CLI em prod) para que as negativas fora-do-assunto sejam "
                          "cortadas e a RECUSA seja medida. Sem isto o gate fica desligado.")
+    # S32 (I7) · perfil de embedding avaliado. Default = perfil ativo (RAG_PROFILE >
+    # publicado > gemini). Troca gate/prefixo/dim da eval sem editar codigo/.env.
+    ap.add_argument("--profile", default=None,
+                    help="S32: slug do perfil de embedding (ex.: qwen37). Omitido usa "
+                         "o perfil ativo. Define o gate usado por --gate-dist e e citado "
+                         "no relatorio.")
     args = ap.parse_args(argv)
 
     ks = tuple(int(x) for x in str(args.k).split(",") if x.strip())
@@ -474,9 +481,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     queries = load_dataset(args.dataset)
 
     from ingest import ingest as ingest_mod
+    from ingest import profiles as _profiles
     repo = args.repo or ingest_mod.repo_name(REPO_ROOT)
+    # S32: resolve o perfil (valida slug cedo — R1) e fixa RAG_PROFILE p/ o processo,
+    # assim search/embed resolvem tudo via registry (gate, prefixo, dim, modelo).
+    prof = _profiles.resolve(args.profile) if args.profile else _profiles.active_profile()
+    os.environ["RAG_PROFILE"] = prof.slug
     from ingest import search as _search_mod
-    gate_dist = _search_mod.MAX_TOP1_DIST if args.gate_dist else None
+    # S32/I7: gate de recusa vem do PERFIL (nao mais MAX_TOP1_DIST hardcoded).
+    gate_dist = prof.gate if args.gate_dist else None
     retriever = make_live_retriever(repo, final_k=max(ks), lexical_pt_weight=args.lexical_pt,
                                     ef_search=args.ef_search, rrf_k=args.rrf_k,
                                     vector_topk=args.vector_topk, max_top1_dist=gate_dist)
@@ -486,13 +499,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     gate = check_gate(agg, k=GATE_K, threshold=args.min_recall) if args.gate else None
 
     if args.json:
-        payload = {"repo": repo, "ks": list(ks), **agg}
+        payload = {"repo": repo, "profile": prof.slug, "ks": list(ks), **agg}
         if gate is not None:
             payload["gate"] = gate
         print(json.dumps(payload, ensure_ascii=False, indent=2))
 
     report = render_report(rows, agg, ks=ks, dataset_path=args.dataset, repo=repo,
-                           embedder="gemini-embedding-2")
+                           embedder=f"{prof.slug}:{prof.model}")
     out = args.out or (DEFAULT_PLANNING_DIR / f"relatorio-avaliacao-{date.today().strftime('%Y%m%d')}.md")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")

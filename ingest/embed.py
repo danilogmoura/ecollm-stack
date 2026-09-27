@@ -29,14 +29,19 @@ from typing import Callable, Sequence
 
 import requests
 
+from . import profiles as _profiles
+
 # ---------------------------------------------------------------------------
 # Defaults de configuracao (override por env)
 # ---------------------------------------------------------------------------
 
-DEFAULT_BASE_URL = "http://localhost:4000/v1"
-DEFAULT_MODEL = "rag-embeddings"
-DEFAULT_DIM = 3072
-BATCH_SIZE = 32          # limite pratico Gemini (plano §3 FASE 2)
+# DEFAULT_BASE_URL/DEFAULT_MODEL/DEFAULT_DIM/BATCH_SIZE sao o perfil `gemini`
+# legado — preservados p/ compat com imports antigos. A fonte canonica agora e o
+# registry (ingest/profiles.py); config_for_profile() deriva destes valores.
+DEFAULT_BASE_URL = _profiles.DEFAULT_BASE_URL
+DEFAULT_MODEL = _profiles.PROFILES["gemini"].model
+DEFAULT_DIM = _profiles.PROFILES["gemini"].dim
+BATCH_SIZE = 32          # limite pratico historico (plano §3 FASE 2); por perfil via registry
 MAX_RETRIES = 3          # tentativas por batch
 BACKOFF_BASE = 1.5       # segundos; dobra a cada retry (exponencial)
 TIMEOUT_S = 60           # timeout por request HTTP
@@ -71,29 +76,71 @@ def load_dotenv(path: str | os.PathLike | None = None) -> None:
                 os.environ[key] = val
 
 
-def config_from_env() -> dict:
-    """Parametros de conexao do embedder a partir do ambiente (com defaults)."""
+def config_for_profile(profile: "_profiles.Profile") -> dict:
+    """Parametros de conexao DO PERFIL (base_url/model/key/dim), com override por env.
+
+    base_url/api_key continuam vindo do ambiente (sao globais ao proxy LiteLLM —
+    todos os perfis falam OpenAI-compat /embeddings no MESMO proxy).
+
+    model/dim tem o REGISTRY como fonte canonica (S32). RAG_EMBED_MODEL/RAG_EMBED_DIM
+    sao overrides LEGADOS que se aplicam SOMENTE ao perfil default (`gemini`) — e
+    preservam o comportamento historico do .env p/ esse perfil. Para um perfil nao-
+    default, um RAG_EMBED_MODEL antigo (ex.: 'rag-embeddings' do .env) NAO deve
+    sobrescrever o modelo do espaco (senão embedaríamos qwen37 no alias Gemini, com
+    dim errada). Assim trocar de perfil troca modelo+dim de fato, sem editar .env.
+    """
     load_dotenv()
+    is_default = profile.slug == _profiles.DEFAULT_PROFILE
+    model = profile.model
+    dim = profile.dim
+    if is_default:
+        model = os.environ.get("RAG_EMBED_MODEL", profile.model)
+        dim = int(os.environ.get("RAG_EMBED_DIM", profile.dim))
     return {
         "base_url": os.environ.get("LITELLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
-        "model": os.environ.get("RAG_EMBED_MODEL", DEFAULT_MODEL),
+        "model": model,
         "api_key": os.environ.get("LITELLM_MASTER_KEY", ""),
-        "dim": int(os.environ.get("RAG_EMBED_DIM", DEFAULT_DIM)),
+        "dim": dim,
+        # transport por perfil (batch/sleep) — usado por quem embeda em lote.
+        "batch_size": profile.batch_size,
+        "sleep_s": profile.sleep_s,
+        "prefix_policy": profile.prefix_policy,
+        "profile_slug": profile.slug,
     }
+
+
+def config_from_env() -> dict:
+    """Config do PERFIL ATIVO (RAG_PROFILE > publicado > gemini). Wrapper de I2.
+
+    Mantem a assinatura antiga (retorna dict com base_url/model/api_key/dim) para
+    que todo call site existente (search, cli, ingest, testes) continue funcionando
+    sem edicao — agora o dim/model/prefixo dao origem no registry, nao em constantes
+    soltas. Com default `gemini` o resultado e identico ao comportamento historico.
+    """
+    return config_for_profile(_profiles.active_profile())
 
 
 # ---------------------------------------------------------------------------
 # task-prefix assimetrico
 # ---------------------------------------------------------------------------
 
-def apply_prefix(text: str, kind: str) -> str:
-    """Aplica o prefixo de tarefa conforme o tipo do chunk.
+def apply_prefix(text: str, kind: str, policy: str | None = None) -> str:
+    """Aplica o prefixo de tarefa conforme o tipo do chunk e a politica do perfil.
 
     code|doc|config usam o rotulo "doc:" (lado documento da busca assimetrica);
     apenas uma QUERY de busca usa "query:". Tudo que sai daqui e embedado como
     documento. A ordem (prefixo antes do texto) e o que casa com o validado no
     demo — nao mexer sem re-validar recall.
+
+    S32 (I2): `policy` vem do perfil ativo quando omitido. `policy="none"` devolve
+    o texto CRU (correto p/ modelos sem instruction-tuning, ex.: bge-m3/qwen3.7) —
+    nenhum prefixo e aplicado. `policy="gemini"` preserva o comportamento historico
+    (prefixo assimetrico). Assim o task-prefix deixa de ser hardcoded e segue o perfil.
     """
+    if policy is None:
+        policy = _profiles.active_profile().prefix_policy
+    if policy == "none":
+        return text
     if kind == "query":
         return TASK_PREFIX_QUERY + text
     return TASK_PREFIX_DOC + text
@@ -192,12 +239,23 @@ def embed_texts(
 
 def embed_documents(
     chunks_textos: Sequence[tuple[str, str]],
+    *,
+    policy: str | None = None,
     **kwargs,
 ) -> list[list[float]]:
     """Conveniencia: [(texto, kind)] -> aplica prefixo -> embeda.
 
     Aplica apply_prefix sobre cada texto conforme o kind ANTES de embedar, mas
     NUNCA altera o texto original (content_hash e do puro — decisao do plano).
+
+    S32: `policy` (gemini|none) controla o task-prefix; quando omitido segue o
+    perfil ativo (via apply_prefix). Se `cfg` for passado com `prefix_policy`, ele
+    e usado como politica — assim quem embeda por perfil propaga a politica sem
+    precisar setar ambiente.
     """
-    prefixed = [apply_prefix(t, k) for t, k in chunks_textos]
+    if policy is None:
+        cfg = kwargs.get("cfg")
+        if cfg and "prefix_policy" in cfg:
+            policy = cfg["prefix_policy"]
+    prefixed = [apply_prefix(t, k, policy=policy) for t, k in chunks_textos]
     return embed_texts(prefixed, **kwargs)

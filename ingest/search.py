@@ -30,6 +30,7 @@ from typing import Sequence
 import psycopg
 
 from .chunker import Chunk
+from . import profiles as _profiles
 from .embed import apply_prefix, config_from_env, embed_texts
 from .store import db_url_from_env
 
@@ -128,7 +129,33 @@ EF_SEARCH_DEFAULT = VECTOR_TOPK
 # Substitui o antigo MIN_SCORE=0,005 sobre score RRF, que era uma zona morta: o
 # score RRF do top-1 e SEMPRE 0,0164 (rank1+rank1 => 1/61+1/61), posicional, e nao
 # discrimina relevancia. Usado pelo CLI 'rag --ask' p/ o gate "NAO SEI".
-MAX_TOP1_DIST = 0.34
+#
+# S32 (I4): a fonte canonica do gate AGORA e o perfil (registry). MAX_TOP1_DIST e
+# mantido como ALIAS do gate do perfil default (`gemini`) p/ compat — testes e
+# chamadas antigas que leem search.MAX_TOP1_DIST continuam valendo. O gate efetivo
+# de cada busca vem de `max_gate_for_profile()` quando max_top1_dist e omitido.
+MAX_TOP1_DIST = _profiles.PROFILES["gemini"].gate
+
+
+# S32 (I4): sentinela para pedir "use o gate do perfil ativo" em vez de um numero
+# fixo ou None (desligado). O CLI 'rag --ask' passa isto; assim o gate segue o
+# espaco vetorial publicado sem hardcode. Comparacao por identidade/valor da string.
+PERFIL_GATE = "profile"
+
+
+def max_gate_for_profile(slug: str | None = None) -> float:
+    """Gate de distancia do perfil ativo (ou do `slug` dado). Resolve via registry."""
+    return (_profiles.resolve(slug) if slug else _profiles.active_profile()).gate
+
+
+def _resolve_gate(max_top1_dist: float | str | None) -> float | None:
+    """Normaliza o argumento do gate: None->off, PERFIL_GATE->gate do perfil, float->fixo."""
+    if max_top1_dist is None:
+        return None
+    if max_top1_dist == PERFIL_GATE:
+        return max_gate_for_profile()
+    return float(max_top1_dist)
+
 
 
 def _row_to_hit(row, score, vec_rank=None, lex_rank=None, dist=None) -> Hit:
@@ -201,8 +228,11 @@ def search(
     = desligado — ver nota S20). Passar >0 liga o caminho léxico pt-BR p/ A/B.
     `ef_search`=None usa EF_SEARCH_DEFAULT; controla a largura da varredura HNSW
     (S21). Valores < vector_topk podem truncar o top-k denso realmente retornado.
-    `max_top1_dist`=None desliga o gate de distancia; um valor filtra toda saida
-    quando o candidato denso mais proximo esta alem dele (S21, ver MAX_TOP1_DIST).
+    `max_top1_dist`=None desliga o gate de distancia (contrato historico — eval
+    recall@k mede ordenacao sem corte); um float filtra toda saida quando o
+    candidato denso mais proximo esta alem dele (S21). S32 (I4): passar a string
+    "profile" (ou PERFIL_GATE) resolve o gate do PERFIL ATIVO via registry, em vez
+    de um numero fixo — e como o CLI 'rag --ask' passa a operar (gate por espaco).
     `gen`=None (S29) resolve a geração PUBLICADA do repo (rag_sync_state.published_gen,
     default 0 em volume legado) e filtra por ela — leitores nunca veem uma geração
     parcial em montagem. Passar um int fixa a geração (testes/integração).
@@ -250,11 +280,13 @@ def search(
         # S21 · gate de relevancia por DISTANCIA bruta (nao por score RRF posicional).
         # So um chunk recuperado pelo caminho DENSO tem `dist`; se o melhor candidato
         # denso esta longe demais (dist > max_top1_dist), nada no indice e relevante.
-        # None desliga o gate (default em busca pura; o CLI 'rag --ask' passa o limiar
-        # medido). Nao afeta a ordem nem o recall@k — so filtra saida nao-relevante.
-        if max_top1_dist is not None:
+        # None desliga o gate (default em busca pura); PERFIL_GATE usa o gate do
+        # perfil ativo (S32/I4 — CLI 'rag --ask'). Nao afeta a ordem nem o recall@k
+        # — so filtra saida nao-relevante.
+        gate = _resolve_gate(max_top1_dist)
+        if gate is not None:
             dense_dists = [h.dist for h in hits if h.dist is not None]
-            if not dense_dists or min(dense_dists) > max_top1_dist:
+            if not dense_dists or min(dense_dists) > gate:
                 return []
         return _sort_final(hits, final_k)
     finally:

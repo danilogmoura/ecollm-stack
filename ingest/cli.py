@@ -22,7 +22,7 @@ from pathlib import Path
 
 import requests
 
-from . import embed, ingest as ingest_mod, search
+from . import embed, ingest as ingest_mod, profiles, search
 from .search import Hit
 
 
@@ -36,6 +36,9 @@ TIMEOUT_S = 60
 # 1/61+1/61) — uma zona morta que so disparava quando a lista ficava VAZIA, nunca
 # separando "relevante" de "fora-do-assunto". Passamos a medir a DISTANCIA coseno bruta
 # do vizinho denso mais proximo (search.MAX_TOP1_DIST), calibrada no corpus atual.
+# S32 (I6): o gate agora e POR PERFIL. MIN_SCORE mantido como alias do perfil default
+# (`gemini`) p/ compat com testes antigos; o CLI usa search.PERFIL_GATE (resolve o
+# perfil ativo em runtime) ao chamar a busca, entao trocar RAG_PROFILE troca o gate.
 MIN_SCORE = search.MAX_TOP1_DIST
 
 
@@ -113,7 +116,22 @@ def ask_llm(question: str, context: str, cfg: dict | None = None) -> str:
 # comandos
 # ---------------------------------------------------------------------------
 
+def _set_profile_env(args) -> None:
+    """S32 (I6): se --profile foi dado, fixa RAG_PROFILE p/ este processo.
+
+    Assim embed/search/recall resolvem o perfil via registry sem editar .env.
+    Validamos cedo (fail-fast) — um slug invalido deve abortar antes de qualquer
+    chamada de rede/DB. Sem --profile, o ambiente decide (RAG_PROFILE > publicado).
+    """
+    slug = getattr(args, "profile", None)
+    if slug:
+        profiles.validate_slug(slug)  # R1: recusa antes de usar
+        profiles.resolve(slug)        # levanta se desconhecido no registry
+        os.environ["RAG_PROFILE"] = slug
+
+
 def cmd_rag(args) -> int:
+    _set_profile_env(args)
     repo_root = Path(args.repo).resolve()
     repo = ingest_mod.repo_name(repo_root)
     # S14: avisa ANTES do resultado se o indice pode estar desatualizado.
@@ -127,7 +145,7 @@ def cmd_rag(args) -> int:
         qvec = embed.embed_texts([prefixed], cfg=embed.config_from_env())[0]
     hits = search.search(
         args.query, repo=repo, qvec=qvec, kind=args.kind,
-        path_prefix=args.path, final_k=args.k, max_top1_dist=MIN_SCORE,
+        path_prefix=args.path, final_k=args.k, max_top1_dist=search.PERFIL_GATE,
     )
     print(format_hits(hits, show_content=0 if args.no_snippet else 280))
     if not args.ask:
@@ -166,6 +184,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_search.add_argument("-k", type=int, default=search.DEFAULT_FINAL_K)
     p_search.add_argument("--kind", choices=["code", "doc", "config"])
     p_search.add_argument("--path", help="prefixo de caminho p/ filtrar")
+    p_search.add_argument("--profile", choices=sorted(profiles.PROFILES),
+                          help="perfil de embedding a usar (default: RAG_PROFILE > "
+                               "publicado > gemini). Troca gate/prefixo/dim sem editar .env.")
     p_search.add_argument("--ask", action="store_true", help="gera resposta com citação")
     p_search.add_argument("--no-snippet", action="store_true")
     p_search.set_defaults(func=cmd_rag)
