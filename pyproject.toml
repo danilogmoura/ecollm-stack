@@ -40,6 +40,21 @@ package = false
 testpaths = ["ingest/tests", "eval/tests", "mcpsrv/tests"]
 addopts = "-q"
 
+# S31-c · piso de cobertura TRAVADO. Nao colocamos --cov em addopts para nao
+# acoplar o fluxo de teste padrao ao pytest-cov (roda-se o suite sem plugin).
+# O gate de cobertura e opt-in via comando abaixo (CI/closeout); o valor e o
+# round-down da medida real (96.78%) com ~2pt de folga p/ ruidos de ramo defensivo.
+#   .venv/bin/python -m pytest --cov=ingest --cov=eval --cov=mcpsrv
+[tool.coverage.run]
+source = ["ingest", "eval", "mcpsrv"]
+
+[tool.coverage.report]
+# Piso automatizado (S31): a execucao com --cov falha se cair abaixo disto.
+fail_under = 95
+show_missing = true
+precision = 2
+
+
 [dependency-groups]
 dev = [
     "pytest-cov>=7.1.0",
