@@ -108,6 +108,27 @@ model_list:
       cache_read_input_token_cost: 1.7e-07
       cache_creation_input_token_cost: 2.5e-06
 
+  # ===== DEEPSEEK (chat, rota opcional — fora do RAG) =====
+  # NAO entra em rag-chat nem no fluxo RAG. Destinada a uso pontual do agente
+  # (ex.: dumps grandes de engenharia reversa) e ao bench H5b multi-modelo.
+  # Chave em DEEPSEEK_API_KEY (.env, conta separada do Qwen — creditos do Token
+  # Plan NAO valem aqui). Sem a chave definida, o grupo falha-closed na porta e
+  # nao afeta nenhum outro modelo (ver docker-compose.yml, ${DEEPSEEK_API_KEY:-}).
+  # Tarifas = card oficial off-peak (headroom pricing/deepseek_tiers.py, verificado
+  # 2026-09-14): cache-hit $0.003/M | input-miss $0.15/M | output $0.60/M. DeepSeek
+  # NAO cobra surcharge de cache-write (write billa como input-miss), por isso
+  # cache_creation == input. ATENCAO: desconto de cache de 98% torna canibalizar
+  # zona cacheada AINDA pior que no Qwen (89%) — relevante p/ decisao headroom.
+  # Modelo upstream: deepseek-chat = V3 (generalista); deepseek-reasoner = R1.
+  - model_name: deepseek-flash
+    litellm_params:
+      model: deepseek/deepseek-chat
+      api_key: os.environ/DEEPSEEK_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6.0e-07
+      cache_read_input_token_cost: 3.0e-09
+      cache_creation_input_token_cost: 1.5e-07
+
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
   # auto-normaliza as dims truncadas — verificado no teste A/B 2026-09-24).

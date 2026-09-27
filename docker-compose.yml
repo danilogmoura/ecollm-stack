@@ -103,6 +103,10 @@ services:
       # litellm/config.yaml via os.environ/QWEN_MAAS_API_KEY. Sem default: o
       # grupo rag-embeddings-qwen37 so funciona se .env definir a chave (fail-closed).
       - QWEN_MAAS_API_KEY=${QWEN_MAAS_API_KEY:-}
+      # DeepSeek chat (rota opcional): lido por litellm/config.yaml via
+      # os.environ/DEEPSEEK_API_KEY. Sem default: o grupo deepseek-* falha-closed
+      # se .env nao definir a chave — nao afeta rag-chat nem os grupos qwen.
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
       # URL do banco do RAG vista pelo CONTAINER (rede interna, host=rag-db).
       # O CLI de ingest no HOST usa RAG_DB_URL (localhost:5433) do mesmo .env.
       - RAG_DB_URL=${RAG_DB_URL_INTERNAL:-postgresql://rag:rag_secret@rag-db:5432/rag}
