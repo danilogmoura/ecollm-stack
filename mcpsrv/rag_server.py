@@ -101,6 +101,15 @@ def run_search(
         raise ValueError("query vazia")
     k = max(1, min(int(k), MAX_K))
     repo_used = repo or _default_repo()
+    # S32-c (I8): qual ESPAÇO vetorial atendeu a consulta. Diagnóstico de "por que
+    # os resultados mudaram?" — o perfil ativo (RAG_PROFILE > publicado > default)
+    # decide tabela+dim+gate; só vai no log stderr, NUNCA no envelope p/ o agente
+    # (preserva o contrato estável e o prompt-cache §4b-5).
+    try:
+        from ingest import profiles as _profiles  # noqa: PLC0415
+        profile_used = _profiles.active_profile().slug
+    except Exception:  # noqa: BLE001 — diagnóstico melhor-esforço, nunca derruba a tool
+        profile_used = None
     t0 = time.perf_counter()
     status = "ok"
     n = 0
@@ -124,6 +133,7 @@ def run_search(
             "event": "rag_search",
             "ts": round(time.time(), 3),
             "repo": repo_used,
+            "profile": profile_used,
             "query": query.strip()[:200],
             "k": k,
             "kind": kind,

@@ -127,6 +127,33 @@ model_list:
       model: gemini/gemini-embedding-2
       api_key: os.environ/GEMINI_API_KEY
 
+  # ===== PERFIS DE EMBEDDING TROCAVEIS (S32-c, I9) =====
+  # DECISAO (invariante 7): perfis de embedding NAO sao fallback. Cada grupo serve
+  # um ESPACO VETORIAL proprio (tabela + dim no registry ingest/profiles.py); nunca
+  # ha `fallbacks:` entre eles — misturar vetores de modelos diferentes num mesmo
+  # indice corrompe a busca (BUG-002/§2 do plano). Trocar de perfil = sync dedicado
+  # (`rag-sync --profile X`) que re-embeda o indice INTEIRO naquela tabela; o
+  # ponteiro published_profile por repo decide qual espaco atende leitura (S32-b).
+  #
+  # qwen3.7-text-embedding (MaaS sk-ws-, 1024d, batch<=20): MELHOR candidato global
+  # medido (overall r@8 0,949 no dataset-v2). O Token Plan (sk-sp-) NAO serve
+  # embeddings (404) — so este endpoint MaaS /compatible-mode/v1. Chave em
+  # QWEN_MAAS_API_KEY (.env, NUNCA commitada — ver R5: rotacionar antes de gravar).
+  - model_name: rag-embeddings-qwen37
+    litellm_params:
+      model: openai/qwen3.7-text-embedding
+      api_base: https://maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_MAAS_API_KEY
+
+  # bge-m3 (Ollama local, 1024d, $0/offline): melhor MRR entre os locais, forte em
+  # pt-BR. Perfil de ingest/eval — nao precisa ficar quente (KEEP_ALIVE=15m evicta).
+  # api_base usa o NOME DO SERVICO na rede docker ("ollama"), nao localhost (R8).
+  - model_name: rag-embeddings-bgem3
+    litellm_params:
+      model: openai/bge-m3:latest
+      api_base: http://ollama:11434/v1
+      api_key: ollama
+
 litellm_settings:
   drop_params: true
   # S28 (T-OPS-5): verbose desligado por default. Com set_verbose:true +

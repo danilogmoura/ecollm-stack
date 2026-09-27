@@ -20,6 +20,13 @@ echo "Ollama started successfully! Pulling models..."
 # the -q4_K_M quantization suffix is mandatory.
 ollama pull qwen3:4b-instruct-2507-q4_K_M
 
+# Embedding profile bgem3 (S32-c, I16): bge-m3 backs the rag-embeddings-bgem3
+# route in litellm/config.yaml (local $0/offline embedder, halfvec 1024). Pull
+# at boot so the first `rag-sync --profile bgem3` doesn't stall on a cold download.
+# Skips if already present. This is an INGEST/EVAL profile only — it is not a chat
+# fallback and never shares a vector space with another profile (invariante 7).
+ollama pull bge-m3
+
 # NO WARMUP by design (decided 2026-09-25): the model is a rarely-hit emergency
 # fallback, so keeping ~2.5 GB of VRAM pinned at boot is pure waste. Ollama loads
 # it on demand (~2-3 s cold) the first time the fallback actually fires, then

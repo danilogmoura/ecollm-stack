@@ -99,6 +99,10 @@ services:
       - LITELLM_LOG=${LITELLM_LOG:-INFO}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - QWEN_PLAN_API_KEY=${QWEN_PLAN_API_KEY}
+      # Perfil qwen37 de embedding (S32-c): upstream MaaS sk-ws- lido por
+      # litellm/config.yaml via os.environ/QWEN_MAAS_API_KEY. Sem default: o
+      # grupo rag-embeddings-qwen37 so funciona se .env definir a chave (fail-closed).
+      - QWEN_MAAS_API_KEY=${QWEN_MAAS_API_KEY:-}
       # URL do banco do RAG vista pelo CONTAINER (rede interna, host=rag-db).
       # O CLI de ingest no HOST usa RAG_DB_URL (localhost:5433) do mesmo .env.
       - RAG_DB_URL=${RAG_DB_URL_INTERNAL:-postgresql://rag:rag_secret@rag-db:5432/rag}

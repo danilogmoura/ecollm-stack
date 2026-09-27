@@ -252,10 +252,19 @@ def embed_documents(
     perfil ativo (via apply_prefix). Se `cfg` for passado com `prefix_policy`, ele
     e usado como politica — assim quem embeda por perfil propaga a politica sem
     precisar setar ambiente.
+
+    S32-c: o TRANSPORTE por perfil (`batch_size`, `sleep_s`) tambem vem do `cfg`
+    (registry), NAO do default global BATCH_SIZE=32. Cada upstream tem seu teto de
+    batch (qwen37 <= 20; Gemini livre); enviar 32 ao qwen37 da HTTP 400
+    "batch size is invalid". kwargs explicitos ainda vencem (testes override).
     """
     if policy is None:
         cfg = kwargs.get("cfg")
         if cfg and "prefix_policy" in cfg:
             policy = cfg["prefix_policy"]
+    cfg = kwargs.get("cfg") or config_from_env()
+    # batch_size do registry por perfil (qwen37<=20, gemini livre) vence o default
+    # global; kwargs explicito (ex.: testes) ainda prevalece sobre o cfg.
+    kwargs.setdefault("batch_size", cfg.get("batch_size", BATCH_SIZE))
     prefixed = [apply_prefix(t, k, policy=policy) for t, k in chunks_textos]
     return embed_texts(prefixed, **kwargs)

@@ -111,6 +111,37 @@ def test_embed_documents_aplica_prefixo_antes_do_embed():
     assert flat[1].startswith(embed.TASK_PREFIX_QUERY)
 
 
+def test_embed_documents_usa_batch_size_do_perfil_no_cfg():
+    # S32-c: batch_size do registry por perfil (ex.: qwen37<=20) vence o default
+    # global BATCH_SIZE=32; senao o sync real de um perfil com teto baixo HTTP 400.
+    cfg = dict(CFG, batch_size=2)
+    n_chunk = 5
+    pairs = [(f"c{i}", "code") for i in range(n_chunk)]
+    batches: list[int] = []
+
+    def capture(texts, cfg, session):
+        batches.append(len(texts))
+        return [[0.5] * cfg["dim"] for _ in texts]
+
+    out = embed.embed_documents(pairs, cfg=cfg, sleep=lambda s: None, post=capture)
+    assert len(out) == n_chunk
+    assert batches == [2, 2, 1]  # 5 chunks em lotes de 2 → 3 chamadas, nunca >2
+
+
+def test_embed_documents_kwargs_batch_size_prevalece_sobre_cfg():
+    # kwargs explicito (ex.: testes/chamada direta) vence o cfg do perfil.
+    cfg = dict(CFG, batch_size=2)
+    batches: list[int] = []
+
+    def capture(texts, cfg, session):
+        batches.append(len(texts))
+        return [[0.5] * cfg["dim"] for _ in texts]
+
+    pairs = [(f"c{i}", "code") for i in range(4)]
+    embed.embed_documents(pairs, cfg=cfg, batch_size=4, sleep=lambda s: None, post=capture)
+    assert batches == [4]
+
+
 def test_vector_to_halfvec_text_formato():
     txt = embed.vector_to_halfvec_text([0.0, 1.5, -2.25])
     assert txt.startswith("[") and txt.endswith("]")
