@@ -150,7 +150,12 @@ server = MCPServer(
     instructions=(
         "Busca semantica (hibrida: vetorial + lexica) no indice do repositorio. "
         "Use rag_search quando a resposta depender de codigo, docs ou decisoes "
-        "presentes neste projeto."
+        "presentes neste projeto; NAO a chame para edicao comum nem re-consulte o "
+        "mesmo fato na mesma sessao. O backend devolve SEMPRE o top-k em ordem "
+        "deterministica (score desc + desempate path/symbol/id) e NAO filtra por "
+        "relevancia: quem decide 'NAO SEI' e o agente, lendo o score (RRF puro; "
+        "~0,015-0,017 = nao relacionado). Preserve a ordem retornada ao citar "
+        "chunks (reordenar zera o prompt-cache)."
     ),
 )
 
@@ -160,7 +165,9 @@ server = MCPServer(
     description=(
         "Busca semantica no indice do repositório. Usar quando a resposta depende "
         "de código, documentação ou decisões do projeto (retorna chunks com fonte: "
-        "path, symbol, kind, score e conteúdo)."
+        "path, symbol, kind, score e conteúdo). Scores são RRF puro (~0,015-0,017 = "
+        "não relacionado): aplique você o corte 'NÃO SEI'. Use k pequeno e filtre "
+        "com kind/path_prefix para afunilar."
     ),
 )
 async def rag_search(
