@@ -53,6 +53,11 @@ class FakeConn:
 
     def execute(self, sql, params=None):
         self.calls.append((sql, params))
+        # S32-b: search() resolve o perfil publicado via active_profile(conn). O probe
+        # lê published_profile de rag_sync_state; no fake devolve vazio -> default gemini
+        # (tabela chunks), preservando o comportamento legado destes testes.
+        if "published_profile" in sql:
+            return FakeCursor([])
         # S29: search() resolve a geração publicada antes dos caminhos de busca.
         if "published_gen" in sql:
             return FakeCursor([(0,)])

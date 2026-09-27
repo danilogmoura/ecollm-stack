@@ -113,13 +113,20 @@ CREATE INDEX IF NOT EXISTS chunks_repo_gen ON chunks (repo, gen);
 
 -- ---------------------------------------------------------------------------
 -- Estado de sync (S14 / T-OPS-2) — sinaliza indice desatualizado.
--- Uma linha por repo: guarda o HEAD (e se a arvore estava suja) no momento do
--- ultimo ingest bem-sucedido. rag/rag_search comparam o git atual contra este
--- registro e emitem aviso quando divergir. NAO faz parte do corpus; nao e
--- embedado nem indexado vetorialmente.
+-- Uma linha por (repo, profile): guarda o HEAD (e se a arvore estava suja) no
+-- momento do ultimo ingest bem-sucedido DAQUELE perfil. rag/rag_search comparam
+-- o git atual contra este registro e emitem aviso quando divergir. NAO faz parte
+-- do corpus; nao e embedado nem indexado vetorialmente.
+-- S32-b (I10/I11): PK passa de (repo) para (repo, profile) — cada perfil publica
+-- sua propria geracao independentemente (blue-green por perfil). published_profile
+-- e o slug do perfil ATIVO (o que as buscas usam quando RAG_PROFILE nao esta
+-- setado); default 'gemini' mantem o comportamento legado. Espelha a migracao 005.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS rag_sync_state (
-    repo        text PRIMARY KEY,
+    repo        text   NOT NULL,
+    -- S32: perfil de embedding a que esta linha de estado pertence. Default
+    -- 'gemini' preserva leitura de volumes antigos (R7).
+    profile     text   NOT NULL DEFAULT 'gemini',
     head_sha    text,                      -- git rev-parse HEAD no momento do sync
     dirty       boolean NOT NULL DEFAULT false,  -- arvore versionada suja no sync?
     synced_at   timestamptz NOT NULL DEFAULT now(),
@@ -127,5 +134,8 @@ CREATE TABLE IF NOT EXISTS rag_sync_state (
     -- geracao que os leitores veem; `in_progress_gen` e a que o writer monta
     -- (NULL quando nao ha sync em andamento). Espelha a migricao 004_add_gen.sql.
     published_gen   bigint NOT NULL DEFAULT 0,
-    in_progress_gen bigint
+    in_progress_gen bigint,
+    -- S32-b: slug do perfil PUBLICADO (ativo p/ as buscas). Default gemini = hoje.
+    published_profile text NOT NULL DEFAULT 'gemini',
+    PRIMARY KEY (repo, profile)
 );

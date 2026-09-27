@@ -37,7 +37,11 @@ HEALTHY = {
     "tsv": [("tsv", "s"), ("tsv_pt", "s")],
     # S29: coluna gen em chunks + ponteiros de geração no estado de sync.
     "gen": [("gen",)],
-    "state": [("published_gen",), ("in_progress_gen",)],
+    # S32-b: rag_sync_state ganhou profile/published_profile (PK muda p/ repo,profile).
+    "state": [("published_gen",), ("in_progress_gen",), ("profile",),
+              ("published_profile",)],
+    # S32-b: probe do perfil publicado (default gemini -> tabela chunks já validada).
+    "published_profile": [("gemini",)],
 }
 
 
@@ -53,7 +57,10 @@ def _fake_fetch(table: dict):
             return table["indexes"]
         if "attgenerated" in s:
             return table["tsv"]
-        # S29: checagem da coluna gen (só chunks) vs ponteiros do estado de sync.
+        # S32-b: probe do perfil publicado (SELECT published_profile ... LIMIT 1).
+        if "published_profile from rag_sync_state" in s:
+            return table.get("published_profile", [("gemini",)])
+        # S29/S32-b: checagem da lista de colunas do estado de sync.
         if "rag_sync_state" in s:
             return table["state"]
         if "attname = 'gen'" in s or "attname='gen'" in s:

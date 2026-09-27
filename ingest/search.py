@@ -31,7 +31,7 @@ import psycopg
 
 from .chunker import Chunk
 from . import profiles as _profiles
-from .embed import apply_prefix, config_from_env, embed_texts
+from .embed import apply_prefix, config_for_profile, config_from_env, embed_texts
 from .store import db_url_from_env
 
 VECTOR_TOPK = 50         # candidatos do caminho denso
@@ -65,9 +65,11 @@ class Hit:
 
 _COLS = "id, repo, path, lang, kind, symbol, content, content_hash"
 
+# S32-b (I4): {t} é o nome da tabela do perfil ativo (resolvido via registry em
+# search()). Nomes vêm SEMPRE do registry + slug validado (R1), nunca de input cru.
 _VECTOR_SQL = f"""
 SELECT {_COLS}, (embedding <=> %(qvec)s::halfvec) AS dist
-FROM chunks
+FROM {{t}}
 WHERE repo = %(repo)s
   AND gen = %(gen)s
   AND (%(kind)s::text IS NULL OR kind = %(kind)s::text)
@@ -78,7 +80,7 @@ LIMIT %(n)s
 
 _LEXICAL_SQL = f"""
 SELECT {_COLS}, ts_rank(tsv, websearch_to_tsquery('simple', %(q)s)) AS r
-FROM chunks
+FROM {{t}}
 WHERE repo = %(repo)s
   AND gen = %(gen)s
   AND tsv @@ websearch_to_tsquery('simple', %(q)s)
@@ -95,7 +97,7 @@ LIMIT %(n)s
 # sem filtro kind ele só retorna docs; p/ kind≠doc retorna vazio (custo ~0).
 _LEXICAL_PT_SQL = f"""
 SELECT {_COLS}, ts_rank(tsv_pt, websearch_to_tsquery('portuguese', %(q)s)) AS r
-FROM chunks
+FROM {{t}}
 WHERE repo = %(repo)s
   AND gen = %(gen)s
   AND kind = 'doc'
@@ -143,17 +145,30 @@ MAX_TOP1_DIST = _profiles.PROFILES["gemini"].gate
 PERFIL_GATE = "profile"
 
 
-def max_gate_for_profile(slug: str | None = None) -> float:
-    """Gate de distancia do perfil ativo (ou do `slug` dado). Resolve via registry."""
-    return (_profiles.resolve(slug) if slug else _profiles.active_profile()).gate
+def max_gate_for_profile(profile=None) -> float:
+    """Gate de distancia do perfil ativo (ou do `profile` dado: slug ou Profile).
+
+    Aceita slug (str), objeto Profile ou None (= ativo). Resolve via registry; um
+    Profile já resolvido evita re-lookup e garante que o gate venha do MESMO espaço
+    da tabela buscada (S32-b — gate e tabela são sempre do mesmo perfil).
+    """
+    if isinstance(profile, _profiles.Profile):
+        return profile.gate
+    if profile:
+        return _profiles.resolve(profile).gate
+    return _profiles.active_profile().gate
 
 
-def _resolve_gate(max_top1_dist: float | str | None) -> float | None:
-    """Normaliza o argumento do gate: None->off, PERFIL_GATE->gate do perfil, float->fixo."""
+def _resolve_gate(max_top1_dist: float | str | None, profile=None) -> float | None:
+    """Normaliza o argumento do gate: None->off, PERFIL_GATE->gate do perfil, float->fixo.
+
+    `profile` (slug ou Profile) é o perfil já resolvido pela busca — passado para
+    que o gate venha exatamente do espaço vetorial consultado (S32-b/I4).
+    """
     if max_top1_dist is None:
         return None
     if max_top1_dist == PERFIL_GATE:
-        return max_gate_for_profile()
+        return max_gate_for_profile(profile)
     return float(max_top1_dist)
 
 
@@ -219,6 +234,7 @@ def search(
     ef_search: int | None = None,
     max_top1_dist: float | None = None,
     gen: int | None = None,
+    profile=None,
 ) -> list[Hit]:
     """Busca hibrida para `query`. Ou embeda a query (via LiteLLM) ou recebe qvec pronto.
 
@@ -236,19 +252,33 @@ def search(
     `gen`=None (S29) resolve a geração PUBLICADA do repo (rag_sync_state.published_gen,
     default 0 em volume legado) e filtra por ela — leitores nunca veem uma geração
     parcial em montagem. Passar um int fixa a geração (testes/integração).
+    `profile` (S32-b/I4): slug ou Profile do espaço vetorial a buscar; None = ativo
+    (RAG_PROFILE > publicado no banco > gemini). A tabela buscada, o gate (quando
+    PERFIL_GATE) e o gen filtrado vêm TODOS do mesmo perfil — espaços nunca se misturam.
     """
     own_conn = conn is None
     if own_conn:
         conn = psycopg.connect(db_url_from_env())
     try:
-        # S29: filtra pela geração publicada (azul/verde). Uma linha lida do estado
-        # de sync; gen=0 é o default legado → comportamento idêntico ao pré-S29.
+        # S32-b: resolve o perfil UMA vez (usa repo+conn p/ ler o ponteiro publicado).
+        # Tabela, gate e geração saem todos deste mesmo Profile → coerência de espaço.
+        if profile is None:
+            prof = _profiles.active_profile(repo, conn)
+        elif isinstance(profile, _profiles.Profile):
+            prof = profile
+        else:
+            prof = _profiles.resolve(profile)
+        t = prof.table
+        # S29: filtra pela geração publicada (azul/verde) DO PERFIL. gen=0 é o
+        # default legado → comportamento idêntico ao pré-S29.
         if gen is None:
             from .store import get_published_gen  # lazy — evita ciclo no topo
-            gen = get_published_gen(conn, repo)
+            gen = get_published_gen(conn, repo, profile=prof)
         if qvec is None:
-            prefixed = apply_prefix(query, "query")
-            qvec = embed_texts([prefixed], cfg=config_from_env())[0]
+            # S32-b: query embedada no MESMO perfil da tabela buscada (prefixo e
+            # config vêm do Profile resolvido, não do default global).
+            prefixed = apply_prefix(query, "query", policy=prof.prefix_policy)
+            qvec = embed_texts([prefixed], cfg=config_for_profile(prof))[0]
         qvec_text = "[" + ",".join(f"{float(x):.6g}" for x in qvec) + "]"
         params_common = {
             "repo": repo, "kind": kind, "gen": gen,
@@ -258,10 +288,10 @@ def search(
         ef = EF_SEARCH_DEFAULT if ef_search is None else ef_search
         conn.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(ef),))
         vec_rows = conn.execute(
-            _VECTOR_SQL, {**params_common, "qvec": qvec_text, "n": vector_topk}
+            _VECTOR_SQL.format(t=t), {**params_common, "qvec": qvec_text, "n": vector_topk}
         ).fetchall()
         lex_rows = conn.execute(
-            _LEXICAL_SQL, {**params_common, "q": query, "n": lexical_topk}
+            _LEXICAL_SQL.format(t=t), {**params_common, "q": query, "n": lexical_topk}
         ).fetchall()
         pt_weight = LEXICAL_PT_WEIGHT if lexical_pt_weight is None else lexical_pt_weight
         # S20: terceira lista — léxico pt-BR p/ docs. Peso 0 => desligado (default).
@@ -269,7 +299,7 @@ def search(
         all_weights = list(weights) if weights is not None else [1.0, 1.0]
         if pt_weight > 0:
             lex_pt_rows = conn.execute(
-                _LEXICAL_PT_SQL, {**params_common, "q": query, "n": lexical_topk}
+                _LEXICAL_PT_SQL.format(t=t), {**params_common, "q": query, "n": lexical_topk}
             ).fetchall()
             lists.append(lex_pt_rows)
             all_weights.append(lexical_pt_weight)
@@ -283,7 +313,7 @@ def search(
         # None desliga o gate (default em busca pura); PERFIL_GATE usa o gate do
         # perfil ativo (S32/I4 — CLI 'rag --ask'). Nao afeta a ordem nem o recall@k
         # — so filtra saida nao-relevante.
-        gate = _resolve_gate(max_top1_dist)
+        gate = _resolve_gate(max_top1_dist, profile=prof)
         if gate is not None:
             dense_dists = [h.dist for h in hits if h.dist is not None]
             if not dense_dists or min(dense_dists) > gate:

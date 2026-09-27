@@ -162,15 +162,147 @@ def cmd_rag(args) -> int:
 
 
 def cmd_sync(args) -> int:
+    _set_profile_env(args)
     try:
         report = ingest_mod.run_ingest(args.repo, dry_run=args.dry_run,
                                        verbose=not args.quiet,
-                                       skip_gitleaks=args.skip_gitleaks)
+                                       skip_gitleaks=args.skip_gitleaks,
+                                       profile=getattr(args, "profile", None))
     except SystemExit as exc:
         print(f"[abort] codigo {exc.code}", file=sys.stderr)
         return int(exc.code or 0)
     if not args.dry_run:
         print(report.summary())
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# S32-b (I6): `rag profile {list,use,switch,status}` — gestão do espaço vetorial.
+# O flip de perfil é um ato EXPLÍCITO de publicação (invariante 7): nunca há
+# fallback automático. `use` é FAIL-CLOSED (R6): recusa publicar um perfil cujo
+# índice não existe, está vazio, ou cujo HEAD diverge do repo atual.
+# ---------------------------------------------------------------------------
+
+def _profile_status_rows(conn, repo: str) -> list[dict]:
+    """Por perfil do registry: tabela existe? tem chunks publicados? head_sha/dirty."""
+    out = []
+    for slug in sorted(profiles.PROFILES):
+        prof = profiles.PROFILES[slug]
+        row = {"slug": slug, "table": prof.table, "dim": prof.dim,
+              "model": prof.model, "exists": False, "chunks": 0,
+              "published_gen": None, "head_sha": None, "dirty": None}
+        try:
+            exists = conn.execute(
+                "SELECT to_regclass(%s) IS NOT NULL", (prof.table,)).fetchone()[0]
+        except Exception:  # noqa: BLE001
+            exists = False
+        row["exists"] = bool(exists)
+        if exists:
+            try:
+                row["chunks"] = store_count(conn, repo, prof)
+            except Exception:  # noqa: BLE001
+                row["chunks"] = 0
+        st = conn.execute(
+            "SELECT published_gen, head_sha, dirty FROM rag_sync_state "
+            "WHERE repo = %s AND profile = %s", (repo, slug)).fetchone()
+        if st:
+            row["published_gen"], row["head_sha"], row["dirty"] = st[0], st[1], st[2]
+        out.append(row)
+    return out
+
+
+def store_count(conn, repo: str, prof) -> int:
+    """Chunks na geração publicada deste perfil (0 se sem estado)."""
+    gen_row = conn.execute(
+        "SELECT published_gen FROM rag_sync_state WHERE repo = %s AND profile = %s",
+        (repo, prof.slug)).fetchone()
+    gen = gen_row[0] if gen_row else 0
+    return conn.execute(
+        f"SELECT count(*) FROM {prof.table} WHERE repo = %s AND gen = %s",
+        (repo, gen)).fetchone()[0]
+
+
+def cmd_profile(args) -> int:
+    from . import store  # local — só os comandos de perfil precisam do DB
+    action = args.action
+    repo_root = Path(args.repo).resolve()
+    repo = ingest_mod.repo_name(repo_root)
+
+    if action == "list":
+        cur = profiles.active_profile().slug
+        for slug in sorted(profiles.PROFILES):
+            p = profiles.PROFILES[slug]
+            mark = "*" if slug == cur else " "
+            print(f"{mark} {slug:10} table={p.table:14} dim={p.dim:<5} "
+                  f"gate={p.gate} model={p.model}")
+        return 0
+
+    # demais ações exigem conexão com o índice
+    conn = store.connect()
+    try:
+        if action == "status":
+            pub = store.get_published_profile(conn, repo)
+            print(f"repo={repo} publicado={pub} ativo={profiles.active_profile(repo, conn).slug}")
+            for r in _profile_status_rows(conn, repo):
+                flag = "PUB" if r["slug"] == pub else ("   " if r["exists"] else "  ")
+                print(f"  [{flag}] {r['slug']:10} existe={r['exists']!s:5} "
+                      f"chunks={r['chunks']:<6} gen={r['published_gen']} "
+                      f"head={(r['head_sha'] or '-')[:8]} dirty={r['dirty']}")
+            return 0
+
+        if action in ("use", "switch"):
+            return _cmd_profile_set(conn, args, repo, repo_root, action)
+
+        print(f"ação desconhecida: {action}", file=sys.stderr)
+        return 2
+    finally:
+        conn.close()
+
+
+def _cmd_profile_set(conn, args, repo: str, repo_root, action: str) -> int:
+    """`use` (flip puro, fail-closed) e `switch` (sync se preciso + flip)."""
+    from . import store
+    slug = args.slug
+    profiles.validate_slug(slug)          # R1
+    prof = profiles.resolve(slug)         # levanta se fora do registry
+    head, dirty = ingest_mod._git_state(repo_root)
+
+    if action == "switch":
+        # garante índice no alvo antes de publicar (re-embed automático se faltar).
+        rc = cmd_sync(argparse.Namespace(repo=str(repo_root), dry_run=False,
+                                         quiet=args.quiet, skip_gitleaks=args.skip_gitleaks,
+                                         profile=slug))
+        if rc != 0:
+            print(f"[switch] sync do perfil '{slug}' falhou (código {rc}) — "
+                  "nada publicado.", file=sys.stderr)
+            return rc
+
+    # --- checks fail-closed (R6) ---
+    exists = conn.execute("SELECT to_regclass(%s) IS NOT NULL",
+                          (prof.table,)).fetchone()[0]
+    if not exists:
+        print(f"[use] perfil '{slug}' não tem índice (tabela {prof.table} ausente). "
+              f"Rode: rag sync --profile {slug}  (ou: rag profile switch {slug})",
+              file=sys.stderr)
+        return 3
+    n = store_count(conn, repo, prof)
+    if n == 0:
+        print(f"[use] índice de '{slug}' está vazio (0 chunks publicados). "
+              f"Rode: rag sync --profile {slug}", file=sys.stderr)
+        return 3
+    st = conn.execute(
+        "SELECT head_sha FROM rag_sync_state WHERE repo = %s AND profile = %s",
+        (repo, slug)).fetchone()
+    synced_head = st[0] if st else None
+    if head is not None and synced_head is not None and synced_head != head:
+        print(f"[use] índice de '{slug}' está DESATUALIZADO (sync={synced_head[:8]} "
+              f"atual={head[:8]}). Recusei publicar por segurança (R6). "
+              f"Rode: rag sync --profile {slug}", file=sys.stderr)
+        return 3
+
+    store.set_published_profile(conn, repo, slug)
+    conn.commit()
+    print(f"[ok] perfil publicado: {slug} (tabela {prof.table}, {n} chunks).")
     return 0
 
 
@@ -195,17 +327,36 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync.add_argument("--repo", default=".")
     p_sync.add_argument("--dry-run", action="store_true")
     p_sync.add_argument("--quiet", action="store_true")
+    p_sync.add_argument("--profile", choices=sorted(profiles.PROFILES),
+                        help="espaço vetorial a sincronizar (default: RAG_PROFILE > "
+                             "publicado > gemini). Cria a tabela do perfil se faltar.")
     p_sync.add_argument("--skip-gitleaks", action="store_true",
                         help="pule o gate de segredos se o binário estiver ausente "
                              "(fail-closed por default; NÃO cobre segredos achados)")
     p_sync.set_defaults(func=cmd_sync)
+
+    # S32-b (I6): rag profile {list,use,switch,status}
+    p_prof = sub.add_parser("profile", help="gerência dos perfis de embedding (S32)")
+    p_prof.add_argument("--repo", default=".")
+    p_prof.add_argument("--quiet", action="store_true")
+    p_prof.add_argument("--skip-gitleaks", action="store_true",
+                        help="repassado ao sync interno de 'switch'")
+    prof_sub = p_prof.add_subparsers(dest="action", required=True)
+    prof_sub.add_parser("list", help="lista os perfis do registry")
+    p_status = prof_sub.add_parser("status", help="estado por perfil (tabela/chunks/HEAD)")
+    p_status.add_argument("slug", nargs="?", default=None)
+    p_use = prof_sub.add_parser("use", help="publica um perfil (fail-closed, R6)")
+    p_use.add_argument("slug")
+    p_switch = prof_sub.add_parser("switch", help="sync do alvo se preciso + publica")
+    p_switch.add_argument("slug")
+    p_prof.set_defaults(func=cmd_profile)
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
     # conveniência: `rag "pergunta"` == `rag search "pergunta"`; `rag-sync` idem
-    if argv and argv[0] not in ("search", "sync", "-h", "--help"):
+    if argv and argv[0] not in ("search", "sync", "profile", "-h", "--help"):
         argv.insert(0, "search")
     ap = build_parser()
     args = ap.parse_args(argv)

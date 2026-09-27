@@ -153,22 +153,33 @@ def patched(monkeypatch):
     monkeypatch.setattr(embed, "embed_documents", fake_embed_documents)
 
     monkeypatch.setattr(store, "connect", lambda url=None: _NullConn())
-    monkeypatch.setattr(store, "existing_file_hashes", lambda conn, repo, gen=None: db.existing(repo))
-    monkeypatch.setattr(store, "next_generation", lambda conn, repo: db.next_generation(repo))
-    monkeypatch.setattr(store, "begin_generation", lambda conn, repo, gen: db.begin_generation(repo, gen))
-    monkeypatch.setattr(store, "set_in_progress_gen", lambda conn, repo, gen: db.set_in_progress_gen(repo, gen))
+    # S32-b: run_ingest garante a tabela do perfil antes de escrever. No fake é no-op
+    # (memória só); retorna o nome da tabela p/ satisfazer o contrato.
+    monkeypatch.setattr(store, "ensure_profile_table",
+                        lambda conn, profile=None: "chunks")
+    monkeypatch.setattr(store, "existing_file_hashes",
+                        lambda conn, repo, gen=None, profile=None: db.existing(repo))
+    monkeypatch.setattr(store, "next_generation",
+                        lambda conn, repo, profile=None: db.next_generation(repo))
+    monkeypatch.setattr(store, "begin_generation",
+                        lambda conn, repo, gen, profile=None: db.begin_generation(repo, gen))
+    monkeypatch.setattr(store, "set_in_progress_gen",
+                        lambda conn, repo, gen, profile=None: db.set_in_progress_gen(repo, gen))
     monkeypatch.setattr(store, "copy_forward_unchanged",
-                        lambda conn, repo, src, new, paths: db.copy_forward(repo, src, new, paths))
+                        lambda conn, repo, src, new, paths, profile=None: db.copy_forward(repo, src, new, paths))
     monkeypatch.setattr(store, "file_in_generation",
-                        lambda conn, repo, gen, path, fh: db.file_in_gen(repo, gen, path, fh))
-    monkeypatch.setattr(store, "upsert_rows", lambda conn, rows: db.upsert(rows))
-    monkeypatch.setattr(store, "publish_generation", lambda conn, repo, gen: db.publish(repo, gen))
-    monkeypatch.setattr(store, "gc_old_generations", lambda conn, repo, pub: db.gc(repo, pub))
-    monkeypatch.setattr(store, "count_chunks", lambda conn, repo, gen=None: db.count(repo, gen))
+                        lambda conn, repo, gen, path, fh, profile=None: db.file_in_gen(repo, gen, path, fh))
+    monkeypatch.setattr(store, "upsert_rows", lambda conn, rows, profile=None: db.upsert(rows))
+    monkeypatch.setattr(store, "publish_generation",
+                        lambda conn, repo, gen, profile=None: db.publish(repo, gen))
+    monkeypatch.setattr(store, "gc_old_generations",
+                        lambda conn, repo, pub, profile=None: db.gc(repo, pub))
+    monkeypatch.setattr(store, "count_chunks",
+                        lambda conn, repo, gen=None, profile=None: db.count(repo, gen))
     # helper de paridade do orquestrador usa conn.execute direto; redireciona p/ o fake.
     monkeypatch.setattr(ingest, "_parity_ok",
-                        lambda conn, repo, pub, new, paths: db.parity(repo, pub, new, paths))
+                        lambda conn, repo, pub, new, paths, profile=None: db.parity(repo, pub, new, paths))
     # lock advisory é no-op no fake.
-    monkeypatch.setattr(ingest, "_acquire_sync_lock", lambda conn, repo: None)
-    monkeypatch.setattr(ingest, "_release_sync_lock", lambda conn, repo: None)
+    monkeypatch.setattr(ingest, "_acquire_sync_lock", lambda conn, repo, profile=None: None)
+    monkeypatch.setattr(ingest, "_release_sync_lock", lambda conn, repo, profile=None: None)
     return db

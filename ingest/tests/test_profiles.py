@@ -272,6 +272,12 @@ def _drow(i, path, dist, kind="code"):
 
 def test_cli_profile_propaga_para_busca(monkeypatch):
     from ingest import cli
+    import os
+
+    # _set_profile_env muta os.environ de fato. setenv via monkeypatch ANTES de
+    # chamar cmd_rag registra o valor prévio p/ restaurar no teardown — sem isso a
+    # mutação vaza p/ testes seguintes no mesmo processo (ordem alfabética expõe).
+    monkeypatch.setenv("RAG_PROFILE", os.environ.get("RAG_PROFILE", ""))
 
     seen = {}
 
@@ -287,7 +293,6 @@ def test_cli_profile_propaga_para_busca(monkeypatch):
     rc = cli.cmd_rag(args)
     assert rc == 0
     assert seen.get("max_top1_dist") == search.PERFIL_GATE
-    import os
     assert os.environ.get("RAG_PROFILE") == "qwen37"
 
 

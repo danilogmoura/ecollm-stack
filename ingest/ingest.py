@@ -29,7 +29,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import embed, loader, store
+from . import embed, loader, profiles, store
 from .chunker import Chunk, chunk_file
 
 
@@ -76,20 +76,22 @@ def _git_state(repo_root: Path) -> tuple[str | None, bool]:
     return head, dirty
 
 
-def is_index_stale(conn, repo: str, repo_root: str | Path) -> tuple[bool, str]:
+def is_index_stale(conn, repo: str, repo_root: str | Path, profile=None) -> tuple[bool, str]:
     """Compara estado atual do git vs último sync registrado (tabela rag_sync_state).
 
     Retorna (stale, motivo_legivel). Nunca levanta — falha vira aviso conservador
     ('nao sabemos', stale=True) para NUNCA dar falsa garantia de frescor. Se nao
     houver registro de sync (indice legado pré-S14), tratamos como desconhecido.
+    S32-b (I5): frescor é por (repo, perfil) — cada espaço tem seu próprio HEAD sincronizado.
     """
     repo_root = Path(repo_root).resolve()
     if conn is None:
         return True, "sem conexao com o indice — impossivel confirmar frescor"
+    prof = profiles.resolve(profile) if isinstance(profile, str) else (profile or profiles.active_profile())
     try:
         row = conn.execute(
-            "SELECT head_sha, dirty FROM rag_sync_state WHERE repo = %s",
-            (repo,),
+            "SELECT head_sha, dirty FROM rag_sync_state WHERE repo = %s AND profile = %s",
+            (repo, prof.slug),
         ).fetchone()
     except Exception as exc:  # tabela ausente (schema pré-S14) etc.
         return True, f"estado de sync indisponivel ({exc.__class__.__name__})"
@@ -195,33 +197,50 @@ def plan_sync(repo_root: Path, existing: dict[str, str]) -> list[PlanFile]:
 # S29 · helpers do sync blue-green (extraídos p/ teste unitário, padrão R5)
 # ---------------------------------------------------------------------------
 
-def _acquire_sync_lock(conn, repo: str) -> None:
-    """Lock advisory por repo: impede dois writers montarem gerações concorrentes.
+def _acquire_sync_lock(conn, repo: str, profile=None) -> None:
+    """Lock advisory por (repo, perfil): impede dois writers montarem gerações
+    concorrentes no MESMO espaço vetorial.
 
     Leitores NÃO bloqueiam (lock só entre writers). Liberação no finally; lock de
-    sessão morre junto com a conexão de qualquer forma (R3).
+    sessão morre junto com a conexão de qualquer forma (R3). Dois perfis distintos
+    têm chaves distintas e podem montar em paralelo (tabelas separadas, S32-b/I5).
     """
-    conn.execute("SELECT pg_advisory_lock(hashtext(%s))", ("rag_sync:" + repo,))
+    conn.execute("SELECT pg_advisory_lock(hashtext(%s))", (_lock_key(repo, profile),))
 
 
-def _release_sync_lock(conn, repo: str) -> None:
+def _lock_key(repo: str, profile=None) -> str:
+    """Chave do lock advisory: por (repo, perfil). Dois perfis distintos podem
+    montar em paralelo (tabelas separadas); o mesmo perfil nunca tem dois writers.
+    S32-b (I5)."""
+    if isinstance(profile, profiles.Profile):
+        slug = profile.slug
+    elif profile:
+        slug = profiles.resolve(profile).slug
+    else:
+        slug = profiles.DEFAULT_PROFILE
+    return f"rag_sync:{repo}:{slug}"
+
+
+def _release_sync_lock(conn, repo: str, profile=None) -> None:
     try:
-        conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", ("rag_sync:" + repo,))
+        conn.execute("SELECT pg_advisory_unlock(hashtext(%s))", (_lock_key(repo, profile),))
     except Exception:  # noqa: BLE001 — conexão pode já estar morta; lock de sessão morre sozinho
         pass
 
 
 def _embed_and_upsert_file(conn, repo: str, plan: PlanFile, gen: int,
-                           cfg: dict, report: store.SyncReport) -> None:
+                           cfg: dict, report: store.SyncReport,
+                           profile=None) -> None:
     """Embeda e sobe os chunks de UM arquivo na geração `gen`, em transação própria.
 
     COMMIT por arquivo = átomo de retomada (§3.3): se um 429 estourar aqui, os
     arquivos anteriores já commitados persistem e a próxima execução retoma deste.
+    S32-b (I5): escrita na tabela do PERFIL (espaço vetorial correto).
     """
     pairs = [(c.content, c.kind) for c in plan.chunks]
     vectors = embed.embed_documents(pairs, cfg=cfg) if pairs else []
     rows = store.build_rows(repo, plan.entry.blob_sha, plan.chunks, vectors, gen=gen)
-    ins, unch = store.upsert_rows(conn, rows)
+    ins, unch = store.upsert_rows(conn, rows, profile=profile)
     conn.commit()  # transação deste arquivo — commit() explícito (não `with conn:`,
     #                que FECHARIA a conexão em psycopg3 e quebraria o próximo arquivo).
     report.inserted += ins
@@ -229,19 +248,21 @@ def _embed_and_upsert_file(conn, repo: str, plan: PlanFile, gen: int,
 
 
 def _parity_ok(conn, repo: str, published_gen: int, new_gen: int,
-               unchanged_paths: list[str]) -> bool:
+               unchanged_paths: list[str], profile=None) -> bool:
     """R2: toda path unchanged presente na publicada deve existir na nova ANTES do flip.
 
     Se o copy-forward deixou um arquivo inalterado de fora, abortamos o flip —
     senão ele sumiria do índice ao publicar. Compara por PATH (um arquivo pode ter
     nº de chunks diferente só se seu conteúdo mudou, o que o tiraria de unchanged).
+    S32-b (I5): checagem DENTRO da tabela do perfil.
     """
     if not unchanged_paths:
         return True
+    t = store.table_for(profile)
     missing = conn.execute(
-        "SELECT DISTINCT path FROM chunks WHERE repo = %s AND gen = %s "
+        f"SELECT DISTINCT path FROM {t} WHERE repo = %s AND gen = %s "
         "AND path = ANY(%s) AND path NOT IN ("
-        "  SELECT path FROM chunks WHERE repo = %s AND gen = %s)",
+        f"  SELECT path FROM {t} WHERE repo = %s AND gen = %s)",
         (repo, published_gen, unchanged_paths, repo, new_gen),
     ).fetchall()
     return not missing
@@ -249,7 +270,8 @@ def _parity_ok(conn, repo: str, published_gen: int, new_gen: int,
 
 def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
                db_url: str | None = None, cfg: dict | None = None,
-               verbose: bool = True, skip_gitleaks: bool | None = None) -> store.SyncReport:
+               verbose: bool = True, skip_gitleaks: bool | None = None,
+               profile=None) -> store.SyncReport:
     """Sync incremental RETOMÁVEL com publicação atômica (S29 / T-OPS-7).
 
     Blue-green por geração (SPEC-S29 §3): monta gen=published_gen+1 copiando os
@@ -257,10 +279,17 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
     transação POR ARQUIVO (retomável); publica com um único UPDATE (flip) e faz GC
     da geração anterior. Leitores veem sempre published_gen → nunca uma geração
     parcial. Um 429 no meio PRESERVA o progresso (diferente do rollback total antigo).
+
+    S32-b (I5): `profile` (slug ou Profile) escolhe o ESPAÇO VETORIAL a montar. A
+    tabela do perfil é criada sob demanda se faltar (ensure_profile_table — idempotente),
+    o cfg deriva do perfil (model/dim/prefixo/batch), e todo o estado (lock, geração,
+    frescor) é keyed por (repo, perfil). Default = perfil ativo (gemini histórico).
     """
     repo_root = Path(repo_root).resolve()
     repo = repo_name(repo_root)
-    cfg = cfg or embed.config_from_env()
+    prof = (profiles.resolve(profile) if isinstance(profile, str)
+            else profile) if profile is not None else profiles.active_profile()
+    cfg = cfg or embed.config_for_profile(prof)
     # S13: permissão de pular o gate vem da flag OU do env (fail-closed por default).
     if skip_gitleaks is None:
         skip_gitleaks = os.environ.get("RAG_SKIP_GITLEAKS", "").strip().lower() in ("1", "true", "yes")
@@ -276,10 +305,16 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
     # 2) estado atual do DB p/ sync incremental
     conn = None if dry_run else store.connect(db_url)
     try:
+        if conn is not None:
+            # S32-b: garante a tabela do perfil ANTES de qualquer escrita/leitura.
+            # Idempotente (CREATE ... IF NOT EXISTS) — no-op para gemini/chunks já
+            # existentes; cria estrutura equivalente p/ um perfil novo na 1ª ingest.
+            store.ensure_profile_table(conn, profile=prof)
+            conn.commit()
         # I6: dry-run lê a geração publicada real (conexão read-only não é aberta
         # aqui — existing abaixo usa gen=None legado p/ o plano, suficiente p/ mostrar
         # o que MUDARIA; o caminho escrito usa published_gen correto).
-        existing = store.existing_file_hashes(conn, repo) if conn else {}
+        existing = store.existing_file_hashes(conn, repo, profile=prof) if conn else {}
         plans = plan_sync(repo_root, existing)
 
         to_embed = [p for p in plans if p.action in ("new", "changed")]
@@ -306,32 +341,33 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             return report
 
         assert conn is not None
-        _acquire_sync_lock(conn, repo)
+        _acquire_sync_lock(conn, repo, profile=prof)
         try:
-            published_gen, new_gen = store.next_generation(conn, repo)
-            store.begin_generation(conn, repo, new_gen)
+            published_gen, new_gen = store.next_generation(conn, repo, profile=prof)
+            store.begin_generation(conn, repo, new_gen, profile=prof)
             conn.commit()
 
             # 3) copy-forward: arquivos inalterados da publicada → nova (0 cota).
             #    Paths removidas NÃO entram aqui nem no embed → somem da geração nova.
             unchanged_paths = [p.entry.path for p in unchanged_plans]
-            store.copy_forward_unchanged(conn, repo, published_gen, new_gen, unchanged_paths)
+            store.copy_forward_unchanged(conn, repo, published_gen, new_gen,
+                                         unchanged_paths, profile=prof)
             conn.commit()
 
             # 4) embeda new/changed POR ARQUIVO (transação própria = retomável).
             for p in to_embed:
                 if store.file_in_generation(conn, repo, new_gen, p.entry.path,
-                                            p.entry.blob_sha):
+                                            p.entry.blob_sha, profile=prof):
                     # resume: este arquivo já foi commitado nesta geração → pula.
                     report.unchanged += len(p.chunks)
                     continue
-                _embed_and_upsert_file(conn, repo, p, new_gen, cfg, report)
+                _embed_and_upsert_file(conn, repo, p, new_gen, cfg, report, profile=prof)
 
             # contagem de unchanged dos arquivos inalterados (relatório fiel).
             report.unchanged += sum(len(p.chunks) for p in unchanged_plans)
 
             # 5) paridade ANTES do flip (R2): nenhum unchanged pode ter ficado de fora.
-            if not _parity_ok(conn, repo, published_gen, new_gen, unchanged_paths):
+            if not _parity_ok(conn, repo, published_gen, new_gen, unchanged_paths, profile=prof):
                 raise SystemExit(
                     "[abort] paridade unchanged falhou antes do flip — geração nova "
                     "incompleta; publicação cancelada (índice publicado intacto)."
@@ -341,25 +377,25 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             #    commit() explícito — NÃO usar `with conn:` (em psycopg3 o bloco
             #    FECHA a conexão ao sair, matando GC/count/finally abaixo).
             head_sha, dirty = _git_state(repo_root)
-            store.publish_generation(conn, repo, new_gen)
-            store.record_sync_state(conn, repo, head_sha, dirty)
+            store.publish_generation(conn, repo, new_gen, profile=prof)
+            store.record_sync_state(conn, repo, head_sha, dirty, profile=prof)
             conn.commit()
 
             # 7) GC da geração anterior, em transação separada, APÓS o flip (R4).
-            report.deleted = store.gc_old_generations(conn, repo, new_gen)
+            report.deleted = store.gc_old_generations(conn, repo, new_gen, profile=prof)
             conn.commit()
 
-            report.chunks_total = store.count_chunks(conn, repo, gen=new_gen)
+            report.chunks_total = store.count_chunks(conn, repo, gen=new_gen, profile=prof)
             return report
         finally:
             # Libera o ponteiro em andamento se abortamos no meio (crash/429): a
             # próxima execução recomeça esta geração do zero (copy-forward idempotente).
             try:
-                store.set_in_progress_gen(conn, repo, None)
+                store.set_in_progress_gen(conn, repo, None, profile=prof)
                 conn.commit()
             except Exception:  # noqa: BLE001
                 pass
-            _release_sync_lock(conn, repo)
+            _release_sync_lock(conn, repo, profile=prof)
     finally:
         if conn is not None:
             conn.close()
@@ -371,11 +407,13 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--dry-run", action="store_true", help="nao embeda nem escreve no DB")
     ap.add_argument("--skip-gitleaks", action="store_true",
                     help="pule o gate por binário ausente (assumindo o risco; segredo achado aborta sempre)")
+    ap.add_argument("--profile", default=None, choices=sorted(profiles.PROFILES),
+                    help="espaço vetorial a sincronizar (default: perfil ativo)")
     ap.add_argument("--quiet", action="store_true")
     args = ap.parse_args(argv)
     try:
         report = run_ingest(args.repo, dry_run=args.dry_run, verbose=not args.quiet,
-                            skip_gitleaks=args.skip_gitleaks)
+                            skip_gitleaks=args.skip_gitleaks, profile=args.profile)
     except SystemExit as exc:  # gate abortou
         print(f"[abort] codigo {exc.code}", file=sys.stderr)
         return int(exc.code or 0)

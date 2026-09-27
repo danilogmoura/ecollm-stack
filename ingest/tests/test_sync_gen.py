@@ -188,7 +188,8 @@ def test_flip_e_atomico_e_publica_geracao_completa():
     sql, params = conn.calls[0]
     assert "UPDATE rag_sync_state SET published_gen" in sql
     assert "in_progress_gen = NULL" in sql
-    assert params == (5, "r")
+    # S32-b: o flip é chaveado por (repo, profile); default → slug 'gemini'.
+    assert params == (5, "r", "gemini")
 
 
 def test_leitores_veem_velha_ate_flip_e_nova_depois(patched, repo):

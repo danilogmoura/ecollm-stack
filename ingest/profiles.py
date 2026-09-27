@@ -14,11 +14,12 @@ Design (SPEC-S32-PERFIS-EMBEDDING.md §2):
   - Slug validado por regex ANTES de qualquer interpolacao em SQL (R1 — a tabela
     so vem deste registry, jamais de input solto do usuario).
 
-S32-a entrega apenas o registry + plumbing de gate/prefixo/dim (SEM DDL). O
-ponteiro de perfil publicado (`rag_embed_profile`) chega em S32-b; ate la,
-`active_profile()` le do ambiente com default `gemini`, entao o comportamento e
-IDENTICO ao atual (perfil default preserva tabela `chunks`, dim 3072, prefixo
-Gemini e gate 0,34).
+S32-a entregou o registry + plumbing de gate/prefixo/dim (SEM DDL). S32-b adicionou
+o **ponteiro de perfil publicado** (`rag_sync_state.published_profile`, lido por
+`published_profile(repo, conn)`) e a criação sob demanda de tabela por perfil
+(`store.ensure_profile_table`). Com default `gemini` (tabela `chunks`, dim 3072,
+prefixo Gemini, gate 0,34) o comportamento segue IDENTICO ao histórico; um perfil
+não-publicado só é usado via override explícito (`RAG_PROFILE` ou `--profile`).
 """
 
 from __future__ import annotations
@@ -129,22 +130,33 @@ def resolve(slug: str) -> Profile:
         raise InvalidProfile(f"perfil desconhecido: {slug!r}") from exc
 
 
-def published_profile() -> str:
-    """Slug do perfil publicado. Em S32-a ainda nao ha ponteiro no banco (S32-b);
-    retorna o default. Mantido como funcao separada p/ o override de `active_profile`
-    ficar legivel e testavel.
+def published_profile(repo: str | None = None, conn=None) -> str:
+    """Slug do perfil publicado. Default `gemini` quando nao ha ponteiro consultavel.
+
+    S32-a retornava sempre o default (stub — nao havia coluna). S32-b (I6/I8):
+    quando `repo` E uma conexao sao fornecidos, le o ponteiro `published_profile`
+    de rag_sync_state (via store, import lazy p/ evitar ciclo no topo). Sem esses
+    argumentos (ex.: busca sem repo, teste unitario, CLI antes de abrir conn),
+    devolve o default — comportamento historico, nunca falha por falta de banco.
     """
-    return DEFAULT_PROFILE
+    if repo is None or conn is None:
+        return DEFAULT_PROFILE
+    from . import store as _store  # lazy — profiles é importado por store no topo
+    try:
+        return _store.get_published_profile(conn, repo)
+    except Exception:  # noqa: BLE001 — sem tabela/coluna (volume pré-S32) → default
+        return DEFAULT_PROFILE
 
 
-def active_profile() -> Profile:
+def active_profile(repo: str | None = None, conn=None) -> Profile:
     """Perfil em uso: RAG_PROFILE (env) > publicado > default `gemini`.
 
     A precedence fica explicita aqui (SPEC teste 2). RAG_PROFILE sobrescreve o
     publicado (util p/ A/B e eval); na ausencia dele usamos o publicado; e o
-    publicado defaulte para `gemini` (comportamento historico).
+    publicado defaulte para `gemini` (comportamento historico). Em S32-b, passando
+    `repo`+`conn` o "publicado" vem do ponteiro no banco; omitindo, default.
     """
     slug = os.environ.get("RAG_PROFILE")
     if slug is None or slug == "":
-        slug = published_profile()
+        slug = published_profile(repo, conn)
     return resolve(slug)

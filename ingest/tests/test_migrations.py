@@ -62,7 +62,8 @@ def test_migrações_reais_do_repo_sao_validas():
     """Sanidade: os arquivos versionados em rag-db/migrations seguem a convenção."""
     rm.MIGRATIONS_DIR = _MOD_PATH.parent / "migrations"
     found = rm.discover()
-    assert [v for v, _ in found] == ["001", "002", "003", "004"]
+    # S32-b: migração 005 (perfis de embedding) entra na sequência lockstep.
+    assert [v for v, _ in found] == ["001", "002", "003", "004", "005"]
     # todas terminam em .sql e têm conteúdo não-vazio
     for _, p in found:
         assert p.suffix == ".sql"

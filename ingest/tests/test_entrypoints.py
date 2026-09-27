@@ -38,7 +38,7 @@ def _report(**kw) -> SyncReport:
 def test_ingest_main_dry_run_nao_imprime_summary(monkeypatch, capsys):
     chamado = {}
 
-    def fake_run(repo, *, dry_run, verbose, skip_gitleaks):
+    def fake_run(repo, *, dry_run, verbose, skip_gitleaks, profile=None):
         chamado.update(repo=repo, dry_run=dry_run, verbose=verbose,
                        skip_gitleaks=skip_gitleaks)
         return _report()
@@ -82,7 +82,7 @@ def _sync_args(repo=".", dry_run=False, quiet=False, skip_gitleaks=False):
 def test_cmd_sync_repassa_flags_e_imprime_summary(monkeypatch, capsys):
     chamado = {}
 
-    def fake_run(repo, *, dry_run, verbose, skip_gitleaks):
+    def fake_run(repo, *, dry_run, verbose, skip_gitleaks, profile=None):
         chamado.update(dry_run=dry_run, verbose=verbose, skip_gitleaks=skip_gitleaks)
         return _report()
 
