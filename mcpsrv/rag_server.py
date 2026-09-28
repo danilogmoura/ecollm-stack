@@ -38,7 +38,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from mcp.server.mcpserver import MCPServer  # noqa: E402
+from mcp.server.mcpserver import Context, MCPServer  # noqa: E402
 
 from ingest import embed  # noqa: E402
 from ingest.ingest import repo_name  # noqa: E402
@@ -49,6 +49,30 @@ from ingest.search import search  # noqa: E402
 embed.load_dotenv()
 
 MAX_K = 50  # teto defensivo p/ nao despejar contexto demais no prompt do agente
+
+# S37 (tuning de k — alavanca linear travada em H2/H3): SEPARA "quanto se busca"
+# de "quanto se envia". O agente NUNCA passa k explicito (39/39 envelopes reais em
+# h5a-results.jsonl omitem k), entao o default da tool e a alavanca real sobre a
+# cauda nao-cacheada (H1: envelope RAG ~81% da cauda em flash-fast, ~246 tok/hit).
+# DEFAULT_K=6 corta a emissao ~25% vs os 8 historicos; SEARCH_DEPTH=8 mantem a
+# BUSCA interna no mesmo top-8 do gate canônico (recall@8, GATE_K=8 em
+# eval/recall.py) => o ranking medido NAO regride, só a cauda enviada encolhe.
+# Como _sort_final ja ordena deterministicamente (score desc + path/symbol/id),
+# pedir depth e fatiar [0:k] devolve EXATAMENTE o prefixo top-k que a busca
+# produziria — ordem intocada (invariante 1 / §4b-5).
+#
+# CONFIGURAVEL via env (mesmo padrao de RAG_REPO/RAG_PROFILE): RAG_DEFAULT_K e
+# RAG_SEARCH_DEPTH ajustam os numeros sem tocar codigo nem redeploy. Default
+# conservador: emissao 6, profundidade 8.
+#
+# ZONA A INTOCADA (opcao 2): a assinatura da tool permanece LITERALMENTE
+# `k: int = 8`, entao o schema MCP exposto ("default": 8, type integer) fica
+# byte-idêntico => zero reconstrucao de cache. A distincao "cliente omitiu k" vs
+# "cliente pediu 8 explicito" e feita lendo os ARGUMENTOS BRUTOS do request via
+# Context (ver _k_omitido), ANTES do SDK preencher o default. Assim DEFAULT_K so
+# age quando ninguem pediu um valor — quem pede k=8 recebe 8, quem pede k=3 recebe 3.
+DEFAULT_K = int(os.environ.get("RAG_DEFAULT_K", "6"))       # chunks EMITIDOS por chamada quando o cliente omite k
+SEARCH_DEPTH = int(os.environ.get("RAG_SEARCH_DEPTH", "8"))  # largura da busca interna (= gate recall@8 canônico)
 
 # SLO de latência da busca (S22 / T-OPS-4): a parte DB do rag_search mede ~1-6 ms
 # morno; o orçamento <200 ms cobre a ida ao embedder da QUERY quando o cliente não
@@ -71,6 +95,25 @@ def _log_line(obj: dict) -> None:
 
 def _default_repo() -> str:
     return os.environ.get("RAG_REPO") or repo_name(REPO_ROOT)
+
+
+def _k_omitido(ctx) -> bool:
+    """True se o cliente NAO enviou 'k' nos argumentos brutos do request.
+
+    S37/opcao 2: permite aplicar DEFAULT_K so quando ninguem pediu um valor, sem
+    tocar o schema MCP (assinatura permanece `k: int = 8`). Le params.arguments
+    ANTES do SDK injetar o default. Fora de um request real (ex.: chamada direta
+    em teste unitario) nao ha request_context => trata como "presente" (nao
+    interfere), preservando o comportamento explicito dos testes que passam k.
+    """
+    try:
+        rc = ctx.request_context  # ServerRequestContext | None
+        args = (rc.params.arguments or {}) if rc else None
+        if args is None:
+            return False
+        return "k" not in args
+    except Exception:  # noqa: BLE001 — diagnostico best-effort; nunca derruba a tool
+        return False
 
 
 # --- H3 (SPEC-H-HEADROOM-SEGURO): transformações PURAS na EMISSÃO -----------------
@@ -162,6 +205,10 @@ def run_search(
     if not query or not query.strip():
         raise ValueError("query vazia")
     k = max(1, min(int(k), MAX_K))
+    # S37: busca mais fundo que a emissao (SEARCH_DEPTH) p/ manter o ranking
+    # canônico (top-8 do gate) enquanto envia só os k primeiros. O corte [0:k] é
+    # determinístico (prefixo exato do que _sort_final produziria com final_k=k).
+    search_depth = max(k, SEARCH_DEPTH)
     repo_used = repo or _default_repo()
     # S32-c (I8): qual ESPAÇO vetorial atendeu a consulta. Diagnóstico de "por que
     # os resultados mudaram?" — o perfil ativo (RAG_PROFILE > publicado > default)
@@ -181,9 +228,9 @@ def run_search(
             repo=repo_used,
             kind=kind,
             path_prefix=path_prefix,
-            final_k=k,
+            final_k=search_depth,
         )
-        out = dedupe_intra([hit_to_dict(h) for h in hits])
+        out = dedupe_intra([hit_to_dict(h) for h in hits])[:k]
         n = len(out)
         return out
     except Exception as exc:  # noqa: BLE001 — registra e propaga (caller vira payload)
@@ -247,6 +294,7 @@ async def rag_search(
     k: int = 8,
     kind: str | None = None,
     path_prefix: str | None = None,
+    ctx: Context = None,
 ) -> str:
     """Retorna top-k chunks relevantes como JSON (string), prontos p/ o agente citar.
 
@@ -256,6 +304,12 @@ async def rag_search(
         kind: filtro opcional por tipo de conteudo (code|doc|config).
         path_prefix: filtro opcional por prefixo de caminho (ex.: "ingest/").
     """
+    # S37/opcao 2: se o cliente omitiu 'k' (agente real sempre omite), emite
+    # DEFAULT_K (config via RAG_DEFAULT_K) em vez do 8 historico. Quem pede k
+    # explicitamente recebe exatamente o que pediu. O schema MCP permanece
+    # "default": 8 (Zona A byte-identica); ctx e injetado pelo SDK, NAO exposto.
+    if _k_omitido(ctx):
+        k = DEFAULT_K
     try:
         results = run_search(
             query, k, repo=None, kind=kind, path_prefix=path_prefix

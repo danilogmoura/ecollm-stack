@@ -71,7 +71,9 @@ def test_run_search_retorna_lista_serializada(monkeypatch):
     assert out[1]["source"] == "README.md [doc]"  # symbol None -> sem ::symbol
 
 
-def test_run_search_final_k_recebe_k_apos_clamp(monkeypatch):
+def test_run_search_final_k_recebe_profundidade_apos_clamp(monkeypatch):
+    # S37: final_k enviado ao search() e a PROFUNDIDADE interna
+    # max(k, SEARCH_DEPTH), nao o k emitido. Com k=999 -> clamp MAX_K (>= depth).
     fake = FakeSearch([])
     monkeypatch.setattr(rag_server, "search", fake)
     monkeypatch.setenv("RAG_REPO", "meu-repo")
@@ -81,11 +83,25 @@ def test_run_search_final_k_recebe_k_apos_clamp(monkeypatch):
     assert kw["repo"] == "meu-repo"  # default vem de RAG_REPO
 
 
+def test_run_search_busca_profundidade_minima_e_emite_k(monkeypatch):
+    # S37 coracao: p/ k pequeno, busca SEARCH_DEPTH mas EMITE so k (fatiamento).
+    hits = [_hit(path=f"p{i}.py", symbol=f"s{i}") for i in range(12)]
+    fake = FakeSearch(hits)
+    monkeypatch.setattr(rag_server, "search", fake)
+    out = rag_server.run_search("x", k=3, repo="r")
+    _, kw = fake.calls[0]
+    # profundidade pedida = max(3, SEARCH_DEPTH=8) = 8 (mantem ranking canônico)
+    assert kw["final_k"] == rag_server.SEARCH_DEPTH
+    # emissao truncada no k pedido
+    assert len(out) == 3
+
+
 def test_run_search_clamp_k_minimo(monkeypatch):
     fake = FakeSearch([])
     monkeypatch.setattr(rag_server, "search", fake)
     rag_server.run_search("x", k=0, repo="r")
-    assert fake.calls[0][1]["final_k"] == 1
+    # k e clampado a 1 (emitido), mas a BUSCA vai ate a profundidade minima.
+    assert fake.calls[0][1]["final_k"] == rag_server.SEARCH_DEPTH
 
 
 def test_run_search_propaga_kind_e_path_prefix(monkeypatch):
@@ -186,6 +202,82 @@ def test_call_tool_devolve_json_results(monkeypatch):
     assert res.is_error is False
     payload = json.loads(res.content[0].text)
     assert payload["results"][0]["path"] == "ingest/search.py"
+
+
+# ---------------------------------------------------------------------------
+# S37 (opcao 2) — DEFAULT_K so quando o cliente OMITE k; schema Zona A estavel
+# ---------------------------------------------------------------------------
+
+def _call_with_request_ctx(args: dict):
+    """Invoca a tool pelo ToolManager com um Context que tem request_context real.
+
+    Simula o despacho MCP de verdade (params.arguments brutos), permitindo ao
+    _k_omitido distinguir 'cliente nao mandou k' de 'mandou k=8 explicito'.
+    """
+    from types import SimpleNamespace
+    from mcp.server.mcpserver.context import Context
+
+    class RC:
+        def __init__(self, a):
+            self.params = SimpleNamespace(arguments=a)
+
+    ctx = Context(request_context=RC(args), mcp_server=rag_server.server)
+    return asyncio.run(
+        rag_server.server._tool_manager.call_tool(
+            "rag_search", args, ctx, convert_result=True
+        )
+    )
+
+
+def _many_hits(n=12):
+    return [_hit(path=f"p{i}.py", symbol=f"s{i}", score=1.0 / (i + 1)) for i in range(n)]
+
+
+def test_s37_schema_k_nao_muda_zona_a():
+    # Invariante: assinatura permanece literal `k: int = 8`; schema exposto e
+    # byte-identico ao historico (default 8, integer) => zero reconstrucao de cache.
+    tools = asyncio.run(rag_server.server.list_tools())
+    tool = next(t for t in tools if t.name == "rag_search")
+    kprop = tool.input_schema["properties"]["k"]
+    assert kprop == {"default": 8, "title": "K", "type": "integer"}
+    assert "ctx" not in tool.input_schema["properties"]  # Context NAO e exposto
+
+
+def test_s37_k_omitido_emite_default_k(monkeypatch):
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    res = _call_with_request_ctx({"query": "x", "repo": "r"})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == rag_server.DEFAULT_K
+    # busca vai ate SEARCH_DEPTH (ranking canônico preservado)
+    assert fake.calls[0][1]["final_k"] == max(rag_server.DEFAULT_K, rag_server.SEARCH_DEPTH)
+
+
+def test_s37_k_exPLICITO_respeitado_mesmo_maior_que_default(monkeypatch):
+    # Quem pede k=8 recebe 8 (nao e truncado ao DEFAULT_K); omitir != pedir 8.
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    res = _call_with_request_ctx({"query": "x", "repo": "r", "k": 8})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == 8
+
+
+def test_s37_k_exPLICITO_menor_que_default_respeitado(monkeypatch):
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    res = _call_with_request_ctx({"query": "x", "repo": "r", "k": 3})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == 3
+
+
+def test_s37_default_k_config_via_env(monkeypatch):
+    # RAG_DEFAULT_K ajusta a emissao sem tocar codigo (mesmo padrao de RAG_REPO).
+    monkeypatch.setattr(rag_server, "DEFAULT_K", 4)
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    res = _call_with_request_ctx({"query": "x", "repo": "r"})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == 4
 
 
 def test_call_tool_erro_vira_payload_sem_crash(monkeypatch):
