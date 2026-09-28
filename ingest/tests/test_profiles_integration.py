@@ -81,12 +81,28 @@ def test_repo(tmp_path):
     return r
 
 
+# Snapshot DOS NOMES REAIS das tabelas do registry, capturado na importação do
+# módulo — ANTES de qualquer monkeypatch.setitem(PROFILES, ...) nos testes. Se o
+# guard calculasse p.table a partir do PROFILES vigente, uma tabela sintética
+# registrada em memória (chunks_test_*) entraria na lista e bloquearia a própria
+# limpeza do teste. Por isso congelamos aqui os índices que pertencem ao volume.
+_REAL_PROFILE_TABLES = frozenset(
+    {p.table for p in profiles.PROFILES.values()} | {"chunks"})
+
+
 def _drop_profile_table(conn, table):
     """Remove uma tabela de perfil de TESTE + seu estado (limpa pós-teste).
 
-    NUNCA chamar para 'chunks' (perfil default legado — pertence ao índice real).
+    NUNCA dropar tabela de índice REAL publicado neste volume. Além de 'chunks'
+    (legado), as tabelas dos perfis do registry vigente (chunks_bgem3 /
+    chunks_qwen37) podem atender leitura do ecollm-stack; destruí-las num teste
+    deixaria published_profile/RAG_PROFILE apontando p/ tabela inexistente (busca
+    real crasha com UndefinedTable). Testes DEVEM usar `_test_profile` (tabela
+    chunks_test_*) ou um slug registrado só em memória (ver t12/t13).
     """
-    assert table != "chunks", "não dropar a tabela default em teste"
+    assert table not in _REAL_PROFILE_TABLES, (
+        f"teste não pode dropar tabela de índice real/publicado: {table} "
+        "(use _test_profile com tabela chunks_test_*)")
     conn.execute(f"DROP TABLE IF EXISTS {table}")
     conn.commit()
 
@@ -102,9 +118,10 @@ def _test_profile(real_slug: str, tag: str) -> profiles.Profile:
     docstring do módulo promete isolamento; este helper cumpre.
 
     Limitação: verify._published_profiles resolve slug via PROFILES.get(); um slug
-    sintético NÃO está no registry. Por isso test_verify_schema publica um slug REAL
-    (qwen37) — mas as demais tabelas físicas de teste usam nomes descartáveis, e o
-    índice bgem3 real permanece íntegro durante toda a suíte.
+    sintético NÃO está no registry. Por isso t12/t13 registram em memória
+    (monkeypatch.setitem) um Profile com slug REAL do registry mas TABELA
+    descartável (chunks_test_*), exercitando o caminho "perfil publicado" sem
+    tocar nos índices reais (bgem3/qwen37) publicados neste volume.
     """
     base = profiles.resolve(real_slug)
     return profiles.Profile(
@@ -255,7 +272,17 @@ def test_sync_flip_leitura_perfil_nao_default(monkeypatch, test_repo, live_conn)
 def test_use_recusa_publicar_com_head_divergente(monkeypatch, test_repo, live_conn):
     from ingest import cli, embed, ingest
 
-    prof = profiles.resolve("qwen37")          # slug real: _cmd_profile_set exige registry
+    # Slug real p/ satisfazer _cmd_profile_set (exige registry), mas tabela
+    # descartável (chunks_test_*): evita DROP/destruição do índice qwen37 real
+    # publicado no ecollm-stack. run_ingest/_cmd_profile_set operam na tabela
+    # redirecionada via registry patched (mesmo processo).
+    base = profiles.resolve("qwen37")
+    prof = profiles.Profile(
+        slug=base.slug, table="chunks_test_s32b_head", model=base.model,
+        dim=base.dim, prefix_policy=base.prefix_policy, gate=base.gate,
+        batch_size=base.batch_size, sleep_s=base.sleep_s,
+    )
+    monkeypatch.setitem(profiles.PROFILES, prof.slug, prof)
     repo = test_repo.resolve().name
     _drop_profile_table(live_conn, prof.table)
     _cleanup_state(live_conn, repo)
@@ -292,8 +319,19 @@ def test_use_recusa_publicar_com_head_divergente(monkeypatch, test_repo, live_co
 # 13 · verify_schema aprova o perfil publicado e reprova dim divergente
 # ---------------------------------------------------------------------------
 
-def test_verify_schema_aprova_perfil_publicado_reprova_dim(live_conn):
-    prof = profiles.resolve("qwen37")
+def test_verify_schema_aprova_perfil_publicado_reprova_dim(live_conn, monkeypatch):
+    # Slug REAL do registry (verify resolve via PROFILES.get), mas com a TABELA
+    # redirecionada p/ uma descartável (chunks_test_*): assim o teste exercita o
+    # caminho "perfil publicado no registry" sem tocar no índice qwen37 real do
+    # ecollm-stack (DROP em chunks_qwen37 destruiria a busca publicada — ver guard
+    # em _drop_profile_table). monkeypatch é revertido ao fim do teste.
+    base = profiles.resolve("qwen37")
+    prof = profiles.Profile(
+        slug=base.slug, table="chunks_test_s32b_verify", model=base.model,
+        dim=base.dim, prefix_policy=base.prefix_policy, gate=base.gate,
+        batch_size=base.batch_size, sleep_s=base.sleep_s,
+    )
+    monkeypatch.setitem(profiles.PROFILES, prof.slug, prof)
     repo = "s32b_it_verify"
     _drop_profile_table(live_conn, prof.table)
     _cleanup_state(live_conn, repo)

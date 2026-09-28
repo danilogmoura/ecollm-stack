@@ -10,6 +10,8 @@ from __future__ import annotations
 import types
 from pathlib import Path
 
+import pytest
+
 from ingest import cli, store
 from ingest.search import Hit
 
@@ -76,6 +78,21 @@ def _args(query, ask=False, k=8, kind=None, path=None, repo="."):
     return types.SimpleNamespace(
         query=query, ask=ask, k=k, kind=kind, path=path, repo=repo, no_snippet=True
     )
+
+
+# Handle da implementação REAL do aviso fail-closed, capturado antes de qualquer
+# patch. Os testes que exercitam o aviso chamam esta função diretamente; os demais
+# (cmd_rag) usam a versão neutralizada pelo fixture autouse abaixo.
+_real_warn = cli._warn_if_profile_unindexed
+
+
+@pytest.fixture(autouse=True)
+def _neutralize_profile_warn(monkeypatch):
+    """Por default, cmd_rag não deve curto-circuitar por causa do aviso: estes
+    testes focam busca/ask/gate, não o fail-closed. Stub retorna True (índice
+    'pronto'). Os testes do próprio aviso sobrescrevem chamando _real_warn."""
+    monkeypatch.setattr(cli, "_warn_if_profile_unindexed",
+                        lambda *a, **k: True)
 
 
 def test_cmd_rag_busca_sua_imprime_hits(monkeypatch, capsys):
@@ -173,45 +190,71 @@ def _stub_active_profile(monkeypatch, slug="qwen37"):
     return prof
 
 
-def test_warn_sem_indice_avisa_e_aponta_switch(monkeypatch, capsys):
-    """Perfil ativo sem tabela → deve avisar no stderr orientando o switch."""
+def test_warn_sem_indice_retorna_false_e_aponta_sync(monkeypatch, capsys):
+    """Perfil ativo sem tabela → False (cmd_rag aborta) + stderr orientando o sync."""
     conn = _WarnConn(exists=False)
     monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
     _stub_active_profile(monkeypatch, "qwen37")
-    cli._warn_if_profile_unindexed(Path("."), "r")
+    ready = _real_warn(Path("."), "r")
     err = capsys.readouterr().err
+    assert ready is False, "sem índice → deve sinalizar NÃO-pronto p/ curto-circuitar"
     assert "qwen37" in err
-    assert "rag profile switch qwen37" in err
+    assert "ausente" in err
+    assert "rag sync" in err and "--profile qwen37" in err
     assert conn.closed is True
 
 
-def test_warn_tabela_vazia_avisa(monkeypatch, capsys):
-    """Tabela existe mas 0 chunks publicados → tambem e 'sem indice pronto'."""
+def test_warn_tabela_vazia_retorna_false(monkeypatch, capsys):
+    """Tabela existe mas 0 chunks publicados → tambem e 'sem indice pronto' (False)."""
     conn = _WarnConn(exists=True, chunks=0)
     monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
     _stub_active_profile(monkeypatch, "qwen37")
-    cli._warn_if_profile_unindexed(Path("."), "r")
+    ready = _real_warn(Path("."), "r")
     err = capsys.readouterr().err
+    assert ready is False
     assert "vazia" in err
-    assert "rag profile switch qwen37" in err
+    assert "rag sync" in err and "--profile qwen37" in err
 
 
-def test_warn_com_indice_pronto_nao_avisa(monkeypatch, capsys):
-    """Tabela com chunks publicados → silencio (busca segue normal)."""
+def test_warn_com_indice_pronto_retorna_true_silencioso(monkeypatch, capsys):
+    """Tabela com chunks publicados → True + silencio (busca segue normal)."""
     conn = _WarnConn(exists=True, chunks=706)
     monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
     _stub_active_profile(monkeypatch, "qwen37")
-    cli._warn_if_profile_unindexed(Path("."), "r")
+    ready = _real_warn(Path("."), "r")
+    assert ready is True
     assert capsys.readouterr().err == ""
 
 
-def test_warn_db_inacessivel_silencia_sem_quebrar(monkeypatch, capsys):
-    """Sem DB (connect levanta) → best-effort: nao lanca, nao imprime, busca segue."""
+def test_warn_db_inacessivel_retorna_true_sem_quebrar(monkeypatch, capsys):
+    """Sem DB (connect levanta) → best-effort: True (deixa search tentar), nao lanca."""
     def _boom(*a, **k):
         raise RuntimeError("no db")
     monkeypatch.setattr(store, "connect", _boom)
-    cli._warn_if_profile_unindexed(Path("."), "r")  # nao deve lancar
+    ready = _real_warn(Path("."), "r")  # nao deve lancar
+    assert ready is True
     assert capsys.readouterr().err == ""
+
+
+def test_cmd_rag_aborta_quando_perfil_sem_indice(monkeypatch, capsys):
+    """Fail-closed no cmd_rag: aviso False → rc=3 e search() NUNCA é chamado
+    (evita crash UndefinedTable). Sobrescreve o stub autouse com a função real."""
+    monkeypatch.setattr(cli.ingest_mod, "repo_name", lambda p: "r")
+    conn = _WarnConn(exists=False)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    _stub_active_profile(monkeypatch, "qwen37")
+    monkeypatch.setattr(cli, "_warn_if_profile_unindexed", _real_warn)
+    called = {"search": False}
+
+    def _never_search(*a, **k):
+        called["search"] = True
+        return []
+
+    monkeypatch.setattr(cli.search, "search", _never_search)
+    rc = cli.cmd_rag(_args("qualquer coisa"))
+    assert rc == 3, "sem índice pronto → cmd_rag deve abortar com rc não-zero"
+    assert called["search"] is False, "search não pode rodar sobre tabela inexistente"
+    assert "rag sync" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

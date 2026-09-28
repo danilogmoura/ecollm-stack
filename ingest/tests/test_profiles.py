@@ -323,6 +323,9 @@ def test_cli_profile_propaga_para_busca(monkeypatch):
 
     monkeypatch.setattr(cli.ingest_mod, "repo_name", lambda p: "r")
     monkeypatch.setattr(cli.search, "staleness_warning", lambda *a, **k: None)
+    # Foco deste teste = propagação profile->gate no search(); o aviso fail-closed
+    # consultaria o DB real pelo repo mock "r" (sem chunks) e curto-circuitaria.
+    monkeypatch.setattr(cli, "_warn_if_profile_unindexed", lambda *a, **k: True)
     monkeypatch.setattr(cli.search, "search", _capture)
     args = _ns(query="oi", repo=".", k=8, kind=None, path=None, ask=False,
                no_snippet=True, profile="qwen37")
