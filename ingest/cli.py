@@ -383,7 +383,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_sync = sub.add_parser("sync", help="ingest (FASE 2)")
     p_sync.add_argument("--repo", default=".")
     p_sync.add_argument("--dry-run", action="store_true")
-    p_sync.add_argument("--quiet", action="store_true")
+    p_sync.add_argument("--quiet", action="store_true", help="modo silencioso")
     p_sync.add_argument("--profile", choices=sorted(profiles.PROFILES),
                         help="espaço vetorial a sincronizar (default: RAG_PROFILE > "
                              "publicado > gemini). Cria a tabela do perfil se faltar.")
@@ -395,7 +395,7 @@ def build_parser() -> argparse.ArgumentParser:
     # S32-b (I6): rag profile {list,use,switch,status}
     p_prof = sub.add_parser("profile", help="gerência dos perfis de embedding (S32)")
     p_prof.add_argument("--repo", default=".")
-    p_prof.add_argument("--quiet", action="store_true")
+    p_prof.add_argument("--quiet", action="store_true", help="modo silencioso")
     p_prof.add_argument("--skip-gitleaks", action="store_true",
                         help="repassado ao sync interno de 'switch'")
     prof_sub = p_prof.add_subparsers(dest="action", required=True)
