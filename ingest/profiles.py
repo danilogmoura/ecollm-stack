@@ -18,8 +18,9 @@ S32-a entregou o registry + plumbing de gate/prefixo/dim (SEM DDL). S32-b adicio
 o **ponteiro de perfil publicado** (`rag_sync_state.published_profile`, lido por
 `published_profile(repo, conn)`) e a criação sob demanda de tabela por perfil
 (`store.ensure_profile_table`). O default global é `bgem3` (local/Ollama, $0); o
-perfil legado `gemini` (tabela `chunks`, dim 3072) segue íntegro e continua sendo
-quem honra os overrides `RAG_EMBED_*`. Um perfil não-publicado só é usado via
+perfil `gemini` (tabela `chunks`, dim 3072) é uma opção de **primeira classe** — não é
+legado, apenas deixou de ser o default e continua plenamente selecionável; é quem honra
+os overrides `RAG_EMBED_*`. Um perfil não-publicado só é usado via
 override explícito (`RAG_PROFILE` ou `--profile`) ou publicação (`profile switch`),
 nunca por fallback automático (invariante 7).
 """
@@ -102,7 +103,7 @@ class Profile:
 PROFILES: dict[str, Profile] = {
     "gemini": Profile(
         slug="gemini",
-        table="chunks",                 # nome legado preservado (intocado)
+        table="chunks",                 # 1ª classe; nome histórico mantido (não é legado)
         model="rag-embeddings",         # -> gemini/gemini-embedding-2
         dim=3072,
         prefix_policy="gemini",

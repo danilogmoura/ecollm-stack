@@ -350,4 +350,11 @@ def staleness_warning(repo_root: str | Path, repo: str,
     finally:
         if own and conn is not None:
             conn.close()
-    return f"[aviso] indice pode estar desatualizado — {reason}" if stale else None
+    if not stale:
+        return None
+    # Torna o aviso acionavel: indica o comando exato que resolve (sync do perfil
+    # ativo). Import lazy de profiles aqui tambem (evita ciclo no topo do modulo).
+    from . import profiles as _profiles  # lazy
+    slug = _profiles.active_profile().slug
+    return (f"[aviso] indice pode estar desatualizado — {reason}. "
+            f"Para sincronizar: rag sync --repo {repo_root} --profile {slug}")
