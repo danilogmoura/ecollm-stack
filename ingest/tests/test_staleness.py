@@ -16,7 +16,7 @@ import json
 
 import pytest
 
-from ingest import ingest, search
+from ingest import ingest, profiles, search
 
 
 class _StateConn:
@@ -155,6 +155,16 @@ def test_staleness_warning_msg_quando_stale(monkeypatch):
                         lambda conn, repo, root: (True, "HEAD mudou"))
     w = search.staleness_warning("/x", "repo", conn=_StateConn(("a", False)))
     assert w and "desatualizado" in w and "HEAD mudou" in w
+
+
+def test_staleness_warning_traz_comando_sync_e_perfil_ativo(monkeypatch):
+    # O aviso deve ser ACIONAVEL: embute o comando exato de sync com o perfil ativo.
+    monkeypatch.setattr(ingest, "is_index_stale",
+                        lambda conn, repo, root: (True, "HEAD mudou"))
+    monkeypatch.setattr(profiles, "active_profile",
+                        lambda *a, **k: profiles.resolve("qwen37"))
+    w = search.staleness_warning("/repo/x", "repo", conn=_StateConn(("a", False)))
+    assert w and "rag sync" in w and "--profile qwen37" in w and "/repo/x" in w
 
 
 def test_staleness_warning_nunca_levanta(monkeypatch):
