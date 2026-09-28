@@ -75,11 +75,6 @@ class Profile:
     gate: float           # limiar MAX_TOP1_DIST proprio do espaco (⚠️ a calibrar)
     batch_size: int       # itens por request ao upstream
     sleep_s: float        # pausa entre batches (respeitar rate-limit do provedor)
-    # Honrar os overrides legados RAG_EMBED_MODEL/RAG_EMBED_DIM do .env? True SO no
-    # perfil historico ('gemini'). Amarração ESTRUTURAL (vive no registry, nao numa
-    # constante separada): trocar DEFAULT_PROFILE nao deve fazer o novo default herdar
-    # o alias legado por engano — ver embed.config_for_profile.
-    legacy_env_override: bool = False
 
     def __post_init__(self) -> None:
         # Defesa em profundidade (R1): um Profile so pode existir com slug/table
@@ -114,7 +109,6 @@ PROFILES: dict[str, Profile] = {
         gate=0.34,                      # calibrada no corpus atual (S21)
         batch_size=8,
         sleep_s=1.5,
-        legacy_env_override=True,  # unico perfil que honra RAG_EMBED_MODEL/DIM legados
     ),
     "qwen37": Profile(
         slug="qwen37",

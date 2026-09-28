@@ -82,28 +82,21 @@ def config_for_profile(profile: "_profiles.Profile") -> dict:
     base_url/api_key continuam vindo do ambiente (sao globais ao proxy LiteLLM —
     todos os perfis falam OpenAI-compat /embeddings no MESMO proxy).
 
-    model/dim tem o REGISTRY como fonte canonica (S32). RAG_EMBED_MODEL/RAG_EMBED_DIM
-    sao overrides LEGADOS que se aplicam SOMENTE ao perfil historico (`gemini`) — e
-    preservam o comportamento do .env p/ esse perfil. Para QUALQUER outro perfil, um
-    RAG_EMBED_MODEL antigo (ex.: 'rag-embeddings' do .env) NAO deve sobrescrever o
-    modelo do espaco (senão embedaríamos bgem3/qwen37 no alias Gemini, com dim errada
-    — espaços incompatíveis corrompem o índice, invariante 7). A amarração é
-    ESTRUTURAL: só o perfil com `legacy_env_override=True` no registry (hoje apenas
-    'gemini') honra esses overrides — NÃO a DEFAULT_PROFILE. Trocar o default (ex.:
-    p/ bgem3 local) nao deve fazer o novo default herdar o alias legado por engano.
-    Assim trocar de perfil troca modelo+dim de fato, sem editar .env.
+    model/dim tem o REGISTRY (ingest/profiles.py) como FONTE UNICA e CANONICA (S32).
+    Os antigos overrides RAG_EMBED_MODEL/RAG_EMBED_DIM do .env foram REMOVIDOS: cada
+    perfil declara seu proprio modelo+dimensao no codigo, entao trocar de perfil troca
+    modelo+dim de fato sem editar .env — e um valor legado solto no .env jamais consegue
+    sobrescrever o espaco vetorial (invariante 7: nunca misturar espaços; um alias
+    Gemini 3072 num perfil 1024 corromperia o indice).
+    base_url/api_key continuam vindo do ambiente (sao globais ao proxy LiteLLM — todos
+    os perfis falam OpenAI-compat /embeddings no MESMO proxy).
     """
     load_dotenv()
-    model = profile.model
-    dim = profile.dim
-    if profile.legacy_env_override:
-        model = os.environ.get("RAG_EMBED_MODEL", profile.model)
-        dim = int(os.environ.get("RAG_EMBED_DIM", profile.dim))
     return {
         "base_url": os.environ.get("LITELLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
-        "model": model,
+        "model": profile.model,
         "api_key": os.environ.get("LITELLM_MASTER_KEY", ""),
-        "dim": dim,
+        "dim": profile.dim,
         # transport por perfil (batch/sleep) — usado por quem embeda em lote.
         "batch_size": profile.batch_size,
         "sleep_s": profile.sleep_s,
