@@ -10,16 +10,18 @@ publicacao, nao uma queda automatica entre espacos.
 
 Design (SPEC-S32-PERFIS-EMBEDDING.md §2):
   - `resolve(slug)`   -> Profile (levanta KeyError p/ slug desconhecido).
-  - `active_profile()`-> RAG_PROFILE > publicado > default `gemini`.
+  - `active_profile()`-> RAG_PROFILE > publicado > default `bgem3` (local).
   - Slug validado por regex ANTES de qualquer interpolacao em SQL (R1 — a tabela
     so vem deste registry, jamais de input solto do usuario).
 
 S32-a entregou o registry + plumbing de gate/prefixo/dim (SEM DDL). S32-b adicionou
 o **ponteiro de perfil publicado** (`rag_sync_state.published_profile`, lido por
 `published_profile(repo, conn)`) e a criação sob demanda de tabela por perfil
-(`store.ensure_profile_table`). Com default `gemini` (tabela `chunks`, dim 3072,
-prefixo Gemini, gate 0,34) o comportamento segue IDENTICO ao histórico; um perfil
-não-publicado só é usado via override explícito (`RAG_PROFILE` ou `--profile`).
+(`store.ensure_profile_table`). O default global é `bgem3` (local/Ollama, $0); o
+perfil legado `gemini` (tabela `chunks`, dim 3072) segue íntegro e continua sendo
+quem honra os overrides `RAG_EMBED_*`. Um perfil não-publicado só é usado via
+override explícito (`RAG_PROFILE` ou `--profile`) ou publicação (`profile switch`),
+nunca por fallback automático (invariante 7).
 """
 
 from __future__ import annotations
@@ -33,7 +35,15 @@ from dataclasses import dataclass
 # ---------------------------------------------------------------------------
 
 DEFAULT_BASE_URL = "http://localhost:4000/v1"
-DEFAULT_PROFILE = "gemini"
+# Default quando NADA especifica (sem RAG_PROFILE no env E sem ponteiro publicado).
+# bgem3 = espaço vetorial LOCAL (Ollama bge-m3, $0/offline). Precedência completa:
+# RAG_PROFILE (env) > published_profile (banco) > DEFAULT_PROFILE (aqui).
+DEFAULT_PROFILE = "bgem3"
+
+# Perfil histórico que honra os overrides legados RAG_EMBED_MODEL/RAG_EMBED_DIM do
+# .env. AMARRADO ao slug, NÃO a DEFAULT_PROFILE — trocar o default não deve fazer o
+# novo default herdar o alias legado por engano (ver embed.config_for_profile).
+LEGACY_PROFILE = "gemini"
 
 # R1: identificador de perfil validado antes de virar nome de tabela em SQL.
 # ^[a-z][a-z0-9_]{1,31}$ — minusculo, digito/underscore no resto, 2..32 chars.
@@ -152,7 +162,7 @@ def resolve(slug: str) -> Profile:
 
 
 def published_profile(repo: str | None = None, conn=None) -> str:
-    """Slug do perfil publicado. Default `gemini` quando nao ha ponteiro consultavel.
+    """Slug do perfil publicado. Default `DEFAULT_PROFILE` quando nao ha ponteiro consultavel.
 
     S32-a retornava sempre o default (stub — nao havia coluna). S32-b (I6/I8):
     quando `repo` E uma conexao sao fornecidos, le o ponteiro `published_profile`
@@ -170,11 +180,13 @@ def published_profile(repo: str | None = None, conn=None) -> str:
 
 
 def active_profile(repo: str | None = None, conn=None) -> Profile:
-    """Perfil em uso: RAG_PROFILE (env) > publicado > default `gemini`.
+    """Perfil em uso: RAG_PROFILE (env) > publicado > default `bgem3`.
 
     A precedence fica explicita aqui (SPEC teste 2). RAG_PROFILE sobrescreve o
-    publicado (util p/ A/B e eval); na ausencia dele usamos o publicado; e o
-    publicado defaulte para `gemini` (comportamento historico). Em S32-b, passando
+    publicado (util p/ A/B e eval); na ausencia dele usamos o publicado; e na
+    ausencia de ponteiro consultavel caimos no DEFAULT_PROFILE (`bgem3`, local).
+    Nota: published_profile hoje aponta bgem3 (publicado via `profile switch`);
+    sem env nem ponteiro, o default do registry decide. Em S32-b, passando
     `repo`+`conn` o "publicado" vem do ponteiro no banco; omitindo, default.
     """
     slug = os.environ.get("RAG_PROFILE")

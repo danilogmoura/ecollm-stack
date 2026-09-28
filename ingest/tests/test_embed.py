@@ -27,10 +27,12 @@ def _fake_post(dim=4):
 
 
 def test_prefix_doc_e_query():
-    assert embed.apply_prefix("oi", "code") == embed.TASK_PREFIX_DOC + "oi"
-    assert embed.apply_prefix("oi", "doc") == embed.TASK_PREFIX_DOC + "oi"
-    assert embed.apply_prefix("oi", "config") == embed.TASK_PREFIX_DOC + "oi"
-    assert embed.apply_prefix("oi", "query") == embed.TASK_PREFIX_QUERY + "oi"
+    # policy="gemini" explicita: valida o PREFIXO ASSIMÉTRICO histórico sem depender
+    # do perfil default (hoje bgem3 = prefix none). Manter a cobertura do caminho.
+    assert embed.apply_prefix("oi", "code", policy="gemini") == embed.TASK_PREFIX_DOC + "oi"
+    assert embed.apply_prefix("oi", "doc", policy="gemini") == embed.TASK_PREFIX_DOC + "oi"
+    assert embed.apply_prefix("oi", "config", policy="gemini") == embed.TASK_PREFIX_DOC + "oi"
+    assert embed.apply_prefix("oi", "query", policy="gemini") == embed.TASK_PREFIX_QUERY + "oi"
 
 
 def test_batching_preserva_ordem_e_tamanho():
@@ -103,8 +105,9 @@ def test_embed_documents_aplica_prefixo_antes_do_embed():
         seen.append(list(texts))
         return [[0.5] * cfg["dim"] for _ in texts]
 
+    cfg = {**CFG, "prefix_policy": "gemini"}   # explícito: não depende do default bgem3
     pairs = [("conteudo code", "code"), ("uma pergunta", "query")]
-    out = embed.embed_documents(pairs, cfg=CFG, sleep=lambda s: None, post=capture)
+    out = embed.embed_documents(pairs, cfg=cfg, sleep=lambda s: None, post=capture)
     assert len(out) == 2
     flat = seen[0]
     assert flat[0].startswith(embed.TASK_PREFIX_DOC)

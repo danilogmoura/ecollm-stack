@@ -189,9 +189,12 @@ def _published_profiles(url: str) -> list[tuple[str, int]]:
 
     O ponteiro `published_profile` é POR REPO (I14); um mesmo volume pode servir
     repos com perfis distintos. verify deve validar CADA tabela que está de fato
-    atendendo leitura — não uma escolha global arbitrária. Default gemini/chunks
-    entra sempre (compat histórica, I12). Se rag_sync_state/publicado ainda não
-    existir (volume pré-S32), cai no default sem falhar.
+    atendendo leitura — não uma escolha global arbitrária. A tabela default legado
+    `chunks` entra sempre (compat histórica, I12) e é checada incondicionalmente em
+    check(); aqui NÃO se força DEFAULT_PROFILE por nome, pois o default do código
+    (ex.: bgem3 local) pode nunca ter sido sincronizado/publicado — exigir sua
+    tabela derrubaria o verify de qualquer repo sem motivo. Se rag_sync_state/
+    publicado ainda não existir (volume pré-S32), cai só no legado sem falhar.
     """
     try:
         from ingest import profiles as _p  # noqa: PLC0415 — só quando há banco
@@ -205,7 +208,8 @@ def _published_profiles(url: str) -> list[tuple[str, int]]:
         slugs = []
     out: list[tuple[str, int]] = []
     seen: set[str] = set()
-    for slug in [_p.DEFAULT_PROFILE] + [s for s in slugs if s != _p.DEFAULT_PROFILE]:
+    # chunks legado primeiro (compat I12), depois cada perfil REALMENTE publicado.
+    for slug in ["gemini"] + [s for s in slugs if s != "gemini"]:
         prof = _p.PROFILES.get(slug)
         table, dim = ("chunks", 3072) if prof is None else (prof.table, prof.dim)
         if table not in seen:

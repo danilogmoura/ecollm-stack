@@ -61,9 +61,11 @@ def test_resolve_slug_inexistente_levanta():
 # teste 2 — active_profile(): precedence RAG_PROFILE > publicado > default
 # ---------------------------------------------------------------------------
 
-def test_active_profile_default_e_gemini(monkeypatch):
+def test_active_profile_default_e_bgem3_local(monkeypatch):
+    # Sem RAG_PROFILE no env E sem repo/conn (sem ponteiro publicado consultável),
+    # o registry defaulte para o perfil LOCAL bgem3 (Ollama, $0). Decisão 2026-09-27.
     monkeypatch.delenv("RAG_PROFILE", raising=False)
-    assert profiles.active_profile().slug == "gemini"
+    assert profiles.active_profile().slug == "bgem3"
 
 
 def test_active_profile_respeita_rag_profile_env(monkeypatch):
@@ -97,15 +99,21 @@ def test_config_for_profile_por_perfil(monkeypatch):
     assert cfg["batch_size"] == 16
 
 
-def test_config_nao_default_ignora_env_legado(monkeypatch):
+def test_config_nao_legado_ignora_env_legado(monkeypatch):
     # R1/S32: um RAG_EMBED_MODEL legado do .env NAO pode sobrescrever o modelo de um
-    # perfil nao-default (senão embedaríamos no alias errado, com dim incompatível).
+    # perfil que nao seja o LEGADO ('gemini') — senão embedaríamos no alias errado,
+    # com dim incompatível (espaços corrompidos, invariante 7).
     monkeypatch.setenv("RAG_EMBED_MODEL", "rag-embeddings")
     monkeypatch.setenv("RAG_EMBED_DIM", "3072")
     cfg = embed.config_for_profile(profiles.resolve("qwen37"))
     assert cfg["model"] == "rag-embeddings-qwen37"
     assert cfg["dim"] == 1024
-    # ...mas o perfil DEFAULT ainda honra o override legado (comportamento historico).
+    # bgem3 é o DEFAULT atual mas NÃO é o legado: mesmo sendo default, ignora o
+    # override legado (amarração é ao slug 'gemini', não a DEFAULT_PROFILE).
+    cfg_b = embed.config_for_profile(profiles.resolve("bgem3"))
+    assert cfg_b["model"] == "rag-embeddings-bgem3"
+    assert cfg_b["dim"] == 1024
+    # ...so o perfil LEGADO ('gemini') ainda honra o override legado (histórico).
     cfg_g = embed.config_for_profile(profiles.resolve("gemini"))
     assert cfg_g["model"] == "rag-embeddings"
     assert cfg_g["dim"] == 3072

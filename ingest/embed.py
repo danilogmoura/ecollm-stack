@@ -83,17 +83,20 @@ def config_for_profile(profile: "_profiles.Profile") -> dict:
     todos os perfis falam OpenAI-compat /embeddings no MESMO proxy).
 
     model/dim tem o REGISTRY como fonte canonica (S32). RAG_EMBED_MODEL/RAG_EMBED_DIM
-    sao overrides LEGADOS que se aplicam SOMENTE ao perfil default (`gemini`) — e
-    preservam o comportamento historico do .env p/ esse perfil. Para um perfil nao-
-    default, um RAG_EMBED_MODEL antigo (ex.: 'rag-embeddings' do .env) NAO deve
-    sobrescrever o modelo do espaco (senão embedaríamos qwen37 no alias Gemini, com
-    dim errada). Assim trocar de perfil troca modelo+dim de fato, sem editar .env.
+    sao overrides LEGADOS que se aplicam SOMENTE ao perfil historico (`gemini`) — e
+    preservam o comportamento do .env p/ esse perfil. Para QUALQUER outro perfil, um
+    RAG_EMBED_MODEL antigo (ex.: 'rag-embeddings' do .env) NAO deve sobrescrever o
+    modelo do espaco (senão embedaríamos bgem3/qwen37 no alias Gemini, com dim errada
+    — espaços incompatíveis corrompem o índice, invariante 7). AMARRADO AO SLUG
+    'gemini', NÃO a DEFAULT_PROFILE: trocar o default (ex.: p/ bgem3 local) nao deve
+    fazer o novo default herdar o alias legado por engano. Assim trocar de perfil
+    troca modelo+dim de fato, sem editar .env.
     """
     load_dotenv()
-    is_default = profile.slug == _profiles.DEFAULT_PROFILE
+    is_legacy_gemini = profile.slug == _profiles.LEGACY_PROFILE
     model = profile.model
     dim = profile.dim
-    if is_default:
+    if is_legacy_gemini:
         model = os.environ.get("RAG_EMBED_MODEL", profile.model)
         dim = int(os.environ.get("RAG_EMBED_DIM", profile.dim))
     return {

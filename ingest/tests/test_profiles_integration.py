@@ -91,6 +91,34 @@ def _drop_profile_table(conn, table):
     conn.commit()
 
 
+def _test_profile(real_slug: str, tag: str) -> profiles.Profile:
+    """Perfil SINTÉTICO p/ teste: mesma forma do real (dim/prefix/gate), mas com
+    slug+table DESCARTÁVEIS (chunks_test_<tag>).
+
+    Motivo: os testes de integração rodam contra o Postgres REAL (:5433), que também
+    atende leitura do ecollm-stack. Usar o slug real (chunks_qwen37/chunks_bgem3) e
+    fazer DROP nele destruía o índice publicado do repo — deixando published_profile
+    apontando p/ tabela inexistente (falha do verify, e busca real quebrada). A
+    docstring do módulo promete isolamento; este helper cumpre.
+
+    Limitação: verify._published_profiles resolve slug via PROFILES.get(); um slug
+    sintético NÃO está no registry. Por isso test_verify_schema publica um slug REAL
+    (qwen37) — mas as demais tabelas físicas de teste usam nomes descartáveis, e o
+    índice bgem3 real permanece íntegro durante toda a suíte.
+    """
+    base = profiles.resolve(real_slug)
+    return profiles.Profile(
+        slug=f"t{tag}"[:32],                 # SLUG_RE: ^[a-z][a-z0-9_]{1,31}$
+        table=f"chunks_test_{tag}",
+        model=base.model,
+        dim=base.dim,
+        prefix_policy=base.prefix_policy,
+        gate=base.gate,
+        batch_size=base.batch_size,
+        sleep_s=base.sleep_s,
+    )
+
+
 def _cleanup_state(conn, repo):
     conn.execute("DELETE FROM rag_sync_state WHERE repo = %s", (repo,))
     conn.commit()
@@ -101,7 +129,7 @@ def _cleanup_state(conn, repo):
 # ---------------------------------------------------------------------------
 
 def test_ensure_profile_table_idempotente_cria_7_objetos(live_conn):
-    prof = profiles.resolve("qwen37")          # chunks_qwen37, dim 1024
+    prof = _test_profile("qwen37", "t8")        # chunks_test_t8, dim 1024
     _drop_profile_table(live_conn, prof.table)
     try:
         # 1ª chamada: cria tudo.
@@ -132,7 +160,7 @@ def test_ensure_profile_table_idempotente_cria_7_objetos(live_conn):
 # ---------------------------------------------------------------------------
 
 def test_equivalencia_estrutural_com_chunks(live_conn):
-    prof = profiles.resolve("qwen37")
+    prof = _test_profile("qwen37", "t9")
     _drop_profile_table(live_conn, prof.table)
     try:
         store.ensure_profile_table(live_conn, profile=prof)
@@ -162,7 +190,7 @@ def test_equivalencia_estrutural_com_chunks(live_conn):
 # ---------------------------------------------------------------------------
 
 def test_explain_usa_indice_hnsw_na_tabela_perfil(live_conn):
-    prof = profiles.resolve("qwen37")
+    prof = _test_profile("qwen37", "t10")
     _drop_profile_table(live_conn, prof.table)
     try:
         store.ensure_profile_table(live_conn, profile=prof)
@@ -189,7 +217,7 @@ def test_explain_usa_indice_hnsw_na_tabela_perfil(live_conn):
 def test_sync_flip_leitura_perfil_nao_default(monkeypatch, test_repo, live_conn):
     from ingest import embed, ingest
 
-    prof = profiles.resolve("bgem3")           # chunks_bgem3, dim 1024, prefix none
+    prof = _test_profile("bgem3", "t11")       # chunks_test_t11, dim 1024, prefix none
     repo = test_repo.resolve().name
     _drop_profile_table(live_conn, prof.table)
     _cleanup_state(live_conn, repo)
@@ -227,7 +255,7 @@ def test_sync_flip_leitura_perfil_nao_default(monkeypatch, test_repo, live_conn)
 def test_use_recusa_publicar_com_head_divergente(monkeypatch, test_repo, live_conn):
     from ingest import cli, embed, ingest
 
-    prof = profiles.resolve("qwen37")
+    prof = profiles.resolve("qwen37")          # slug real: _cmd_profile_set exige registry
     repo = test_repo.resolve().name
     _drop_profile_table(live_conn, prof.table)
     _cleanup_state(live_conn, repo)
@@ -391,7 +419,11 @@ def _explain_dense(conn, prof):
 
 
 def _search_in_profile(conn, repo, prof):
-    """Chama search.search() fixando o perfil (lê da tabela publicada dele)."""
+    """Chama search.search() fixando o perfil (lê da tabela publicada dele).
+
+    Passa o OBJETO Profile (não o slug): search() aceita Profile direto e isso
+    permite perfis sintéticos de teste cujo slug não está no registry.
+    """
     from ingest import search
     return search.search("corpo", repo=repo, conn=conn,
-                         qvec=[0.1] * prof.dim, profile=prof.slug, final_k=3)
+                         qvec=[0.1] * prof.dim, profile=prof, final_k=3)

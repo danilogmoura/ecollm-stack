@@ -48,6 +48,19 @@ pytestmark = pytest.mark.skipif(not _db_available(),
                                 reason="Postgres de integração indisponível (rag-db :5433)")
 
 
+@pytest.fixture(autouse=True)
+def _pin_gemini_profile(monkeypatch):
+    """Fixa RAG_PROFILE=gemini em TODO o módulo.
+
+    Estes testes S29 exercitam o pipeline blue-green sobre a tabela LEGADO `chunks`
+    (halfvec 3072), hardcoded no seed/stub. O default do código mudou p/ bgem3
+    (1024); sem pinar, run_ingest/store.* resolveriam bgem3 e operariam em
+    chunks_bgem3 enquanto os dados estão em chunks → DataException 'expected 1024,
+    not 3072'. Pinar gemini mantém a coesão tabela↔dimensão SEM depender do default.
+    """
+    monkeypatch.setenv("RAG_PROFILE", "gemini")
+
+
 @pytest.fixture
 def live_conn():
     conn = store.connect()
