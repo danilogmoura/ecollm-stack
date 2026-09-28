@@ -233,6 +233,51 @@ def _many_hits(n=12):
     return [_hit(path=f"p{i}.py", symbol=f"s{i}", score=1.0 / (i + 1)) for i in range(n)]
 
 
+def _call_with_dict_params(args: dict, sent_args: dict):
+    """Invoca a tool com request_context no formato REAL do SDK MCP 2.2.0.
+
+    No wire de verdade, ``request_context.params`` e um DICT
+    ``{"name": ..., "arguments": {...}, "_meta": {}}`` (CallToolRequestParams
+    serializado), NAO um objeto com ``.arguments``. Este helper reproduz essa
+    forma exata para travar o bug em que ``_k_omitido`` lia ``rc.params.arguments``
+    (atributo), levantava AttributeError e caia no except -> sempre False, fazendo
+    DEFAULT_K nunca disparar p/ nenhum cliente. ``sent_args`` = arguments BRUTOS
+    que o cliente mandou (sem k quando omite); ``args`` = args validados q vao ao
+    corpo da funcao (com default ja preenchido pelo Pydantic).
+    """
+    from types import SimpleNamespace
+    from mcp.server.mcpserver.context import Context
+
+    rc = SimpleNamespace(params={"name": "rag_search", "arguments": sent_args, "_meta": {}})
+    ctx = Context(request_context=rc, mcp_server=rag_server.server)
+    return asyncio.run(
+        rag_server.server._tool_manager.call_tool(
+            "rag_search", args, ctx, convert_result=True
+        )
+    )
+
+
+def test_s37_k_omitido_formato_dict_real_emite_default(monkeypatch):
+    # REGRESSAO: params como dict real do SDK (nao SimpleNamespace). Cliente
+    # envia arguments SEM 'k' -> deve emitir DEFAULT_K. Antes do fix isto dava 8.
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    body_args = {"query": "x", "repo": "r", "k": 8}  # Pydantic ja preencheu default
+    res = _call_with_dict_params(body_args, sent_args={"query": "x", "repo": "r"})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == rag_server.DEFAULT_K
+
+
+def test_s37_k_exPLICITO_formato_dict_respeitado(monkeypatch):
+    # Mesmo formato dict: se o cliente MANDOU k explicito, honra (nao trunca).
+    fake = FakeSearch(_many_hits())
+    monkeypatch.setattr(rag_server, "search", fake)
+    res = _call_with_dict_params({"query": "x", "repo": "r", "k": 3},
+                                 sent_args={"query": "x", "repo": "r", "k": 3})
+    payload = json.loads(res.content[0].text)
+    assert len(payload["results"]) == 3
+
+
 def test_s37_schema_k_nao_muda_zona_a():
     # Invariante: assinatura permanece literal `k: int = 8`; schema exposto e
     # byte-identico ao historico (default 8, integer) => zero reconstrucao de cache.

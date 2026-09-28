@@ -108,9 +108,20 @@ def _k_omitido(ctx) -> bool:
     """
     try:
         rc = ctx.request_context  # ServerRequestContext | None
-        args = (rc.params.arguments or {}) if rc else None
-        if args is None:
+        if rc is None:
             return False
+        # No SDK MCP 2.2.0, request_context.params é um DICT {name, arguments,
+        # _meta} (CallToolRequestParams serializado), NÃO um objeto com .arguments.
+        # Ler rc.params.arguments (atributo) levantava AttributeError → caía no
+        # except → sempre False, e DEFAULT_K nunca disparava p/ NENHUM cliente.
+        # Suportamos ambas as formas (dict real + objeto p/ testes/histórico).
+        params = rc.params if not isinstance(rc, dict) else rc.get("params")
+        if params is None:
+            return False
+        if isinstance(params, dict):
+            args = params.get("arguments") or {}
+        else:
+            args = getattr(params, "arguments", None) or {}
         return "k" not in args
     except Exception:  # noqa: BLE001 — diagnostico best-effort; nunca derruba a tool
         return False
