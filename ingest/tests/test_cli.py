@@ -8,8 +8,9 @@ para o prompt (plano §4b-5), limiar "NÃO SEI" e roteamento dos subcomandos.
 from __future__ import annotations
 
 import types
+from pathlib import Path
 
-from ingest import cli
+from ingest import cli, store
 from ingest.search import Hit
 
 
@@ -137,6 +138,80 @@ def test_cmd_rag_ask_chama_llm_e_mostra_resposta(monkeypatch, capsys):
     cli.cmd_rag(_args("algo", ask=True))
     out = capsys.readouterr().out
     assert "RESPOSTA" in out
+
+
+# ---------------------------------------------------------------------------
+# S36 · _warn_if_profile_unindexed — fail-closed de leitura no cmd_rag
+# ---------------------------------------------------------------------------
+
+class _WarnConn:
+    """Conn fake p/ o aviso: controla se a tabela existe e quantos chunks tem."""
+
+    def __init__(self, exists=True, chunks=0):
+        self._exists = exists
+        self._chunks = chunks
+        self.closed = False
+
+    def execute(self, sql, params=None):
+        import types as _t
+        if "to_regclass" in sql:
+            return _t.SimpleNamespace(fetchone=lambda: (self._exists,))
+        if "published_gen FROM rag_sync_state" in sql:
+            return _t.SimpleNamespace(fetchone=lambda: (1,))  # gen publicada
+        if "count(*)" in sql:
+            return _t.SimpleNamespace(fetchone=lambda: (self._chunks,))
+        return _t.SimpleNamespace(fetchone=lambda: None)
+
+    def close(self):
+        self.closed = True
+
+
+def _stub_active_profile(monkeypatch, slug="qwen37"):
+    prof = cli.profiles.resolve(slug)
+    monkeypatch.setattr(cli.profiles, "active_profile",
+                        lambda *a, **k: prof)
+    return prof
+
+
+def test_warn_sem_indice_avisa_e_aponta_switch(monkeypatch, capsys):
+    """Perfil ativo sem tabela → deve avisar no stderr orientando o switch."""
+    conn = _WarnConn(exists=False)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    _stub_active_profile(monkeypatch, "qwen37")
+    cli._warn_if_profile_unindexed(Path("."), "r")
+    err = capsys.readouterr().err
+    assert "qwen37" in err
+    assert "rag profile switch qwen37" in err
+    assert conn.closed is True
+
+
+def test_warn_tabela_vazia_avisa(monkeypatch, capsys):
+    """Tabela existe mas 0 chunks publicados → tambem e 'sem indice pronto'."""
+    conn = _WarnConn(exists=True, chunks=0)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    _stub_active_profile(monkeypatch, "qwen37")
+    cli._warn_if_profile_unindexed(Path("."), "r")
+    err = capsys.readouterr().err
+    assert "vazia" in err
+    assert "rag profile switch qwen37" in err
+
+
+def test_warn_com_indice_pronto_nao_avisa(monkeypatch, capsys):
+    """Tabela com chunks publicados → silencio (busca segue normal)."""
+    conn = _WarnConn(exists=True, chunks=706)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    _stub_active_profile(monkeypatch, "qwen37")
+    cli._warn_if_profile_unindexed(Path("."), "r")
+    assert capsys.readouterr().err == ""
+
+
+def test_warn_db_inacessivel_silencia_sem_quebrar(monkeypatch, capsys):
+    """Sem DB (connect levanta) → best-effort: nao lanca, nao imprime, busca segue."""
+    def _boom(*a, **k):
+        raise RuntimeError("no db")
+    monkeypatch.setattr(store, "connect", _boom)
+    cli._warn_if_profile_unindexed(Path("."), "r")  # nao deve lancar
+    assert capsys.readouterr().err == ""
 
 
 # ---------------------------------------------------------------------------

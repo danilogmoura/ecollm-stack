@@ -130,6 +130,42 @@ def _set_profile_env(args) -> None:
         os.environ["RAG_PROFILE"] = slug
 
 
+def _warn_if_profile_unindexed(repo_root: Path, repo: str) -> None:
+    """Fail-closed de leitura (S36): se o perfil ATIVO não tem índice pronto, avisa.
+
+    Detecta automaticamente uma troca de RAG_PROFILE no .env que ainda não foi
+    sincronizada — ex.: usuário põe RAG_PROFILE=qwen37 mas chunks_qwen37 não existe
+    ou está vazia. Sem isto, a busca retornaria vazio silencioso (recall 0) e o
+    usuário acharia que o Qwen 'não funciona', quando na verdade falta o sync.
+
+    NÃO dispara sync automático (risco de custo silencioso de cota + concorrência);
+    apenas orienta o comando único e explícito que resolve. Checagem determinística
+    de banco (to_regclass + count), sem LLM, sem rede externa. Best-effort: se o DB
+    estiver inacessível, silencia (não bloqueia a busca por um problema de aviso).
+    """
+    try:
+        from . import store
+        conn = store.connect()
+    except Exception:  # noqa: BLE001 — sem DB → não sabemos avisar; deixa a busca tentar
+        return
+    try:
+        prof = profiles.active_profile(repo, conn)
+        exists = conn.execute(
+            "SELECT to_regclass(%s) IS NOT NULL", (prof.table,)).fetchone()[0]
+        n = store_count(conn, repo, prof) if exists else 0
+        if not exists or n == 0:
+            print(
+                f"[rag] perfil ativo '{prof.slug}' sem índice pronto "
+                f"(tabela {prof.table} {'ausente' if not exists else 'vazia'}). "
+                f"Busca vai retornar vazio. Rode: rag profile switch {prof.slug}",
+                file=sys.stderr,
+            )
+    except Exception:  # noqa: BLE001 — aviso é best-effort, nunca derruba a busca
+        pass
+    finally:
+        conn.close()
+
+
 def cmd_rag(args) -> int:
     _set_profile_env(args)
     repo_root = Path(args.repo).resolve()
@@ -138,6 +174,9 @@ def cmd_rag(args) -> int:
     warn = search.staleness_warning(repo_root, repo)
     if warn:
         print(warn, file=sys.stderr)
+    # S36: avisa se o perfil ativo (ex.: RAG_PROFILE trocado no .env) ainda nao tem
+    # indice sincronizado — evita "busca vazia silenciosa" que parece Qwen quebrado.
+    _warn_if_profile_unindexed(repo_root, repo)
     qvec = None
     if args.ask:
         # embeda a query uma vez; reusa p/ busca (evita dupla chamada ao proxy)
@@ -355,6 +394,12 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
+    # S36: carrega o .env ANTES de qualquer comando, para que RAG_PROFILE (e demais
+    # variaveis) definidos no arquivo sejam respeitados por search/sync/profile —
+    # nao apenas pelo --ask (que antes era o unico caminho com load_dotenv via
+    # _chat_cfg). Sem isto, `rag sync` ignorava RAG_PROFILE=qwen37 e caia no
+    # DEFAULT_PROFILE do codigo. Precedencia mantida: env real > .env > default.
+    embed.load_dotenv()
     # conveniência: `rag "pergunta"` == `rag search "pergunta"`; `rag-sync` idem
     if argv and argv[0] not in ("search", "sync", "profile", "-h", "--help"):
         argv.insert(0, "search")

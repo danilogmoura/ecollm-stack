@@ -137,6 +137,20 @@ class FakeDB:
         return sum(1 for (g, _p, _c) in self.rows if g == gen)
 
 
+@pytest.fixture(autouse=True)
+def _isolate_profile_env(monkeypatch):
+    """S36: neutraliza o .env REAL nos testes.
+
+    cli.main() agora chama embed.load_dotenv(), que injeta RAG_PROFILE (e demais
+    variaveis) do .env da maquina do dev no os.environ do processo. Sem este scrub,
+    um teste que roda main() contamina os seguintes (ex.: publish_generation passaria
+    a resolver qwen37 em vez do default bgem3). Cada teste comeca com o env de perfil
+    LIMPO; quem quiser um perfil especifico usa monkeypatch.setenv explicitamente.
+    """
+    for var in ("RAG_PROFILE", "RAG_EMBED_MODEL", "RAG_EMBED_DIM"):
+        monkeypatch.delenv(var, raising=False)
+
+
 @pytest.fixture
 def patched(monkeypatch):
     """Stub gitleaks + embed + camada de store (blue-green S29) no orquestrador."""
