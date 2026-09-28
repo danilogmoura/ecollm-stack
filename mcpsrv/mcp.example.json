@@ -2,9 +2,11 @@
     "//": "Exemplo de registro do servidor MCP rag_search. Copie os campos de 'rag-search' para o mcp.json do seu cliente (Roo Code: ~/.config/roo-code/mcp_settings.json | Copilot: .vscode/mcp.json). Ajuste os caminhos absolutos.",
     "mcpServers": {
         "rag-search": {
-            "command": "/home/demo/ecollm-stack/.venv/bin/python",
+            "//redirect": "P2/H4: stderr do servidor (log estruturado S22) redirecionado p/ arquivo; 'exec' preserva PID e o canal stdio do protocolo MCP.",
+            "command": "bash",
             "args": [
-                "/home/demo/ecollm-stack/mcpsrv/rag_server.py"
+                "-c",
+                "exec /home/demo/ecollm-stack/.venv/bin/python /home/demo/ecollm-stack/mcpsrv/rag_server.py 2>>/home/demo/ecollm-stack/.planning/h4-mcp-stderr.log"
             ],
             "cwd": "/home/demo/ecollm-stack",
             "env": {
