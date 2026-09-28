@@ -27,6 +27,7 @@ EXT_KIND: dict[str, str] = {
     ".ts": "code",
     ".tsx": "code",
     ".go": "code",
+    ".cs": "code",
     ".sh": "code",
     ".bash": "code",
     ".md": "doc",
@@ -73,7 +74,7 @@ class FileEntry:
 
 _LANG_BY_EXT = {
     ".py": "python", ".js": "javascript", ".ts": "typescript", ".tsx": "tsx",
-    ".go": "go", ".sh": "bash", ".bash": "bash", ".md": "markdown",
+    ".go": "go", ".cs": "csharp", ".sh": "bash", ".bash": "bash", ".md": "markdown",
     ".markdown": "markdown", ".yaml": "yaml", ".yml": "yaml",
     ".toml": "toml", ".json": "json",
 }

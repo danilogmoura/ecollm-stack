@@ -20,3 +20,4 @@ mcp>=2.2,<3             # FASE 5: servidor MCP rag_search (stdio). Codigo usa AP
 
 # --- dev/testes ---
 pytest>=8
+tree-sitter-c-sharp>=0.23

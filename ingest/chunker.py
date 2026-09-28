@@ -27,6 +27,7 @@ import tree_sitter_javascript as tsjs
 import tree_sitter_typescript as tsts
 import tree_sitter_go as tsgo
 import tree_sitter_bash as tsbash
+import tree_sitter_c_sharp as tscs
 
 # ---------------------------------------------------------------------------
 # tipos comuns
@@ -75,6 +76,7 @@ _LANGS: dict[str, Language] = {
     "tsx": Language(tsts.language_tsx()),
     "go": Language(tsgo.language()),
     "bash": Language(tsbash.language()),
+    "csharp": Language(tscs.language()),
 }
 _PARSERS = {k: Parser(v) for k, v in _LANGS.items()}
 

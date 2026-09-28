@@ -149,7 +149,8 @@ def gitleaks_gate(repo_root: Path, entries: list[loader.FileEntry],
     try:
         _stage_corpus(repo_root, entries, tmp)
         res = subprocess.run(
-            [gitleaks, "dir", str(tmp), "--exit-code", "1", "--no-banner", "--redact"],
+            [gitleaks, "dir", str(tmp), "--exit-code", "1", "--no-banner", "--redact",
+             "--config", str(Path(repo_root) / ".gitleaks.toml")],
             capture_output=True, text=True,
         )
         if res.returncode == 0:
