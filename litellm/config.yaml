@@ -137,58 +137,30 @@ model_list:
   # aqui). Sem a chave definida, o grupo novai-* falha-closed na porta e nao afeta
   # nenhum outro modelo (ver docker-compose.yml, ${NOVAI_API_KEY:-}). Padrao = rota
   # deepseek-* acima.
-  # Rate limit por chave (doc 2026-10-13): 60 rpm pago · 30 rpm nos modelos FREE
-  # (glm-4.7-flash / glm-4.6v-flash / glm-4.1v-thinking-flash — custo 0, NAO consomem
-  # saldo; erro 402 nao se aplica a eles). Tarifas = card oficial do marketplace (USD
-  # por token = USD/1M / 1e6), verificado 2026-10-13. NovAI cobra so input/output (sem
-  # surcharge de cache exposto), entao cache_read/cache_creation ficam de fora de
-  # proposito — LiteLLM nao inventa desconto. Modelos upstream = slug exato do
-  # marketplace (GET /v1/models confirma, 121 modelos). CogView-3-Flash / CogVideoX-Flash
-  # (tambem free) SAO FORA daqui: endpoints de imagem/video (/v1/images, /v1/video),
-  # nao chat — escopo desta rota e chat-only.
-  - model_name: novai-glm-5.3-flash
-    litellm_params:
-      model: openai/glm-5.3-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.0e-08
-      output_cost_per_token: 2.8e-07
-
-  - model_name: novai-deepseek-v4-flash
-    litellm_params:
-      model: openai/deepseek-v4-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.0e-08
-      output_cost_per_token: 1.7e-07
-
-  - model_name: novai-qwen3.8-max
-    litellm_params:
-      model: openai/qwen3.8-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.84e-06
-      output_cost_per_token: 5.52e-06
-
-  - model_name: novai-kimi-k2.5
-    litellm_params:
-      model: openai/kimi-k2.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6.0e-07
-      output_cost_per_token: 3.0e-06
-
-  - model_name: novai-doubao-seed-2.0-pro
-    litellm_params:
-      model: openai/doubao-seed-2.0-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.0e-07
-      output_cost_per_token: 2.0e-06
-
-  # --- NOVAI FREE-FOREVER (chat, custo 0, NAO consomem saldo) ---
-  # Teto REAL medido 2026-10-14: 5 req/min + 10 chamadas/DIA (conta free verificada).
-  # Serve p/ prova de conceito, NAO p/ loop agentico diario.
+  #
+  # ---- S40 (2026-10-14, decisao do usuario): SO GLM-4.7-flash "por enquanto" ----
+  # Os outros 8 grupos criados na adesao (S39) foram REMOVIDOS: os pagos
+  # glm-5.3-flash / deepseek-v4-flash / qwen3.8-max / kimi-k2.5 / doubao-seed-2.0-pro,
+  # os free glm-4.6v-flash / glm-4.1v-thinking-flash, e o alias
+  # novai-glm-4.7-flash-nothink (mesmo upstream, thinking OFF via extra_body — removido
+  # por escolha explicita do usuario). Nao e retrabalho: os blocos estao no historico
+  # git e re-adicionar e item NOVO de backlog, nao correcao.
+  # Por que a reducao e segura: a cota free real e 10 chamadas/DIA POR MODELO (medido
+  # 2026-10-14) + 5 req/min, entao os outros free nao acrescentavam capacidade util;
+  # os pagos nao tinham uso ativo. Menos grupos = menos superficie de falha e menos
+  # ruido no seletor de modelos do cliente.
+  # Rate limit por chave (doc 2026-10-13): 60 rpm pago · 30 rpm nos modelos FREE.
+  # glm-4.7-flash e free-forever: custo 0, NAO consome saldo (erro 402 nao se aplica).
+  # Tarifas = card oficial do marketplace (USD por token = USD/1M / 1e6). NovAI cobra
+  # so input/output (sem surcharge de cache exposto), entao cache_read/cache_creation
+  # ficam de fora de proposito — LiteLLM nao inventa desconto.
+  # Throttle global da familia ZhiPu ("该模型当前访问量过大") ~10 min aparece na
+  # SpendLogs como InternalServerError, NAO RateLimit; falhas nao consomem cota.
+  # Regra operacional: backoff de minutos — nao trocar de modelo free ZhiPu (o
+  # congestionamento e compartilhado). Modelos upstream = slug exato do marketplace
+  # (GET /v1/models confirma, 121 modelos). CogView-3-Flash / CogVideoX-Flash (tambem
+  # free) SAO FORA daqui: endpoints de imagem/video (/v1/images, /v1/video), nao chat
+  # — escopo desta rota e chat-only.
   - model_name: novai-glm-4.7-flash
     litellm_params:
       model: openai/glm-4.7-flash
@@ -198,44 +170,6 @@ model_list:
       output_cost_per_token: 0.0
     model_info:
       max_input_tokens: 202000
-
-  # Mesmo modelo upstream com thinking OFF (flag oficial da ZhiPu nos GLM hibridos).
-  # O Copilot/VS Code NAO envia parametros custom -> a flag e injetada server-side via
-  # extra_body, que o LiteLLM mescla direto no corpo da request (openai.py _SDK_OPTION_KEYS)
-  # e por isso NAO e atingido por drop_params:true. Provado no upstream: reasoning_tokens 0
-  # (vs 223/227 com thinking ON) e latencia ~29s (vs 36-53s).
-  - model_name: novai-glm-4.7-flash-nothink
-    litellm_params:
-      model: openai/glm-4.7-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
-      extra_body:
-        thinking:
-          type: "disabled"
-    model_info:
-      max_input_tokens: 202000
-
-  - model_name: novai-glm-4.6v-flash
-    litellm_params:
-      model: openai/glm-4.6v-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
-    model_info:
-      max_input_tokens: 128000
-
-  - model_name: novai-glm-4.1v-thinking-flash
-    litellm_params:
-      model: openai/glm-4.1v-thinking-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
-    model_info:
-      max_input_tokens: 128000
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
