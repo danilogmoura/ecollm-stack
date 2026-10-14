@@ -194,6 +194,8 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
+    model_info:
+      max_input_tokens: 202000
 
   - model_name: novai-glm-4.6v-flash
     litellm_params:
@@ -202,6 +204,8 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
+    model_info:
+      max_input_tokens: 128000
 
   - model_name: novai-glm-4.1v-thinking-flash
     litellm_params:
@@ -210,6 +214,8 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
+    model_info:
+      max_input_tokens: 128000
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
