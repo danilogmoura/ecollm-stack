@@ -107,6 +107,10 @@ services:
       # os.environ/DEEPSEEK_API_KEY. Sem default: o grupo deepseek-* falha-closed
       # se .env nao definir a chave — nao afeta rag-chat nem os grupos qwen.
       - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+      # NovAI gateway (rota de chat opcional, S39): lido por litellm/config.yaml via
+      # os.environ/NOVAI_API_KEY. Chave com prefixo nvai-. Sem default: o grupo novai-*
+      # falha-closed se .env nao definir a chave — nao afeta rag-chat nem embeddings.
+      - NOVAI_API_KEY=${NOVAI_API_KEY:-}
       # URL do banco do RAG vista pelo CONTAINER (rede interna, host=rag-db).
       # O CLI de ingest no HOST usa RAG_DB_URL (localhost:5433) do mesmo .env.
       - RAG_DB_URL=${RAG_DB_URL_INTERNAL:-postgresql://rag:rag_secret@rag-db:5432/rag}

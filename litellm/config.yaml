@@ -129,6 +129,59 @@ model_list:
       cache_read_input_token_cost: 3.0e-09
       cache_creation_input_token_cost: 1.5e-07
 
+  # ===== NOVAI GATEWAY (chat, rota opcional — fora do RAG) =====
+  # NAO entra em rag-chat nem no fluxo RAG/embeddings. Gateway OpenAI-compativel
+  # (Hong Kong) que agrega 121+ modelos chineses a preco de lista sem markup.
+  # Base URL = https://aiapi-pro.com/v1 ; chave tem prefixo "nvai-" (NAO sk-) e fica
+  # em NOVAI_API_KEY (.env, conta/balance separada — creditos Qwen/DeepSeek NAO valem
+  # aqui). Sem a chave definida, o grupo novai-* falha-closed na porta e nao afeta
+  # nenhum outro modelo (ver docker-compose.yml, ${NOVAI_API_KEY:-}). Padrao = rota
+  # deepseek-* acima.
+  # Rate limit por chave (doc 2026-10-13): 60 rpm pago · 30 rpm no gratis glm-4.6v-flash.
+  # Tarifas = card oficial do marketplace (USD por token = USD/1M / 1e6), verificado
+  # 2026-10-13. NovAI cobra so input/output (sem surcharge de cache exposto), entao
+  # cache_read/cache_creation ficam de fora de proposito — LiteLLM nao inventa desconto.
+  # Modelos upstream = slug exato do marketplace (GET /v1/models confirma).
+  - model_name: novai-glm-5.3-flash
+    litellm_params:
+      model: openai/glm-5.3-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8.0e-08
+      output_cost_per_token: 2.8e-07
+
+  - model_name: novai-deepseek-v4-flash
+    litellm_params:
+      model: openai/deepseek-v4-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8.0e-08
+      output_cost_per_token: 1.7e-07
+
+  - model_name: novai-qwen3.8-max
+    litellm_params:
+      model: openai/qwen3.8-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.84e-06
+      output_cost_per_token: 5.52e-06
+
+  - model_name: novai-kimi-k2.5
+    litellm_params:
+      model: openai/kimi-k2.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6.0e-07
+      output_cost_per_token: 3.0e-06
+
+  - model_name: novai-doubao-seed-2.0-pro
+    litellm_params:
+      model: openai/doubao-seed-2.0-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.0e-07
+      output_cost_per_token: 2.0e-06
+
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
   # auto-normaliza as dims truncadas — verificado no teste A/B 2026-09-24).
