@@ -161,15 +161,21 @@ model_list:
   # (GET /v1/models confirma, 121 modelos). CogView-3-Flash / CogVideoX-Flash (tambem
   # free) SAO FORA daqui: endpoints de imagem/video (/v1/images, /v1/video), nao chat
   # — escopo desta rota e chat-only.
-  - model_name: novai-glm-4.7-flash
+  # ---- S41 (2026-10-14, decisao do usuario): rota trocada 4.7-flash -> 4.1v-thinking ----
+  # Motivo: streaming (SSE) de glm-4.7-flash quebra no gateway (HTTP 500) e o Copilot exige
+  # stream:true => 500 sempre. glm-4.1v-thinking-flash (tambem free ZhiPu) streama 200 OK com
+  # SSE valido (medido 2026-10-14 direto no gateway). Nome local curto como pedido
+  # (novai-glm-4.1v-flash); upstream slug EXATO = glm-4.1v-thinking-flash. max_input_tokens
+  # NAO e declarado: o valor 202000 era do 4.7 e o limite do 4.1v-thinking nao foi medido —
+  # nao improvisar numero travado. Atencao: modelo vision+reasoning (preenche
+  # reasoning_content); ainda sujeito a cota/throttle ZhiPu (10 calls/dia por modelo + 30 rpm).
+  - model_name: novai-glm-4.1v-flash
     litellm_params:
-      model: openai/glm-4.7-flash
+      model: openai/glm-4.1v-thinking-flash
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
-    model_info:
-      max_input_tokens: 202000
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
