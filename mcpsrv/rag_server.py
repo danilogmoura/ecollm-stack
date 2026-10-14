@@ -183,12 +183,39 @@ def dedupe_intra(out: list[dict]) -> list[dict]:
     return result
 
 
+def _provenance(vec_rank, lex_rank) -> str:
+    """Classeifica a ORIGEM de um hit na fusão RRF, a partir dos ranks por ramo.
+
+    Pura e determinística (mesmo input => mesma string): não toca ordenação nem
+    score. Serve p/ o agente distinguir evidência SEMÂNTICA (denso) de LÉXICA
+    EXATA — informação que ele precisa p/ calibrar o próprio corte "NÃO SEI", já
+    que o gate de distância é desligado no MCP por design (ver memória S16).
+      - hybrid        : apareceu nos dois ramos (confiança máxima)
+      - dense_only    : só no denso (match semântico, pode não ter o termo exato)
+      - lexical_only  : só no léxico (identificador/símbolo exato; dist=None)
+    """
+    if vec_rank is not None and lex_rank is not None:
+        return "hybrid"
+    if vec_rank is not None:
+        return "dense_only"
+    if lex_rank is not None:
+        return "lexical_only"
+    return "unknown"
+
+
 def hit_to_dict(h) -> dict:
     """Serializa um Hit da forma que o contrato da tool promete.
 
-    Ordem dos campos CONGELADA (path, symbol, kind, score, source, content) — Python
-    >=3.7 preserva ordem de inserção e json.dumps respeita (SPEC-H §2). Aplica o
-    trunc puro (H3) ao content; não reordena nem muda contagem/score.
+    Ordem dos campos NÚCLEO CONGELADA (path, symbol, kind, score, source, content)
+    — Python >=3.7 preserva ordem de inserção e json.dumps respeita (SPEC-H §2).
+    Aplica o trunc puro (H3) ao content; não reordena nem muda contagem/score.
+
+    S48: as chaves de PROVENIÊNCIA (vec_rank, lex_rank, cosine_distance,
+    provenance) entram SEMPRE DEPOIS das seis núcleo, em ordem fixa. Isso mantém
+    o byte-prefixo `{path,symbol,kind,score,source,content}` idêntico ao histórico
+    (Zona C cacheável) e só acrescenta cauda — zero reconstrução do prefixo estável
+    exigido pelo prompt-cache (§4b-5). `cosine_distance` é `null` p/ hit puramente
+    léxico (sem candidato denso correspondente).
     """
     source = h.source()
     return {
@@ -198,6 +225,11 @@ def hit_to_dict(h) -> dict:
         "score": round(float(h.score), 6),
         "source": source,
         "content": compact_content(h.content, source),
+        # --- S48 · proveniência da fusão (cauda, ordem fixa) ---
+        "vec_rank": getattr(h, "vec_rank", None),
+        "lex_rank": getattr(h, "lex_rank", None),
+        "cosine_distance": (round(float(h.dist), 6) if getattr(h, "dist", None) is not None else None),
+        "provenance": _provenance(getattr(h, "vec_rank", None), getattr(h, "lex_rank", None)),
     }
 
 
@@ -297,7 +329,9 @@ server = MCPServer(
         "de código, documentação ou decisões do projeto (retorna chunks com fonte: "
         "path, symbol, kind, score e conteúdo). Scores são RRF puro (~0,015-0,017 = "
         "não relacionado): aplique você o corte 'NÃO SEI'. Use k pequeno e filtre "
-        "com kind/path_prefix para afunilar."
+        "com kind/path_prefix para afunilar. Cada hit traz proveniência da fusão "
+        "(vec_rank, lex_rank, cosine_distance, provenance∈{hybrid,dense_only,"
+        "lexical_only}); cosine_distance é null em hit puramente léxico."
     ),
 )
 async def rag_search(

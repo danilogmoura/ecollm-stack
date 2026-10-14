@@ -46,7 +46,9 @@ class FakeSearch:
 
 def test_hit_to_dict_campos_e_source():
     d = rag_server.hit_to_dict(_hit())
-    assert set(d) == {"path", "symbol", "kind", "score", "source", "content"}
+    # núcleo (Zona C prefixo) + cauda S48 (proveniência) — ordem fixa travada abaixo.
+    assert set(d) == {"path", "symbol", "kind", "score", "source", "content",
+                      "vec_rank", "lex_rank", "cosine_distance", "provenance"}
     assert d["path"] == "ingest/search.py"
     assert d["symbol"] == "search"
     assert d["kind"] == "code"
@@ -448,9 +450,82 @@ def test_envelope_minificado_sem_espacos(monkeypatch):
 
 
 def test_ordem_campos_congelada():
-    """list(hit.keys()) == [path,symbol,kind,score,source,content] (§2)."""
+    """Núcleo [path,symbol,kind,score,source,content] intocado; proveniência S48
+    entra DEPOIS, em ordem fixa => byte-prefixo cacheável preservado (§2 + S48)."""
     d = rag_server.hit_to_dict(_hit())
-    assert list(d.keys()) == ["path", "symbol", "kind", "score", "source", "content"]
+    keys = list(d.keys())
+    nucleo = ["path", "symbol", "kind", "score", "source", "content"]
+    cauda = ["vec_rank", "lex_rank", "cosine_distance", "provenance"]
+    assert keys == nucleo + cauda
+    # o prefixo das 6 primeiras posições é IDÊNTICO ao histórico (Zona C estável)
+    assert keys[:6] == nucleo
+
+
+# ---------------------------------------------------------------------------
+# S48 — proveniência da fusão exposta no payload (sem alterar ordenação/score)
+# ---------------------------------------------------------------------------
+
+def _hit_full(vec_rank, lex_rank, dist=None):
+    return Hit(
+        id="22222222-2222-2222-2222-222222222222", repo="ecollm-stack",
+        path="ingest/search.py", lang="python", kind="code", symbol="search",
+        content="def search(): ...", score=0.0321,
+        vec_rank=vec_rank, lex_rank=lex_rank, dist=dist,
+    )
+
+
+def test_s48_provenance_hybrid():
+    d = rag_server.hit_to_dict(_hit_full(vec_rank=2, lex_rank=1, dist=0.12))
+    assert d["provenance"] == "hybrid"
+    assert d["vec_rank"] == 2 and d["lex_rank"] == 1
+    assert d["cosine_distance"] == pytest.approx(0.12, abs=1e-6)
+
+
+def test_s48_provenance_dense_only():
+    d = rag_server.hit_to_dict(_hit_full(vec_rank=3, lex_rank=None, dist=0.4))
+    assert d["provenance"] == "dense_only"
+    assert d["lex_rank"] is None
+    assert d["cosine_distance"] == pytest.approx(0.4, abs=1e-6)
+
+
+def test_s48_provenance_lexical_only_sem_dist():
+    """Hit puramente léxico: dist=None => cosine_distance null (documentado na tool)."""
+    d = rag_server.hit_to_dict(_hit_full(vec_rank=None, lex_rank=1))
+    assert d["provenance"] == "lexical_only"
+    assert d["vec_rank"] is None
+    assert d["cosine_distance"] is None
+
+
+def test_s48_provenance_nao_muda_prefixo_bytes(monkeypatch):
+    """REGRESSÃO de cache: as 6 chaves núcleo vêm ANTES da cauda, então o texto
+    serializado até 'content' é byte-idêntico a um hit sem proveniência. Valida que
+    adicionar proveniência não desalinha o prefixo cacheável do agente."""
+    fake = FakeSearch([_hit_full(vec_rank=1, lex_rank=1, dist=0.1)])
+    monkeypatch.setattr(rag_server, "search", fake)
+    monkeypatch.setattr(rag_server, "staleness_note", lambda repo=None: None)
+    res = asyncio.run(rag_server.server.call_tool("rag_search", {"query": "x", "k": 1}))
+    text = res.content[0].text
+    # o envelope começa com o mesmo byte-prefixo congelado de sempre
+    assert '{"results":[{"path":"ingest/search.py"' in text
+    # e a cauda aparece depois de content, antes do fechamento do objeto
+    assert '"provenance":"hybrid"}' in text
+
+
+def test_s48_dedupe_e_trunc_inalterados_com_proveniencia(monkeypatch):
+    """run_search continua emitindo k itens na mesma ordem; proveniência é só cauda."""
+    hits = [
+        Hit(id=f"33333333-0000-0000-0000-{i:012d}", repo="ecollm-stack",
+            path=f"p{i}.py", lang="python", kind="code", symbol=f"f{i}",
+            content=f"def f{i}(): ...", score=0.05 / i,
+            vec_rank=i, lex_rank=None, dist=0.1 * i)
+        for i in range(1, 6)
+    ]
+    fake = FakeSearch(hits)
+    monkeypatch.setattr(rag_server, "search", fake)
+    out = rag_server.run_search("x", k=3, repo="r")
+    assert len(out) == 3
+    assert [o["vec_rank"] for o in out] == [1, 2, 3]  # ordem preservada
+    assert all(o["provenance"] == "dense_only" for o in out)
 
 
 def test_dedupe_intra_noop_sem_duplicata():
