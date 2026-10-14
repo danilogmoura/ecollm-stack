@@ -137,11 +137,15 @@ model_list:
   # aqui). Sem a chave definida, o grupo novai-* falha-closed na porta e nao afeta
   # nenhum outro modelo (ver docker-compose.yml, ${NOVAI_API_KEY:-}). Padrao = rota
   # deepseek-* acima.
-  # Rate limit por chave (doc 2026-10-13): 60 rpm pago · 30 rpm no gratis glm-4.6v-flash.
-  # Tarifas = card oficial do marketplace (USD por token = USD/1M / 1e6), verificado
-  # 2026-10-13. NovAI cobra so input/output (sem surcharge de cache exposto), entao
-  # cache_read/cache_creation ficam de fora de proposito — LiteLLM nao inventa desconto.
-  # Modelos upstream = slug exato do marketplace (GET /v1/models confirma).
+  # Rate limit por chave (doc 2026-10-13): 60 rpm pago · 30 rpm nos modelos FREE
+  # (glm-4.7-flash / glm-4.6v-flash / glm-4.1v-thinking-flash — custo 0, NAO consomem
+  # saldo; erro 402 nao se aplica a eles). Tarifas = card oficial do marketplace (USD
+  # por token = USD/1M / 1e6), verificado 2026-10-13. NovAI cobra so input/output (sem
+  # surcharge de cache exposto), entao cache_read/cache_creation ficam de fora de
+  # proposito — LiteLLM nao inventa desconto. Modelos upstream = slug exato do
+  # marketplace (GET /v1/models confirma, 121 modelos). CogView-3-Flash / CogVideoX-Flash
+  # (tambem free) SAO FORA daqui: endpoints de imagem/video (/v1/images, /v1/video),
+  # nao chat — escopo desta rota e chat-only.
   - model_name: novai-glm-5.3-flash
     litellm_params:
       model: openai/glm-5.3-flash
@@ -181,6 +185,31 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 4.0e-07
       output_cost_per_token: 2.0e-06
+
+  # --- NOVAI FREE-FOREVER (chat, custo 0, NAO consomem saldo; 30 rpm) ---
+  - model_name: novai-glm-4.7-flash
+    litellm_params:
+      model: openai/glm-4.7-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+
+  - model_name: novai-glm-4.6v-flash
+    litellm_params:
+      model: openai/glm-4.6v-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+
+  - model_name: novai-glm-4.1v-thinking-flash
+    litellm_params:
+      model: openai/glm-4.1v-thinking-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
