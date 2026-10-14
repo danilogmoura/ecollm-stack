@@ -169,15 +169,31 @@ model_list:
   # glm-4.1v-thinking-flash — ambos streamam. Preferencia declarada do usuario (S40) =
   # glm-4.7-flash: texto puro, mais leve/rapido que o 4.1v (vision+reasoning, mais pesado).
   # max_input_tokens volta a 202000 (valor TRAVADO do 4.7, validado via /v1/model/info na S39).
-  # ---- S43 (2026-10-14, pedido do usuario): thinking DESLIGADO via extra_body ----
-  # O grupo sem extra_body herdava thinking ON do upstream (smoke S40: reasoning_tokens=138/143,
-  # ~96% da saida virava raciocinio => mais latencia e mais consumo da cota free de saida).
-  # Flag oficial ZhiPu thinking:{type:disabled} (PROVADA no upstream na S39: reasoning 0, content
-  # certo, ~29s vs 36-53s). extra_body e _SDK_OPTION_KEY mesclado no corpo (openai.py:340/353) =>
-  # NAO e dropado por drop_params:true. id do grupo INALTERADO (mesmo novai-glm-4.7-flash), entao
-  # NAO mexe em chatLanguageModels.json. cota free = 10/dia POR MODELO-upstream: um 2o alias nao
-  # agregaria capacidade (racional S40), por isso desligamos NA rota unica em vez de recriar alias.
+  # ---- S43 (2026-10-14): thinking OFF via extra_body ---- S44 (2026-10-14): DUAS rotas, ON e OFF ----
+  # S43 desligou o thinking na rota unica (sem extra_body o grupo herdava thinking ON do upstream —
+  # smoke S40: reasoning_tokens=138/143, ~96% da saida virava raciocinio). S44 (pedido do usuario
+  # "tenha os 2") revoga parcialmente a S43 e passa a expor AS DUAS variantes lado a lado, seguindo a
+  # convengao do repo (mesma dos Qwen no chatLanguageModels.json): id BASE = thinking ON, sufixo
+  # "-fast" = thinking OFF.
+  #   novai-glm-4.7-flash       -> thinking ON  (SEM extra_body; herda default do upstream, PROVADO
+  #                                S40 reasoning 138/143). Display "GLM-4.7 Flash (NovAI free thinking)".
+  #   novai-glm-4.7-flash-fast  -> thinking OFF (extra_body thinking:{type:disabled}, PROVADO S43
+  #                                reasoning 0; flag oficial ZhiPu, upstream direto na S39). Display
+  #                                "GLM-4.7 Flash (NovAI free fast)".
+  # Ambos apontam p/ MESMO upstream openai/glm-4.7-flash => a cota free de 10/dia POR MODELO-upstream e
+  # COMPARTIDA entre as duas rotas (S44 da ESCOLHA de comportamento, NAO dobra capacidade). Precedente:
+  # S39 ja teve base + alias nothink no mesmo upstream sem conflito. extra_body e _SDK_OPTION_KEY
+  # mesclado no corpo (openai.py:340/353) => NAO dropado por drop_params:true. max_input 202000 (S39).
   - model_name: novai-glm-4.7-flash
+    litellm_params:
+      model: openai/glm-4.7-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+    model_info:
+      max_input_tokens: 202000
+  - model_name: novai-glm-4.7-flash-fast
     litellm_params:
       model: openai/glm-4.7-flash
       api_base: https://aiapi-pro.com/v1
