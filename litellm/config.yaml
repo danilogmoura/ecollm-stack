@@ -186,7 +186,9 @@ model_list:
       input_cost_per_token: 4.0e-07
       output_cost_per_token: 2.0e-06
 
-  # --- NOVAI FREE-FOREVER (chat, custo 0, NAO consomem saldo; 30 rpm) ---
+  # --- NOVAI FREE-FOREVER (chat, custo 0, NAO consomem saldo) ---
+  # Teto REAL medido 2026-10-14: 5 req/min + 10 chamadas/DIA (conta free verificada).
+  # Serve p/ prova de conceito, NAO p/ loop agentico diario.
   - model_name: novai-glm-4.7-flash
     litellm_params:
       model: openai/glm-4.7-flash
@@ -194,6 +196,24 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
+    model_info:
+      max_input_tokens: 202000
+
+  # Mesmo modelo upstream com thinking OFF (flag oficial da ZhiPu nos GLM hibridos).
+  # O Copilot/VS Code NAO envia parametros custom -> a flag e injetada server-side via
+  # extra_body, que o LiteLLM mescla direto no corpo da request (openai.py _SDK_OPTION_KEYS)
+  # e por isso NAO e atingido por drop_params:true. Provado no upstream: reasoning_tokens 0
+  # (vs 223/227 com thinking ON) e latencia ~29s (vs 36-53s).
+  - model_name: novai-glm-4.7-flash-nothink
+    litellm_params:
+      model: openai/glm-4.7-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0.0
+      output_cost_per_token: 0.0
+      extra_body:
+        thinking:
+          type: "disabled"
     model_info:
       max_input_tokens: 202000
 
