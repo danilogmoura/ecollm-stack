@@ -205,6 +205,43 @@ model_list:
           type: disabled
     model_info:
       max_input_tokens: 202000
+  # ---- S46 (2026-10-14, decisao do usuario): doubao-seed-2.0-pro (PAGO) — thinking ON + fast OFF ----
+  # Pedido: "adicione esse modelo pelo NovAI, nao e free, coloque o fast e thinking". Re-adesao do
+  # modelo removido na S40 — item NOVO de backlog, nao retrabalho (blocos antigos no historico git).
+  # Tarifas OFICIAIS (card marketplace + pagina do modelo): $0,40 in / $2,00 out por 1M tokens =>
+  # input_cost 4.0e-07 / output_cost 2.0e-06. PAGO com saldo da conta NovAI (min recarga $5 USDT
+  # TRC20); NAO consome os 10/dia free; 402 possivel se saldo zerado. owned_by=bytedance no catalogo
+  # (id unico "doubao-seed-2.0-pro"; "-fast" e convencao NOSSA, nao existe upstream).
+  # Thinking MEDIDO nesta sessao (n=1, direto no gateway): default -> reasoning 284/330 = ON por
+  # padrão upstream; extra_body thinking:{type:disabled} -> reasoning_tokens=0 = FUNCIONA tambem em
+  # ByteDance (estende a regra S44, antes provada so p/ ZhiPu). GOTCHA: enable_thinking:false -> 143,
+  # NAO desliga no Doubao (nao e a flag Qwen) — usar SEMPRE thinking:{type:disabled}.
+  # Convencao S44 replicada: base = thinking ON (sem extra_body), "-fast" = OFF. Ambos -> MESMO
+  # upstream openai/doubao-seed-2.0-pro => mesma cobranca, duas escolhas de comportamento.
+  # Contexto: pagina oficial do modelo = 256K in (262.144) / 16K out (compare.html sugere 128K p/
+  # familia Lite/Code; pagina dedicada vence). Gateway NAO expoe API de info por modelo (404).
+  # Chat-only: NAO entra em rag-chat nem fallbacks (invariante 7, precedente glm/deepseek).
+  - model_name: novai-doubao-seed-2.0-pro
+    litellm_params:
+      model: openai/doubao-seed-2.0-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.0e-07
+      output_cost_per_token: 2.0e-06
+    model_info:
+      max_input_tokens: 262144
+  - model_name: novai-doubao-seed-2.0-pro-fast
+    litellm_params:
+      model: openai/doubao-seed-2.0-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.0e-07
+      output_cost_per_token: 2.0e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 262144
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
