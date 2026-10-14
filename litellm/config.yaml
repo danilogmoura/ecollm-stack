@@ -169,8 +169,14 @@ model_list:
   # glm-4.1v-thinking-flash — ambos streamam. Preferencia declarada do usuario (S40) =
   # glm-4.7-flash: texto puro, mais leve/rapido que o 4.1v (vision+reasoning, mais pesado).
   # max_input_tokens volta a 202000 (valor TRAVADO do 4.7, validado via /v1/model/info na S39).
-  # Lembrete de custo: sem extra_body, thinking fica ON por heranca do upstream (reasoning
-  # consome ~96% da saida; ver smoke S40) — cota free = 10 chamadas/dia POR MODELO.
+  # ---- S43 (2026-10-14, pedido do usuario): thinking DESLIGADO via extra_body ----
+  # O grupo sem extra_body herdava thinking ON do upstream (smoke S40: reasoning_tokens=138/143,
+  # ~96% da saida virava raciocinio => mais latencia e mais consumo da cota free de saida).
+  # Flag oficial ZhiPu thinking:{type:disabled} (PROVADA no upstream na S39: reasoning 0, content
+  # certo, ~29s vs 36-53s). extra_body e _SDK_OPTION_KEY mesclado no corpo (openai.py:340/353) =>
+  # NAO e dropado por drop_params:true. id do grupo INALTERADO (mesmo novai-glm-4.7-flash), entao
+  # NAO mexe em chatLanguageModels.json. cota free = 10/dia POR MODELO-upstream: um 2o alias nao
+  # agregaria capacidade (racional S40), por isso desligamos NA rota unica em vez de recriar alias.
   - model_name: novai-glm-4.7-flash
     litellm_params:
       model: openai/glm-4.7-flash
@@ -178,6 +184,9 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 0.0
       output_cost_per_token: 0.0
+      extra_body:
+        thinking:
+          type: disabled
     model_info:
       max_input_tokens: 202000
 
