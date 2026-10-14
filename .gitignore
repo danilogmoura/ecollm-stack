@@ -3,6 +3,8 @@
 
 # Planejamento, análise de bugs e resolução — exclusivo local, nunca sobe
 .planning/
+# Relatórios de suporte aos provedores LLM (diagnóstico local, nunca sobe)
+/reports/
 .venv/
 __pycache__/
 *.pyc
