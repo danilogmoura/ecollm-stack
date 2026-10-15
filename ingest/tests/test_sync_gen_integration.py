@@ -314,6 +314,66 @@ def test_sync_resume_registra_retomados(monkeypatch, test_repo, live_conn):
         _cleanup(live_conn, repo)
 
 
+def test_caos_crash_no_meio_do_embed_retoma_ao_vivo(monkeypatch, test_repo, live_conn):
+    """S90/C1: prova AO VIVO que o resume funciona após um crash no meio do embed.
+
+    Simula um 429/crash REAL: o embed levanta na 2ª chamada (após o 1º arquivo já
+    ter sido commitado na geração em montagem). O sync aborta SEM publicar (índice
+    publicado intacto). A re-execução encontra o 1º arquivo já commitado → RESUME
+    (não re-embeda) e converge para o índice completo.
+    """
+    from ingest import embed, ingest
+
+    repo = test_repo.resolve().name
+    _cleanup(live_conn, repo)
+    monkeypatch.setattr(ingest, "gitleaks_gate",
+                        lambda root, entries, *, skip=False: (True, "ok"))
+    try:
+        # 1) Crash controlado: embeda o 1º arquivo, explode no 2º (simula 429).
+        calls = {"n": 0}
+
+        def flaky(pairs, *, cfg=None, **k):
+            calls["n"] += 1
+            if calls["n"] >= 2:
+                raise embed.EmbedError("429 rate limit (simulado)")
+            return [[0.1] * 3072 for _ in pairs]
+
+        monkeypatch.setattr(embed, "embed_documents", flaky)
+        with pytest.raises(embed.EmbedError):
+            ingest.run_ingest(test_repo, verbose=False)
+
+        # 2) Nada foi publicado (o flip só ocorre no fim) — índice intacto.
+        assert store.get_published_gen(live_conn, repo) == 0
+        # Mas o 1º arquivo JÁ está commitado na geração em montagem (gen 1).
+        in_prog = live_conn.execute(
+            "SELECT count(*) FROM chunks WHERE repo=%s AND gen=1", (repo,)).fetchone()[0]
+        assert in_prog > 0
+
+        # 3) Re-execução: embeda só o que falta; o 1º arquivo é RETOMADO.
+        embedded_paths: list[str] = []
+
+        def ok(pairs, *, cfg=None, **k):
+            embedded_paths.extend(p for p, _ in pairs)
+            return [[0.1] * 3072 for _ in pairs]
+
+        monkeypatch.setattr(embed, "embed_documents", ok)
+        rep = ingest.run_ingest(test_repo, verbose=False)
+
+        # RESUME ao vivo: exatamente 1 arquivo retomado (o que foi commitado antes).
+        assert rep.resumed == 1
+        assert len(rep.resumed_files) == 1
+        # O arquivo retomado NÃO foi re-embedado (economia de cota).
+        assert rep.resumed_files[0] not in embedded_paths
+        # Convergência: índice publicado completo (a.py + b.md).
+        pub = store.get_published_gen(live_conn, repo)
+        got = {r[0] for r in live_conn.execute(
+            "SELECT DISTINCT path FROM chunks WHERE repo=%s AND gen=%s",
+            (repo, pub)).fetchall()}
+        assert got == {"a.py", "b.md"}
+    finally:
+        _cleanup(live_conn, repo)
+
+
 # ---------------------------------------------------------------------------
 # 13 · verify_schema verde após a migração 004 (lockstep I9/R6)
 # ---------------------------------------------------------------------------
