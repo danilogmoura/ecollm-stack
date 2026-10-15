@@ -483,6 +483,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     from ingest import ingest as ingest_mod
     from ingest import profiles as _profiles
     repo = args.repo or ingest_mod.repo_name(REPO_ROOT)
+    # S63: carrega o .env ANTES de resolver o perfil (mesmo padrão do ingest/cli.py,
+    # fix 74b0457). Sem isto, `--gate` sem RAG_PROFILE exportado cai no DEFAULT_PROFILE
+    # (bgem3, teto 0,897) e REPROVA falsamente o piso 0,900 — footgun de ambiente, não
+    # regressão. Precedência preservada: --profile > RAG_PROFILE(.env) > publicado > default.
+    from ingest import embed as _embed
+    _embed.load_dotenv()
     # S32: resolve o perfil (valida slug cedo — R1) e fixa RAG_PROFILE p/ o processo,
     # assim search/embed resolvem tudo via registry (gate, prefixo, dim, modelo).
     prof = _profiles.resolve(args.profile) if args.profile else _profiles.active_profile()

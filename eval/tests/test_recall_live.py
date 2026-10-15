@@ -221,3 +221,25 @@ def test_main_gate_forca_k8_mesmo_sem_listar(monkeypatch, tmp_path):
     assert code == 0
     md = out.read_text(encoding="utf-8")
     assert "| @8 |" in md  # @8 foi avaliado apesar de --k=1,3
+
+
+def test_main_carrega_dotenv_antes_de_resolver_perfil(monkeypatch, tmp_path):
+    """S63: main() chama embed.load_dotenv() ANTES de resolver o perfil.
+
+    Sem isto, `--gate` sem RAG_PROFILE exportado cai no default (bgem3) e reprova
+    falsamente o piso. O teste registra a ORDEM das chamadas.
+    """
+    from ingest import embed as embed_mod
+    from ingest import profiles as profiles_mod
+
+    _wire_main_stubs(monkeypatch, tmp_path, {"q1": 1})
+    calls: list[str] = []
+
+    monkeypatch.setattr(embed_mod, "load_dotenv", lambda *a, **k: calls.append("load_dotenv"))
+    real_active = profiles_mod.active_profile
+    monkeypatch.setattr(profiles_mod, "active_profile",
+                        lambda *a, **k: (calls.append("active_profile"), real_active())[1])
+
+    out = tmp_path / "relatorio.md"
+    rc.main(["--dataset", str(tmp_path / "d.jsonl"), "--out", str(out)])
+    assert calls.index("load_dotenv") < calls.index("active_profile")
