@@ -272,3 +272,107 @@ def test_main_insere_search_para_query_bareta(monkeypatch):
     rc = cli.main(["oi tudo bem"])
     assert rc == 0
     assert seen["query"] == "oi tudo bem"
+
+
+# ---------------------------------------------------------------------------
+# S86 — ask_llm (HTTP) + cmd_profile (list/status/use/switch)
+# ---------------------------------------------------------------------------
+
+def test_ask_llm_monta_payload_e_extrai_resposta(monkeypatch):
+    """ask_llm: monta o payload OpenAI-compat e extrai choices[0].message.content."""
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "  RESPOSTA  "}}]}
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        captured.update(url=url, json=json, headers=headers)
+        return _Resp()
+
+    monkeypatch.setattr(cli.requests, "post", fake_post)
+    out = cli.ask_llm("pergunta?", "contexto", cfg={"base_url": "http://x/v1",
+                                                    "api_key": "k", "model": "m"})
+    assert out == "RESPOSTA"                       # strip aplicado
+    assert captured["url"] == "http://x/v1/chat/completions"
+    assert captured["headers"]["Authorization"] == "Bearer k"
+    assert captured["json"]["model"] == "m"
+    assert captured["json"]["temperature"] == 0
+    assert captured["json"]["messages"][0]["role"] == "system"
+
+
+def test_ask_llm_sem_api_key_nao_manda_authorization(monkeypatch):
+    captured = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            pass
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    monkeypatch.setattr(cli.requests, "post",
+                        lambda url, json=None, headers=None, timeout=None:
+                        captured.update(headers=headers) or _Resp())
+    cli.ask_llm("q", "c", cfg={"base_url": "http://x/v1", "api_key": "", "model": "m"})
+    assert "Authorization" not in captured["headers"]
+
+
+def test_cmd_profile_list_imprime_perfis(monkeypatch, capsys):
+    """cmd_profile list: imprime os perfis do registry, marca o ativo com '*'."""
+    monkeypatch.setattr(cli.profiles, "active_profile", lambda *a, **k: cli.profiles.resolve("qwen37"))
+    rc = cli.cmd_profile(types.SimpleNamespace(action="list", repo="."))
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "qwen37" in out and "bgem3" in out
+    assert "* qwen37" in out          # ativo marcado
+
+
+def test_cmd_profile_status_imprime_estado(monkeypatch, capsys):
+    """cmd_profile status: imprime o publicado + linhas por perfil."""
+    conn = _WarnConn(exists=True, chunks=706)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    monkeypatch.setattr(store, "get_published_profile", lambda c, r: "qwen37")
+    monkeypatch.setattr(cli, "_profile_status_rows",
+                        lambda c, r: [{"slug": "qwen37", "table": "chunks_qwen37",
+                                       "dim": 1024, "model": "m", "exists": True,
+                                       "chunks": 706, "published_gen": 14,
+                                       "head_sha": "abc12345", "dirty": False}])
+    monkeypatch.setattr(cli.profiles, "active_profile", lambda *a, **k: cli.profiles.resolve("qwen37"))
+    rc = cli.cmd_profile(types.SimpleNamespace(action="status", repo="."))
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "publicado=qwen37" in out
+    assert "[PUB] qwen37" in out and "chunks=706" in out
+    assert conn.closed is True
+
+
+def test_cmd_profile_acao_desconhecida_retorna_2(monkeypatch, capsys):
+    conn = _WarnConn()
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    rc = cli.cmd_profile(types.SimpleNamespace(action="xyz", repo="."))
+    assert rc == 2
+    assert "desconhecida" in capsys.readouterr().err
+
+
+def test_cmd_profile_use_fail_closed_tabela_ausente(monkeypatch, capsys):
+    """use: tabela ausente → rc=3 (fail-closed), nada publicado."""
+    conn = _WarnConn(exists=False)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    monkeypatch.setattr(cli.ingest_mod, "_git_state", lambda p: ("abc", False))
+    rc = cli.cmd_profile(types.SimpleNamespace(action="use", repo=".", slug="qwen37"))
+    assert rc == 3
+    assert "não tem índice" in capsys.readouterr().err
+
+
+def test_cmd_profile_use_fail_closed_indice_vazio(monkeypatch, capsys):
+    """use: tabela existe mas 0 chunks → rc=3."""
+    conn = _WarnConn(exists=True, chunks=0)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    monkeypatch.setattr(cli.ingest_mod, "_git_state", lambda p: ("abc", False))
+    rc = cli.cmd_profile(types.SimpleNamespace(action="use", repo=".", slug="qwen37"))
+    assert rc == 3
+    assert "vazio" in capsys.readouterr().err
