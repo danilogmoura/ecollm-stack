@@ -335,19 +335,20 @@ model_list:
   # responde a imagem base64 (cor correta).
   # NAO sombreia as rotas DIRETAS S55 (deepseek-flash/deepseek-v4-pro...): grupos
   # aqui usam prefixo novai-. Chat-only (invariante 7): fora de rag-chat/fallbacks.
-  # Custos 0.0 = precedente glm free (S44): o cartao do marketplace por slug nao e
-  # exposto (marketplace/<slug> = 404) e a tabela compare.html traz colunas
-  # NovAI/OpenRouter ambiguas e conflita com a pagina oficial da DeepSeek (S55:
-  # pro $0,66/$1,98 vs $0,57/$1,15 na tabela) -- nao travar por fonte conflitante.
-  # Contexto 128K (131072) = tabela compare.html; gateway nao expoe API de info por
+  # Custos TRAVADOS S96 (fonte unica: docs/model-marketplace.html, tabela oficial
+  # NovAI por modelo, preco por 1M tokens): v4.1-flash e v4-flash-vision
+  # $0.308/$1.231 (Exclusive); v4-pro $0.57/$1.15; v4-flash $0.08/$0.17.
+  # O conflito apontado na S95 era entre NovAI e a DeepSeek OFICIAL (rotas
+  # diretas S55), NAO dentro da NovAI -- aqui vale o preco NovAI.
+  # Contexto 128K (131072) = mesma tabela; gateway nao expoe API de info por
   # modelo (404, medido S46/S95). Se virar rota principal, re-medir janela real.
   - model_name: novai-deepseek-v4.1-flash
     litellm_params:
       model: openai/deepseek-v4.1-flash
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 3.08e-07
+      output_cost_per_token: 1.231e-06
     model_info:
       max_input_tokens: 131072
   - model_name: novai-deepseek-v4.1-flash-fast
@@ -355,8 +356,8 @@ model_list:
       model: openai/deepseek-v4.1-flash
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 3.08e-07
+      output_cost_per_token: 1.231e-06
       extra_body:
         thinking:
           type: disabled
@@ -367,8 +368,8 @@ model_list:
       model: openai/deepseek-v4-pro
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 5.7e-07
+      output_cost_per_token: 1.15e-06
     model_info:
       max_input_tokens: 131072
   - model_name: novai-deepseek-v4-pro-fast
@@ -376,8 +377,8 @@ model_list:
       model: openai/deepseek-v4-pro
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 5.7e-07
+      output_cost_per_token: 1.15e-06
       extra_body:
         thinking:
           type: disabled
@@ -388,8 +389,8 @@ model_list:
       model: openai/deepseek-v4-flash
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 8.0e-08
+      output_cost_per_token: 1.7e-07
     model_info:
       max_input_tokens: 131072
   - model_name: novai-deepseek-v4-flash-fast
@@ -397,8 +398,8 @@ model_list:
       model: openai/deepseek-v4-flash
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 8.0e-08
+      output_cost_per_token: 1.7e-07
       extra_body:
         thinking:
           type: disabled
@@ -409,8 +410,8 @@ model_list:
       model: openai/deepseek-v4-flash-vision
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 3.08e-07
+      output_cost_per_token: 1.231e-06
     model_info:
       max_input_tokens: 131072
   - model_name: novai-deepseek-v4-flash-vision-fast
@@ -418,8 +419,8 @@ model_list:
       model: openai/deepseek-v4-flash-vision
       api_base: https://aiapi-pro.com/v1
       api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
+      input_cost_per_token: 3.08e-07
+      output_cost_per_token: 1.231e-06
       extra_body:
         thinking:
           type: disabled
