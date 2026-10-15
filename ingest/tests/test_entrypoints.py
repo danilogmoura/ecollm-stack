@@ -32,6 +32,53 @@ def _report(**kw) -> SyncReport:
 
 
 # ---------------------------------------------------------------------------
+# S65 — load_dotenv centralizado no import do pacote `ingest`
+# ---------------------------------------------------------------------------
+
+def test_import_ingest_carrega_dotenv(monkeypatch, tmp_path):
+    """Importar `ingest` (qualquer submódulo) carrega o .env SEM chamada explícita.
+
+    S65: antes, cada entrypoint tinha de lembrar de chamar embed.load_dotenv()
+    (falhou 2×: 74b0457, S63). Agora o import do pacote já traz o .env.
+    """
+    import importlib
+    import os
+
+    # .env fake com uma var única; aponta o loader para ele e limpa o ambiente.
+    env = tmp_path / ".env"
+    env.write_text("S65_SENTINELA=carregado\n", encoding="utf-8")
+    monkeypatch.delenv("S65_SENTINELA", raising=False)
+
+    from ingest import embed as embed_mod
+    real_load = embed_mod.load_dotenv
+    monkeypatch.setattr(embed_mod, "load_dotenv",
+                        lambda path=None: real_load(str(env)))
+
+    import ingest
+    importlib.reload(ingest)  # re-executa o import do pacote (chama _load_env_once)
+    assert os.environ.get("S65_SENTINELA") == "carregado"
+
+
+def test_import_ingest_nao_sobrescreve_env_existente(monkeypatch, tmp_path):
+    """O import não sobrescreve var já exportada (idempotência preservada)."""
+    import importlib
+    import os
+
+    env = tmp_path / ".env"
+    env.write_text("S65_SENTINELA=do_arquivo\n", encoding="utf-8")
+    monkeypatch.setenv("S65_SENTINELA", "do_ambiente")
+
+    from ingest import embed as embed_mod
+    real_load = embed_mod.load_dotenv
+    monkeypatch.setattr(embed_mod, "load_dotenv",
+                        lambda path=None: real_load(str(env)))
+
+    import ingest
+    importlib.reload(ingest)
+    assert os.environ.get("S65_SENTINELA") == "do_ambiente"
+
+
+# ---------------------------------------------------------------------------
 # ingest.main
 # ---------------------------------------------------------------------------
 
