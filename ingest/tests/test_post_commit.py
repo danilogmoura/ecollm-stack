@@ -24,7 +24,7 @@ def _make_stub(dirpath: Path, name: str, body: str) -> None:
 def _setup(tmp_path: Path) -> tuple[Path, Path]:
     repo = tmp_path / "repo"
     (repo / "rag-db").mkdir(parents=True)
-    (repo / ".planning").mkdir()
+    (repo / "reports" / "logs").mkdir(parents=True)
     hook = repo / "rag-db" / "post-commit.sample"
     hook.write_text(_SCRIPT.read_text())
     hook.chmod(hook.stat().st_mode | stat.S_IEXEC)
@@ -57,7 +57,7 @@ def test_hook_sai_zero(tmp_path):
 
 def test_hook_rotaciona_rag_sync_log(tmp_path):
     repo, bin_dir = _setup(tmp_path)
-    log = repo / ".planning" / "rag-sync.log"
+    log = repo / "reports" / "logs" / "rag-sync.log"
     log.write_text("".join(f"l{i}\n" for i in range(1200)))
     _run(repo, bin_dir)
     # rotação: 1200 → 500 linhas.
@@ -66,7 +66,7 @@ def test_hook_rotaciona_rag_sync_log(tmp_path):
 
 def test_hook_rotaciona_mcp_log(tmp_path):
     repo, bin_dir = _setup(tmp_path)
-    log = repo / ".planning" / "mcp-stderr.log"
+    log = repo / "reports" / "logs" / "mcp-stderr.log"
     log.write_text("".join(f"l{i}\n" for i in range(1200)))
     _run(repo, bin_dir)
     assert len(log.read_text().splitlines()) == 500

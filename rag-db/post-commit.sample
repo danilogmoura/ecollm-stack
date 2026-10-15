@@ -5,11 +5,15 @@
 # Roda em background (&) para NUNCA travar o commit. O script checa o HEAD antes
 # de gastar cota (sync_if_stale.sh), então commits sem mudança de corpus são grátis.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-LOG="$REPO_ROOT/.planning/rag-sync.log"
+# S101: logs de operação moram em `reports/logs/` (gitignored), NÃO em `.planning/`
+# (que é governança). Criado aqui porque o hook pode rodar num clone sem a pasta.
+LOGDIR="$REPO_ROOT/reports/logs"
+mkdir -p "$LOGDIR"
+LOG="$LOGDIR/rag-sync.log"
 # S87/S90: rotação simples — mantém as últimas 500 linhas (evita crescer infinito).
 # S90/B2: o mesmo vale para o log do MCP (mcp-stderr.log).
 bash "$REPO_ROOT/rag-db/rotate_log.sh" "$LOG" 1000 500
-bash "$REPO_ROOT/rag-db/rotate_log.sh" "$REPO_ROOT/.planning/mcp-stderr.log" 1000 500
+bash "$REPO_ROOT/rag-db/rotate_log.sh" "$LOGDIR/mcp-stderr.log" 1000 500
 nohup bash "$REPO_ROOT/rag-db/sync_if_stale.sh" >>"$LOG" 2>&1 &
 disown 2>/dev/null || true
 exit 0

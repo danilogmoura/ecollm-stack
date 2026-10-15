@@ -4,7 +4,8 @@
 # ----------------------------------------------------------------------------
 # Trunca um arquivo de log quando ele passa de um limite, mantendo as últimas
 # `KEEP` linhas. Usado pelo hook pós-commit para o `rag-sync.log` (S87) e o
-# `mcp-stderr.log` (S90/B2). Idempotente e barato (só age acima do limite).
+# `mcp-stderr.log` (S90/B2), ambos em `reports/logs/` (S101). Idempotente e
+# barato (só age acima do limite).
 #
 # Uso:
 #   bash rag-db/rotate_log.sh <arquivo> [LIMIT=1000] [KEEP=500]

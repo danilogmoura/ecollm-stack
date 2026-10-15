@@ -21,7 +21,7 @@ pode conter ruído de outras fontes). A fonte é injetável (``line_source``) p/
 Uso:
     .venv/bin/python -m eval.mcp_report                       # lê o log canônico
     .venv/bin/python -m eval.mcp_report --log <arquivo>       # log alternativo
-    .venv/bin/python -m eval.mcp_report --out .planning/mcp-report.md
+    .venv/bin/python -m eval.mcp_report --out reports/mcp-report.md
 """
 
 from __future__ import annotations
@@ -37,8 +37,9 @@ SLO_LATENCY_MS = 200
 
 # Caminho canônico do log do MCP (S90/B2). O hook/entrypoint redireciona o stderr
 # do servidor MCP para cá. Antes era `.planning/h4-mcp-stderr.log` (nome de
-# experimento H4, sem rotação).
-DEFAULT_LOG = ".planning/mcp-stderr.log"
+# experimento H4, sem rotação). S101: movido de `.planning/` (governança) para
+# `reports/logs/` (diagnóstico local, gitignored).
+DEFAULT_LOG = "reports/logs/mcp-stderr.log"
 
 
 @dataclass

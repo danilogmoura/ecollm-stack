@@ -34,7 +34,7 @@ Design testavel: as metricas sao funcoes puras (hit_for_query, aggregate); a
 retrieval e injetavel via `retrieve` (default = ingest.search.search real). Os
 unit tests exercitam as metricas sem tocar em rede/DB.
 
-Saida: relatorio markdown -> .planning/relatorio-avaliacao-<YYYYMMDD>.md
+Saida: relatorio markdown -> reports/relatorio-avaliacao-<YYYYMMDD>.md
 (override --out). Rodar:  python -m eval.recall [--k 1,3,5,8,10] [--json] [--gate]
 """
 
@@ -53,7 +53,9 @@ from typing import Any, Callable, Sequence
 EVAL_DIR = Path(__file__).resolve().parent
 REPO_ROOT = EVAL_DIR.parent
 DEFAULT_DATASET = EVAL_DIR / "dataset.jsonl"
-DEFAULT_PLANNING_DIR = REPO_ROOT / ".planning"
+# S101: relatórios de avaliação são ARTEFATO de diagnóstico (gitignored) — vão a
+# `reports/`, junto dos demais relatórios `.md`. Não são governança (`.planning/`).
+DEFAULT_REPORTS_DIR = REPO_ROOT / "reports"
 
 # k's avaliados por default (plano pede recall@1/3/5/8/10)
 DEFAULT_KS: tuple[int, ...] = (1, 3, 5, 8, 10)
@@ -512,7 +514,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     report = render_report(rows, agg, ks=ks, dataset_path=args.dataset, repo=repo,
                            embedder=f"{prof.slug}:{prof.model}")
-    out = args.out or (DEFAULT_PLANNING_DIR / f"relatorio-avaliacao-{date.today().strftime('%Y%m%d')}.md")
+    out = args.out or (DEFAULT_REPORTS_DIR / f"relatorio-avaliacao-{date.today().strftime('%Y%m%d')}.md")
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(report, encoding="utf-8")
 

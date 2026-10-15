@@ -25,7 +25,7 @@ um ``row_source`` para :func:`build_report`.
 Uso:
     .venv/bin/python -m eval.cache_report                 # janela toda, markdown p/ stdout
     .venv/bin/python -m eval.cache_report --days 7        # últimos 7 dias
-    .venv/bin/python -m eval.cache_report --out .planning/c6-cache-report.md
+    .venv/bin/python -m eval.cache_report --out reports/c6-cache-report.md
     .venv/bin/python -m eval.cache_report --model qwen3.8-flash
 
 Ressalva S30: o endpoint real é Token Plan (Créditos), então o ``$`` aqui é
@@ -584,6 +584,11 @@ def write_cost_snapshot(
         except (json.JSONDecodeError, OSError):
             data = {"snapshots": []}  # arquivo corrompido → recomeça (não perde o novo)
     data["snapshots"].append(entry)
+    # S101: o snapshot mora em `reports/logs/` (gitignored) → garante a pasta num
+    # clone limpo, senão o `open(..., "w")` abaixo falha com FileNotFoundError.
+    parent = os.path.dirname(path)
+    if parent:
+        os.makedirs(parent, exist_ok=True)
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(data, fh, ensure_ascii=False, indent=2)
         fh.write("\n")

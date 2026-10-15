@@ -37,7 +37,8 @@ def _setup(tmp_path: Path, *, head: str, published: str, py_ok: bool = True,
     """Monta um repo fake + stubs. Retorna (repo_root, bin_dir)."""
     repo = tmp_path / "repo"
     (repo / "rag-db").mkdir(parents=True)
-    (repo / ".planning").mkdir()
+    # S101: o snapshot de custo agora mora em `reports/logs/` (era `.planning/`).
+    (repo / "reports" / "logs").mkdir(parents=True)
     # O script resolve REPO_ROOT a partir da própria localização → copiamos o script.
     script = repo / "rag-db" / "sync_if_stale.sh"
     script.write_text(_SCRIPT.read_text())

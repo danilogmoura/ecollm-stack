@@ -2,11 +2,11 @@
     "//": "Exemplo de registro do servidor MCP rag_search. Copie os campos de 'rag-search' para o mcp.json do seu cliente (Roo Code: ~/.config/roo-code/mcp_settings.json | Copilot: .vscode/mcp.json). Ajuste os caminhos absolutos.",
     "mcpServers": {
         "rag-search": {
-            "//redirect": "S90/B2: stderr do servidor (log estruturado S22) redirecionado p/ o log CANÔNICO .planning/mcp-stderr.log; 'exec' preserva PID e o canal stdio do protocolo MCP. Rotação: rag-db/rotate_log.sh (chamado pelo hook pós-commit).",
+            "//redirect": "S101: stderr do servidor (log estruturado S22) redirecionado p/ o log CANÔNICO reports/logs/mcp-stderr.log (era .planning/, governança); 'mkdir -p' garante a pasta (reports/ é gitignored); 'exec' preserva PID e o canal stdio do protocolo MCP. Rotação: rag-db/rotate_log.sh (chamado pelo hook pós-commit).",
             "command": "bash",
             "args": [
                 "-c",
-                "exec /home/demo/ecollm-stack/.venv/bin/python /home/demo/ecollm-stack/mcpsrv/rag_server.py 2>>/home/demo/ecollm-stack/.planning/mcp-stderr.log"
+                "mkdir -p /home/demo/ecollm-stack/reports/logs && exec /home/demo/ecollm-stack/.venv/bin/python /home/demo/ecollm-stack/mcpsrv/rag_server.py 2>>/home/demo/ecollm-stack/reports/logs/mcp-stderr.log"
             ],
             "cwd": "/home/demo/ecollm-stack",
             "env": {
