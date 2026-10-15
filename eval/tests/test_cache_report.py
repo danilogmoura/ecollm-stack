@@ -26,9 +26,11 @@ def test_price_for_alias_fast_compartilha_preco():
     assert cr.price_for("qwen3.8-flash-fast") == cr.price_for("qwen3.8-flash")
 
 
-def test_price_for_desconhecido_cai_no_default():
-    assert cr.price_for("gpt-9")["input"] == cr.DEFAULT_INPUT_PRICE
-    assert cr.price_for(None)["input"] == cr.DEFAULT_INPUT_PRICE
+def test_price_for_desconhecido_retorna_none():
+    # S59: preço desconhecido → None (não inventa preço; evita economia negativa falsa).
+    assert cr.price_for("gpt-9") is None
+    assert cr.price_for(None) is None
+    assert cr.price_for("") is None
 
 
 # --- parse_row -------------------------------------------------------------
@@ -237,3 +239,102 @@ def test_build_report_renderiza_secao_uncached():
     # uncached: 100 e 500 -> total 600, média 300
     assert "| **TODAS** | 2 | 300 | 100 | 500 | 500 | 500 |" in md
     assert "| Cauda NÃO-cacheada (total tok) | 600 |" in md  # totais
+
+
+# --- S59: escopo multi-modelo ----------------------------------------------
+
+def test_build_sql_default_byte_identico():
+    # Regressão: sem filtros novos, o SQL é o histórico (LIKE 'qwen3.8%').
+    sql = cr.build_sql(days=None, model=None)
+    assert "model_group LIKE 'qwen3.8%'" in sql
+    assert "WHERE TRUE" not in sql
+    assert "IN (" not in sql
+
+
+def test_build_sql_all_models_sem_filtro_de_grupo():
+    sql = cr.build_sql(days=7, all_models=True)
+    assert "WHERE TRUE" in sql
+    assert "LIKE 'qwen3.8%'" not in sql
+    assert "interval '7 days'" in sql
+
+
+def test_build_sql_models_lista_in_escapada():
+    sql = cr.build_sql(days=None, models=["deepseek-flash", "novai-doubao-seed-2.0-pro-fast"])
+    assert "model_group IN ('deepseek-flash', 'novai-doubao-seed-2.0-pro-fast')" in sql
+    assert "LIKE 'qwen3.8%'" not in sql
+
+
+def test_build_sql_models_escapa_aspas():
+    sql = cr.build_sql(days=None, models=["o'brien"])
+    assert "model_group IN ('o''brien')" in sql
+
+
+def test_build_sql_precedencia_all_sobre_models():
+    sql = cr.build_sql(days=None, models=["x"], all_models=True)
+    assert "WHERE TRUE" in sql
+    assert "IN (" not in sql
+
+
+def test_price_for_deepseek_e_doubao():
+    assert cr.price_for("deepseek-flash")["input"] == 0.15
+    assert cr.price_for("deepseek-v4-pro")["input"] == 0.66
+    assert cr.price_for("novai-doubao-seed-2.0-pro")["input"] == 0.40
+    # alias -fast compartilha o preço do modelo real
+    assert cr.price_for("deepseek-flash-fast") == cr.price_for("deepseek-flash")
+
+
+def test_price_for_free_nao_gera_economia_fantasma():
+    # Grupo free ($0): spend=0 e projeção=0 ⇒ savings=0 (sem fantasma).
+    for mg in ("novai-glm-4.7-flash", "novai-glm-4.7-flash-fast"):
+        assert cr.price_for(mg)["input"] == 0.0
+        assert cr.price_for(mg)["output"] == 0.0
+    rows = [_row(mg="novai-glm-4.7-flash", pt=1000, ct=100, cached=0, spend=0.0)]
+    m = cr.compute_metrics(rows)
+    assert m.cost_no_cache == 0.0
+    assert m.savings == 0.0
+
+
+def test_build_report_all_models_rotulo_e_linhas():
+    def source(_sql):
+        return [
+            {"startTime": "2026-10-15", "model_group": "deepseek-flash",
+             "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 660,
+             "spend": 0.0001},
+            {"startTime": "2026-10-15", "model_group": "novai-doubao-seed-2.0-pro-fast",
+             "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 250,
+             "spend": 0.0002},
+        ]
+
+    md = cr.build_report(days=1, all_models=True, row_source=source)
+    assert "todos os model_group" in md
+    assert "`deepseek-flash`" in md
+    assert "`novai-doubao-seed-2.0-pro-fast`" in md
+
+
+def test_build_report_models_rotulo():
+    def source(_sql):
+        return [{"startTime": "2026-10-15", "model_group": "deepseek-flash",
+                 "prompt_tokens": 100, "completion_tokens": 10, "cached_tokens": 50,
+                 "spend": 0.0001}]
+
+    md = cr.build_report(days=1, models=["deepseek-flash"], row_source=source)
+    assert "model_group ∈ {deepseek-flash}" in md
+
+
+def test_preco_desconhecido_nao_gera_economia_negativa():
+    # Grupo sem preço conhecido: spend real > 0 mas projeção omitida ⇒ savings >= 0
+    # (nunca negativo por artefato de fallback).
+    rows = [_row(mg="novai-kimi-k2.5", pt=1000, ct=100, cached=0, spend=0.0001)]
+    m = cr.compute_metrics(rows)
+    assert m.cost_no_cache == 0.0
+    assert m.savings == 0.0
+    u = cr.compute_uncached(rows)
+    assert u.cost == 0.0
+
+
+def test_preco_desconhecido_nao_quebra_com_conhecido():
+    # Mistura conhecido + desconhecido: só o conhecido entra na projeção.
+    rows = [_row(mg="qwen3.8-flash", pt=1000, ct=0, cached=0, spend=0.0),
+            _row(mg="novai-kimi-k2.5", pt=1000, ct=0, cached=0, spend=0.0)]
+    m = cr.compute_metrics(rows)
+    assert abs(m.cost_no_cache - (1000 * 0.15 / 1e6)) < 1e-12

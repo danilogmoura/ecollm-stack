@@ -52,19 +52,33 @@ from typing import Callable, Sequence
 PRICE_PER_MTOKEN = {
     "qwen3.8-flash": {"input": 0.15, "output": 0.47},
     "qwen3.8-max": {"input": 2.00, "output": 6.00},
+    # DeepSeek (S55) — tarifas OFF-PEAK (pico 01:00–04:00 e 06:00–10:00 UTC seg–sex = 2×).
+    "deepseek-flash": {"input": 0.15, "output": 0.60},
+    "deepseek-v4-pro": {"input": 0.66, "output": 1.98},
+    # NovAI Doubao (S46) — pago, tarifa declarada no config.yaml.
+    "novai-doubao-seed-2.0-pro": {"input": 0.40, "output": 2.00},
+    # NovAI GLM (S40/S44) — FREE ($0). Entrada explícita 0.0 é OBRIGATÓRIA: sem ela
+    # o fallback conservador (flash $0,15) geraria "economia fantasma" (spend=0 vs
+    # projeção>0). Grupo free ⇒ preço 0 ⇒ savings=0.
+    "novai-glm-4.7-flash": {"input": 0.0, "output": 0.0},
+    "novai-glm-4.1v-flash": {"input": 0.0, "output": 0.0},
+    "novai-glm-4.6v-flash": {"input": 0.0, "output": 0.0},
+    "novai-glm-4.1v-thinking-flash": {"input": 0.0, "output": 0.0},
 }
 DEFAULT_INPUT_PRICE = PRICE_PER_MTOKEN["qwen3.8-flash"]["input"]  # fallback conservador
 
 
-def price_for(model_group: str | None) -> dict[str, float]:
-    """Resolve o preço de input (USD/1M) para um model_group, tratando aliases.
+def price_for(model_group: str | None) -> dict[str, float] | None:
+    """Resolve o preço (USD/1M) de um model_group, tratando aliases ``*-fast``.
 
     Aliases ``*-fast`` compartilham o preço do modelo real (mesmo upstream — C3).
-    Desconhecido cai no DEFAULT_INPUT_PRICE (flash, o mais barato → subestima o
-    ganho, escolha conservadora).
+    Retorna ``None`` quando o grupo é DESCONHECIDO (não está em ``PRICE_PER_MTOKEN``):
+    nesse caso o ``$`` "sem cache" não é confiável (o ``spend`` real pode ser maior
+    que a projeção → economia negativa enganosa), então o chamador deve OMITIR o
+    ``$`` em vez de inventar um preço. Grupos free têm entrada explícita ``0.0``.
     """
     key = (model_group or "").replace("-fast", "")
-    return PRICE_PER_MTOKEN.get(key, {"input": DEFAULT_INPUT_PRICE})
+    return PRICE_PER_MTOKEN.get(key)
 
 
 # ---------------------------------------------------------------------------
@@ -115,7 +129,14 @@ class Metrics:
 
     @property
     def savings(self) -> float:
-        """Economia em USD = (sem cache) − (com cache). Positiva = cache ajudou."""
+        """Economia em USD = (sem cache) − (com cache). Positiva = cache ajudou.
+
+        Quando ``cost_no_cache == 0`` (nenhum grupo com preço conhecido ⇒ projeção
+        indisponível), retorna 0 em vez de ``-spend`` — o ``$`` não é confiável nesse
+        caso e um valor negativo seria artefato, não economia real.
+        """
+        if self.cost_no_cache <= 0:
+            return 0.0
         return self.cost_no_cache - self.spend_with_cache
 
     @property
@@ -158,6 +179,10 @@ def compute_metrics(rows: Sequence[CallRow]) -> Metrics:
     cheios (sem nenhum hit) — é o contrafactual honesto p/ medir o ganho do cache.
     O ``spend`` (com cache) já reflete o desconto de ``cached_tokens`` aplicado pelo
     LiteLLM usando exatamente estes preços.
+
+    Grupos com preço DESCONHECIDO (``price_for`` → ``None``) são OMITIDOS da projeção
+    ``no_cache`` (não inventamos preço): o ``$`` fica subestimado, mas nunca negativo
+    por artefato. O ``spend`` real continua somado em ``with_cache``.
     """
     prompt = sum(r.prompt_tokens for r in rows)
     completion = sum(r.completion_tokens for r in rows)
@@ -166,9 +191,10 @@ def compute_metrics(rows: Sequence[CallRow]) -> Metrics:
     no_cache = 0.0
     for r in rows:
         p = price_for(r.model_group)
+        if p is None:
+            continue  # preço desconhecido → não projeta (evita economia negativa falsa)
         no_cache += (r.prompt_tokens * p["input"]) / 1e6
-        out_price = p.get("output", DEFAULT_INPUT_PRICE)
-        no_cache += (r.completion_tokens * out_price) / 1e6
+        no_cache += (r.completion_tokens * p.get("output", p["input"])) / 1e6
     return Metrics(
         calls=len(rows),
         prompt_tokens=prompt,
@@ -232,7 +258,12 @@ def compute_uncached(rows: Sequence[CallRow]) -> UncachedStats:
         return UncachedStats(calls=0, total=0, mean=0.0, p50=0, p90=0, p95=0, max=0, cost=0.0)
     values = sorted(r.uncached for r in rows)
     total = sum(values)
-    cost = sum((r.uncached * price_for(r.model_group)["input"]) / 1e6 for r in rows)
+    cost = 0.0
+    for r in rows:
+        p = price_for(r.model_group)
+        if p is None:
+            continue  # preço desconhecido → não projeta custo (evita valor falso)
+        cost += (r.uncached * p["input"]) / 1e6
     return UncachedStats(
         calls=len(values),
         total=total,
@@ -263,20 +294,46 @@ SELECT
     'spend', spend
   )::text AS row
 FROM "LiteLLM_SpendLogs"
-WHERE model_group LIKE 'qwen3.8%'
+WHERE {scope}
   {where_extra}
 ORDER BY "startTime";
 """
 
+# Escopo default (preserva o comportamento histórico: só a família qwen3.8-*).
+DEFAULT_SCOPE = "model_group LIKE 'qwen3.8%'"
 
-def build_sql(days: int | None, model: str | None) -> str:
+
+def _sql_literal(value: str) -> str:
+    """Escapa um valor para literal SQL (aspas simples dobradas)."""
+    return "'" + value.replace("'", "''") + "'"
+
+
+def build_sql(
+    days: int | None,
+    model: str | None = None,
+    *,
+    models: Sequence[str] | None = None,
+    all_models: bool = False,
+) -> str:
+    """Monta o SQL dos SpendLogs.
+
+    Escopo (precedência): ``all_models`` (sem filtro de grupo) > ``models``
+    (``model_group IN (...)``) > ``model`` (``model_group = ...``) > default
+    (``LIKE 'qwen3.8%'``). O default é byte-idêntico ao histórico.
+    """
+    if all_models:
+        scope = "TRUE"
+    elif models:
+        scope = "model_group IN (" + ", ".join(_sql_literal(m) for m in models) + ")"
+    elif model:
+        scope = f"model_group = {_sql_literal(model)}"
+    else:
+        scope = DEFAULT_SCOPE
+
     where = []
     if days is not None:
         where.append(f'AND "startTime" >= now() - interval \'{int(days)} days\'')
-    if model:
-        safe = model.replace("'", "''")
-        where.append(f"AND model_group = '{safe}'")
-    return SQL_TEMPLATE.format(where_extra=" ".join(where))
+    return SQL_TEMPLATE.format(scope=scope, where_extra=" ".join(where))
 
 
 def fetch_rows_via_docker(sql: str, service: str = "litellm-db") -> list[dict]:
@@ -306,17 +363,26 @@ def build_report(
     days: int | None = None,
     model: str | None = None,
     *,
+    models: Sequence[str] | None = None,
+    all_models: bool = False,
     row_source: Callable[[str], list[dict]] | None = None,
 ) -> str:
     """Produz o relatório markdown. ``row_source`` injetável p/ testes."""
     source = row_source or fetch_rows_via_docker
-    raws = source(build_sql(days, model))
+    raws = source(build_sql(days, model, models=models, all_models=all_models))
     rows = [parse_row(r) for r in raws]
     overall = compute_metrics(rows)
 
     now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     window = f"últimos {days} dias" if days else "janela completa"
-    scope = f"model_group = {model}" if model else "todos qwen3.8-*"
+    if all_models:
+        scope = "todos os model_group"
+    elif models:
+        scope = "model_group ∈ {" + ", ".join(models) + "}"
+    elif model:
+        scope = f"model_group = {model}"
+    else:
+        scope = "todos qwen3.8-*"
 
     lines: list[str] = []
     lines.append("# C6 · Relatório de context cache (hit-rate + custo)")
@@ -401,9 +467,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Relatório de context cache (C6).")
     ap.add_argument("--days", type=int, default=None, help="Janela: últimos N dias.")
     ap.add_argument("--model", default=None, help="Filtrar por model_group exato.")
+    ap.add_argument("--models", default=None,
+                    help="Lista de model_group separada por vírgula (IN).")
+    ap.add_argument("--all", dest="all_models", action="store_true",
+                    help="Sem filtro de grupo (todos os model_group).")
     ap.add_argument("--out", default=None, help="Escrever markdown neste arquivo.")
     args = ap.parse_args(argv)
-    report = build_report(days=args.days, model=args.model)
+    models = [m.strip() for m in args.models.split(",") if m.strip()] if args.models else None
+    report = build_report(days=args.days, model=args.model,
+                          models=models, all_models=args.all_models)
     if args.out:
         with open(args.out, "w", encoding="utf-8") as fh:
             fh.write(report)
