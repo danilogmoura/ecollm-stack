@@ -6,12 +6,15 @@ build_sql e build_report (com row_source injetavel). Nada aqui toca docker/psql.
 
 from __future__ import annotations
 
+import pytest
+
 from eval import cache_report as cr
 
 
-def _row(mg="qwen3.8-flash", pt=1000, ct=900, cached=800, spend=0.01, day="2026-09-27"):
+def _row(mg="qwen3.8-flash", pt=1000, ct=900, cached=800, spend=0.01, day="2026-09-27",
+         cache_hit=None):
     return cr.CallRow(model_group=mg, prompt_tokens=pt, completion_tokens=ct,
-                      cached_tokens=cached, spend=spend, day=day)
+                      cached_tokens=cached, spend=spend, day=day, cache_hit=cache_hit)
 
 
 # --- price_for -------------------------------------------------------------
@@ -338,3 +341,53 @@ def test_preco_desconhecido_nao_quebra_com_conhecido():
             _row(mg="novai-kimi-k2.5", pt=1000, ct=0, cached=0, spend=0.0)]
     m = cr.compute_metrics(rows)
     assert abs(m.cost_no_cache - (1000 * 0.15 / 1e6)) < 1e-12
+
+
+# --- S74: hit do cache de RESPOSTA (Redis) ---------------------------------
+
+def test_parse_row_le_cache_hit_bool():
+    assert cr.parse_row({"cache_hit": True}).cache_hit is True
+    assert cr.parse_row({"cache_hit": False}).cache_hit is False
+    assert cr.parse_row({"cache_hit": None}).cache_hit is None
+    assert cr.parse_row({}).cache_hit is None  # ausente → None
+
+
+def test_parse_row_cache_hit_string_tolerada():
+    assert cr.parse_row({"cache_hit": "true"}).cache_hit is True
+    assert cr.parse_row({"cache_hit": "False"}).cache_hit is False
+
+
+def test_compute_redis_hits_conta_e_ignora_null():
+    rows = [_row(cache_hit=True), _row(cache_hit=True), _row(cache_hit=False),
+            _row(cache_hit=None)]
+    rh = cr.compute_redis_hits(rows)
+    assert rh.hits == 2
+    assert rh.misses == 1
+    assert rh.unknown == 1
+    assert rh.total == 4
+    # hit-rate ignora os NULL: 2/(2+1)
+    assert rh.hit_rate == pytest.approx(2 / 3)
+
+
+def test_compute_redis_hits_vazio_nao_divide_por_zero():
+    rh = cr.compute_redis_hits([])
+    assert rh.hit_rate == 0.0
+    assert rh.total == 0
+
+
+def test_build_report_inclui_secao_redis():
+    def source(_sql):
+        return [
+            {"startTime": "2026-10-15", "model_group": "rag-embeddings-qwen37",
+             "prompt_tokens": 10, "completion_tokens": 0, "cached_tokens": 0,
+             "cache_hit": True, "spend": 0.0},
+            {"startTime": "2026-10-15", "model_group": "rag-embeddings-qwen37",
+             "prompt_tokens": 10, "completion_tokens": 0, "cached_tokens": 0,
+             "cache_hit": False, "spend": 0.0},
+        ]
+
+    md = cr.build_report(days=1, row_source=source)
+    assert "Cache de RESPOSTA (Redis do proxy)" in md
+    assert "| Hits (Redis) | 1 |" in md
+    assert "| Misses (Redis) | 1 |" in md
+    assert "**50.0%**" in md  # hit-rate 1/(1+1)

@@ -421,5 +421,8 @@ litellm_settings:
   cache: true
   cache_params:
     type: redis # lê conexão de REDIS_URL (env), sem host/port explícitos
-    supported_call_types: ["aembedding", "atranscription"] # chat FORA do cache
+    # S74: só `aembedding`. `atranscription` foi REMOVIDO — não há nenhum modelo de
+    # áudio/transcrição na stack (config morta). Chat fica FORA de propósito (loop de
+    # agente ⇒ hit ~zero, só adds latência Redis).
+    supported_call_types: ["aembedding"]
     ttl: 86400 # respostas de embed válidas p/ re-ingest no mesmo dia

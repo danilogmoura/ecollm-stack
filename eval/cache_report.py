@@ -96,6 +96,9 @@ class CallRow:
     cached_tokens: int
     spend: float
     day: str  # YYYY-MM-DD (UTC)
+    # S74: hit do cache de RESPOSTA (Redis do proxy) — camada DISTINTA do cache
+    # implícito upstream (cached_tokens). None = campo ausente (chamada pré-cache).
+    cache_hit: bool | None = None
 
     @property
     def uncached(self) -> int:
@@ -161,6 +164,12 @@ def parse_row(raw: dict) -> CallRow:
     """
     start = raw.get("startTime") or raw.get("starttime") or ""
     day = str(start)[:10]  # ISO date prefixo; vira "" se ausente
+    # S74: cache_hit vem como bool JSON (true/false) ou null; tolera string.
+    ch = raw.get("cache_hit")
+    if isinstance(ch, str):
+        ch = ch.strip().lower() in ("true", "t", "1")
+    elif ch is not None:
+        ch = bool(ch)
     return CallRow(
         model_group=str(raw.get("model_group") or raw.get("modelGroup") or ""),
         prompt_tokens=_safe_int(raw.get("prompt_tokens")),
@@ -168,6 +177,7 @@ def parse_row(raw: dict) -> CallRow:
         cached_tokens=_safe_int(raw.get("cached_tokens")),
         spend=float(raw.get("spend") or 0.0),
         day=day,
+        cache_hit=ch,
     )
 
 
@@ -277,9 +287,44 @@ def compute_uncached(rows: Sequence[CallRow]) -> UncachedStats:
 
 
 # ---------------------------------------------------------------------------
-# SQL + acesso via docker compose exec
+# S74 — hit do cache de RESPOSTA (Redis do proxy), camada DISTINTA do implícito
 # ---------------------------------------------------------------------------
 
+@dataclass(frozen=True)
+class RedisHitStats:
+    """Hit do cache de resposta (Redis) — só faz sentido p/ call_types cacheados."""
+
+    hits: int
+    misses: int
+    unknown: int  # cache_hit NULL (chamadas pré-cache ou call_type não cacheado)
+
+    @property
+    def total(self) -> int:
+        return self.hits + self.misses + self.unknown
+
+    @property
+    def hit_rate(self) -> float:
+        """hits / (hits+misses) — ignora os NULL (não são miss, são 'sem dado')."""
+        denom = self.hits + self.misses
+        return self.hits / denom if denom else 0.0
+
+
+def compute_redis_hits(rows: Sequence[CallRow]) -> RedisHitStats:
+    """Conta hits/misses do cache de resposta (Redis) a partir de ``cache_hit``.
+
+    Camada SEPARADA do cache implícito upstream (``cached_tokens``): aqui é o cache
+    de RESPOSTA do proxy (chave = hash do request). Só embeddings são cacheados
+    (``supported_call_types: ["aembedding"]``), então o hit-rate é relevante p/ eles.
+    """
+    hits = sum(1 for r in rows if r.cache_hit is True)
+    misses = sum(1 for r in rows if r.cache_hit is False)
+    unknown = sum(1 for r in rows if r.cache_hit is None)
+    return RedisHitStats(hits=hits, misses=misses, unknown=unknown)
+
+
+# ---------------------------------------------------------------------------
+# SQL + acesso via docker compose exec
+# ---------------------------------------------------------------------------
 SQL_TEMPLATE = """\
 SELECT
   json_build_object(
@@ -291,6 +336,7 @@ SELECT
       NULLIF(metadata->'usage_object'->'prompt_tokens_details'->>'cached_tokens','')::int,
       NULLIF(metadata->'additional_usage_values'->>'cache_read_input_tokens','')::int,
       0),
+    'cache_hit', cache_hit,
     'spend', spend
   )::text AS row
 FROM "LiteLLM_SpendLogs"
@@ -459,6 +505,21 @@ def build_report(
             f"| {day or '?'} | {m.calls:,} | {m.prompt_tokens:,} | {m.hit_rate*100:.1f}% | "
             f"{m.spend_with_cache:,.4f} | {m.savings:,.4f} |"
         )
+    lines.append("")
+
+    # S74: hit do cache de RESPOSTA (Redis do proxy) — camada DISTINTA do implícito.
+    rh = compute_redis_hits(rows)
+    lines.append("## Cache de RESPOSTA (Redis do proxy) — camada distinta do implícito")
+    lines.append("")
+    lines.append("Chave = hash do request INTEIRO (só `aembedding` é cacheado; chat fica")
+    lines.append("fora por design). `cache_hit` da SpendLogs. NULL = chamada pré-cache.")
+    lines.append("")
+    lines.append("| Métrica | Valor |")
+    lines.append("| --- | --- |")
+    lines.append(f"| Hits (Redis) | {rh.hits:,} |")
+    lines.append(f"| Misses (Redis) | {rh.misses:,} |")
+    lines.append(f"| Sem dado (NULL) | {rh.unknown:,} |")
+    lines.append(f"| **Hit-rate (hits/(hits+misses))** | **{rh.hit_rate*100:.1f}%** |")
     lines.append("")
     return "\n".join(lines) + "\n"
 
