@@ -5,6 +5,11 @@
 # Roda em background (&) para NUNCA travar o commit. O script checa o HEAD antes
 # de gastar cota (sync_if_stale.sh), então commits sem mudança de corpus são grátis.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
-nohup bash "$REPO_ROOT/rag-db/sync_if_stale.sh" >>"$REPO_ROOT/.planning/rag-sync.log" 2>&1 &
+LOG="$REPO_ROOT/.planning/rag-sync.log"
+# S87: rotação simples — mantém as últimas 500 linhas (evita crescer infinito).
+if [ -f "$LOG" ] && [ "$(wc -l < "$LOG")" -gt 1000 ]; then
+  tail -n 500 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
+fi
+nohup bash "$REPO_ROOT/rag-db/sync_if_stale.sh" >>"$LOG" 2>&1 &
 disown 2>/dev/null || true
 exit 0

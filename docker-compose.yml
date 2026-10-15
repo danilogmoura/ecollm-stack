@@ -1,3 +1,12 @@
+# S87: rotação de logs (evita encher o disco — o ai-litellm já tinha 24,7 MB e
+# crescia infinito). Âncora YAML reusada por todos os serviços. 10 MB × 3 = 30 MB
+# por container. Aplicar exige recriar os containers (docker compose up -d).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   ollama:
     image: ollama/ollama:latest
@@ -21,6 +30,7 @@ services:
             - driver: nvidia
               count: all
               capabilities: [ gpu ]
+    logging: *default-logging
 
   # Credenciais lidas do .env (ver .env.example). Defaults = DEV LOCAL apenas.
   litellm-db:
@@ -33,6 +43,7 @@ services:
     volumes:
       - litellm_db_data:/var/lib/postgresql/data
     restart: unless-stopped
+    logging: *default-logging
 
   litellm-redis:
     image: redis:7-alpine
@@ -41,6 +52,7 @@ services:
     volumes:
       - litellm_redis_data:/data
     restart: unless-stopped
+    logging: *default-logging
 
   # ===== BANCO DO RAG (pgvector) — FASE 0 do .planning/PLANO-RAG.md =====
   # Rede interna em rag-db:5432 para os containers da stack. Publica TAMBEM
@@ -77,6 +89,7 @@ services:
       retries: 3
       start_period: 20s
     restart: unless-stopped
+    logging: *default-logging
 
   litellm:
     # NOTE: the bare `:main` tag is a stale Dec-2023 build whose ENTRYPOINT hardcodes
@@ -123,6 +136,7 @@ services:
       - litellm-redis
       - rag-db
     restart: unless-stopped
+    logging: *default-logging
 
 volumes:
   ollama_data:
