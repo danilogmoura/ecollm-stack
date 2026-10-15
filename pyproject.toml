@@ -42,15 +42,22 @@ addopts = "-q"
 
 # S31-c · piso de cobertura TRAVADO. Nao colocamos --cov em addopts para nao
 # acoplar o fluxo de teste padrao ao pytest-cov (roda-se o suite sem plugin).
-# O gate de cobertura e opt-in via comando abaixo (CI/closeout); o valor e o
-# round-down da medida real (96.78%) com ~2pt de folga p/ ruidos de ramo defensivo.
+# O gate de cobertura e opt-in via comando abaixo (CI/closeout).
 #   .venv/bin/python -m pytest --cov=ingest --cov=eval --cov=mcpsrv
 [tool.coverage.run]
 source = ["ingest", "eval", "mcpsrv"]
+# S66: mede RAMOS (branch), nao so linhas. Um `except`/`else` defensivo que nunca
+# dispara deixa de contar como coberto. Medido 2026-10-15: linha 96,00% -> branch
+# 94,46% (delta ~1,5pt; os maiores gaps sao cli.py 68% e chunker.py 85%, ramos de
+# borda/DB). O piso abaixo reflete o branch real com folga p/ ruido defensivo.
+branch = true
 
 [tool.coverage.report]
-# Piso automatizado (S31): a execucao com --cov falha se cair abaixo disto.
-fail_under = 95
+# Piso automatizado (S31; re-baselinado p/ branch em S66): a execucao com --cov
+# falha se cair abaixo disto. Valor = round-down do branch medido (94,46%) com
+# ~0,5pt de folga. NAO inflar testes artificiais p/ subir o piso — cobrir ramo
+# real ou aceitar o gap documentado.
+fail_under = 94
 show_missing = true
 precision = 2
 
