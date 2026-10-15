@@ -26,6 +26,7 @@ import csv
 import json
 import os
 import sys
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -583,6 +584,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="chat: roda também o caso SSE (stream:true) com veredito forte")
     ap.add_argument("--list", action="store_true", help="só imprime seleção")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
+    ap.add_argument("--sleep", type=float, default=0.0,
+                    help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
+                         "(use ~1.1 p/ varreduras grandes)")
     args = ap.parse_args(argv)
 
     rows = load_groups()
@@ -604,7 +608,9 @@ def main(argv: list[str] | None = None) -> int:
     cfg = proxy_config()
     sender = make_sender(cfg) if args.live else None
     results: list[CheckResult] = []
-    for r in sel:
+    for i, r in enumerate(sel):
+        if args.live and args.sleep > 0 and i > 0:
+            time.sleep(args.sleep)
         results.extend(run_one(r, sender, args.live, stream=args.stream))
 
     npass = sum(1 for x in results if x.passed)
