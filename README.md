@@ -4,7 +4,7 @@ Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, s
 
 - **Agente de código** (Roo Code / GitHub Copilot BYOK / LM Studio) → Qwen Token Plan
 - **Chat de RAG** (`rag-chat`) → Gemini com fallback local via Ollama
-- **Embeddings** → exclusivamente Google (`gemini-embedding-2`, 3072 dims)
+- **Embeddings** → **3 perfis trocáveis** (S32): Google `gemini-embedding-2` (3072d), Qwen MaaS `qwen3.7-text-embedding` (1024d) e `bge-m3` local/Ollama (1024d, $0). Cada perfil é um **espaço vetorial isolado** (tabela própria); trocar de perfil = re-embedar o índice inteiro naquela tabela. Default global `bgem3` (local/$0); o perfil **ativo** aqui é `qwen37` (via `RAG_PROFILE` no `.env`).
 
 Além do gateway, a stack inclui um **pipeline RAG completo** sobre pgvector (ingest
 incremental → chunker AST/markdown/config → embeddings → busca híbrida HNSW+tsvector
@@ -18,25 +18,40 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `ai-ollama` | `ollama/ollama` | 11434 | modelo local de emergência (`qwen3:4b-instruct-2507-q4_K_M`) |
 | `ai-litellm-db` | `postgres:15` | — | SpendLogs e chaves do LiteLLM |
 | `ai-litellm-redis` | `redis:7-alpine` | — | cache de respostas (hoje: só embeddings) |
-| `ai-rag-db` | `pgvector/pgvector:pg17` | `127.0.0.1:5433`→5432 | índice vetorial do RAG (halfvec 3072 + HNSW + tsvector GIN); bind loopback só |
+| `ai-rag-db` | `pgvector/pgvector:pg17` | `127.0.0.1:5433`→5432 | índice vetorial do RAG — **uma tabela por perfil** (`chunks`/gemini halfvec 3072, `chunks_qwen37`/`chunks_bgem3` halfvec 1024) + HNSW + tsvector GIN; bind loopback só |
 
 > ⚠️ Não use a tag `:main` do LiteLLM — congelada em Dez/2023, ignora o config montado (detalhes em `litellm/config.yaml`).
 
 ## Modelos expostos (`/v1/models`)
 
+**Chat / agente:**
+
 | Grupo | Backend | Thinking | Uso |
 | --- | --- | --- | --- |
 | `rag-chat` | gemini-3.8-flash → fallback qwen3:4b local | — | chat do RAG |
-| `rag-embeddings` | gemini-embedding-2 | — | único gerador de vetores da stack |
 | `qwen3.8-max` / `qwen3.8-flash` | Token Plan | ON | Architect / debug difícil |
 | `qwen3.8-max-fast` / `qwen3.8-flash-fast` | Token Plan | OFF | loop de agente (Code/Ask/Copilot) |
+| `deepseek-flash` | DeepSeek `deepseek-chat` (rota opcional, fora do RAG) | — | uso pontual / bench multi-modelo |
+| `novai-glm-4.7-flash` / `-fast` | NovAI (aiapi-pro.com, **free**) | ON / OFF | chat opcional (cota 10/dia·upstream, compartilhada) |
+| `novai-doubao-seed-2.0-pro` / `-fast` | NovAI (ByteDance, **pago**) | ON / OFF | chat opcional (contexto 256K) |
 
-Os grupos `-fast` fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
+**Embeddings (perfis trocáveis, um espaço vetorial cada):**
+
+| Grupo | Backend | dims | Tabela |
+| --- | --- | --- | --- |
+| `rag-embeddings` | gemini/gemini-embedding-2 | 3072 | `chunks` |
+| `rag-embeddings-qwen37` | openai/qwen3.7-text-embedding (MaaS) | 1024 | `chunks_qwen37` |
+| `rag-embeddings-bgem3` | bge-m3 (Ollama local, $0) | 1024 | `chunks_bgem3` |
+
+Os grupos `-fast` dos Qwen fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. Nos grupos NovAI o thinking OFF usa `extra_body: {thinking: {type: disabled}}` (a flag `enable_thinking` **não** funciona no Doubao — gotcha medido). Convenção em todo o repo: id **base** = thinking ON, sufixo **`-fast`** = thinking OFF. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
 
 ## Setup rápido
 
 ```bash
-cp .env.example .env   # preencha GEMINI_API_KEY e QWEN_PLAN_API_KEY
+cp .env.example .env   # mínimo: GEMINI_API_KEY + QWEN_PLAN_API_KEY.
+                       # p/ o perfil de embed ativo (qwen37) preencha também QWEN_MAAS_API_KEY
+                       # (chave MaaS separada do Token Plan). Rotas opcionais: DEEPSEEK_API_KEY,
+                       # NOVAI_API_KEY. O .env.example traz todas as chaves.
 docker compose up -d
 # LITELLM_MASTER_KEY fica no .env; leia de la em vez de colar a chave no comando
 curl -s localhost:4000/v1/models -H "Authorization: Bearer $(grep LITELLM_MASTER_KEY .env | cut -d= -f2)" | jq -r '.data[].id'
@@ -64,7 +79,8 @@ O CLI é um módulo: invoque via `.venv/bin/python -m ingest.cli …`. Config de
 ```
 
 **Servidor MCP `rag_search`** (`mcpsrv/rag_server.py`, stdio): expõe a mesma busca como
-tool para agentes (Roo Code / Copilot). Contrato de retorno: JSON `{results:[{path,symbol,kind,score,source,content}]}`.
+tool para agentes (Roo Code / Copilot). Contrato de retorno: JSON `{results:[{path,symbol,kind,score,source,content,<proveniência>}]}`.
+As **6 chaves núcleo** vêm primeiro em ordem congelada (byte-prefixo estável p/ o prompt-cache); a **cauda de proveniência** da S48 acrescenta `vec_rank`, `lex_rank`, `cosine_distance` e `provenance` (`hybrid`/`dense_only`/`lexical_only`) — metadados que o cliente usa para calibrar o próprio corte "NÃO SEI", já que o gate de distância é desligado no MCP por design. **Tuning S37:** o cliente nunca precisa passar `k`; quando omite, a tool emite `DEFAULT_K=6` chunks mas busca internamente `SEARCH_DEPTH=8` (mantém o ranking canônico recall@8, só encolhe a cauda enviada). Ajustável por env `RAG_DEFAULT_K`/`RAG_SEARCH_DEPTH` sem tocar código; o schema MCP permanece `k:int=8` byte-idêntico.
 Registro do lado do cliente em `mcpsrv/mcp.example.json`:
 
 ```jsonc
@@ -76,8 +92,13 @@ Registro do lado do cliente em `mcpsrv/mcp.example.json`:
 } } }
 ```
 
-**Baseline de avaliação** (`eval/`): `recall@k` sobre dataset curado. Estado atual
-(índice completo, 207 chunks): **recall@8 = 0,933** (@1=0,433 · @3=0,667 · @5=0,800 · @10=0,967 · MRR=0,577).
+**Baseline de avaliação** (`eval/`): `recall@k` sobre dois datasets. *Snapshot 2026-10-14 —
+o dono canônico dos números é `10-STATE.md` §2; re-meça antes de citar.*
+
+- **Dataset curado** (`dataset.jsonl`, 30 perguntas): **recall@8 = 1,000** (MRR 0,659).
+- **Dataset-v2** (`dataset-v2.jsonl`, 65 perguntas, gate canônico exige `--gate-dist`) por perfil:
+  **qwen37 r@8 = 0,949** · bgem3 0,897 · gemini 0,8205. Só `qwen37` atinge a barra ≥0,900.
+- **Chunks no índice** (ecollm-stack): gemini 836 · qwen37 752 · bgem3 705.
 
 ### Testes e CI
 
@@ -111,7 +132,7 @@ Após qualquer edição em `rag-db/init.sql`, recrie o volume e confira `pg_inde
 
 ## Decisões registradas
 
-- **Embeddings**: só Google. O Token Plan não tem embedder (404 no upstream, comprovado). Upgrade path pago documentado: `voyage-code-3` (~$0,18 o ingest inteiro) — decidir com baseline recall@k, não no escuro. Trocar embedder = re-embedar o índice todo.
+- **Embeddings**: **3 perfis trocáveis** (S32), cada um um espaço vetorial isolado — Google `gemini-embedding-2` (3072d), Qwen MaaS `qwen3.7-text-embedding` (1024d, melhor r@8 medido = 0,949), `bge-m3` local (1024d, $0/offline). **Nunca há fallback entre perfis** (misturar vetores de modelos diferentes corromperia o índice — invariante 7). O Token Plan **não** serve embeddings (404 no endpoint, comprovado) — o embedder Qwen usa a chave MaaS separada. Default global `bgem3` (local/$0, aceito operar 0,003 abaixo do gate); perfil ativo aqui é `qwen37` via `RAG_PROFILE`. Registry em `ingest/profiles.py`; trocar = `rag-sync --profile X` (re-embeda a tabela toda).
 - **Cache**: dois mecanismos orthogonalmente diferentes, ambos ativos. (1) **Cache de RESPOSTA do LiteLLM** (Redis), escopo deliberado `aembedding` apenas — é hash do request inteiro, logo inútil para o loop de agente (as mensagens mudam a cada iteração); semântico descartado (risco em tráfego agentic). (2) **Context/prompt caching de UPSTREAM no Token Plan Qwen — EXISTE e está ativo.** Ao contrário do que uma leitura antiga deste README afirmava, o Token Plan Individual **suporta** context caching no endpoint OpenAI-compatível (confirmado pelo suporte Alibaba, ticket `0065ETFBAP`, + doc oficial + medido empíricamente via nosso próprio proxy: `usage.prompt_tokens_details.cached_tokens`). Três modos nos modelos `qwen3.8-*`: **implícito** (automático, não desliga; hit ~20%), **explícito** (`cache_control:{type:"ephemeral"}`, criação 125% / hit menor, TTL 5 min, ≤4 markers, lookback ≤20 blocos) e **session** (só na Responses API). ⚠️ Exceção de preço: o hit de `qwen3.8-max`/`flash` **não** segue os 10%/20% padrão — conferir no marketplace antes de projetar economia. Este é o lever real para os ~105k prompt-tokens do agente. Detalhes e trabalho a planejar: `.planning/PLANO-RAG.md` §4b-5/§4b-6 e BUG-007.
 - **Fallback RAG**: cadeia simples `rag-chat → qwen3:4b` mantida de propósito (multinível funciona no LiteLLM 1.102, avaliado e dispensado por ora).
 - **Warmup Ollama**: removido — GPU livre em repouso; cold load ~41 s aceitável para papel de emergência.
@@ -127,5 +148,5 @@ Armadilhas já encontradas ao montar o índice RAG (pgvector + Docker):
 ## Roadmap
 
 - [x] Gateway multi-provedor + grupos fast/thinking + cache de embeddings
-- [x] **Ingest RAG** (FASES 0–5): serviço pgvector (`rag-db`), loader via `git ls-files`, chunker AST (tree-sitter) p/ código e por `##` p/ docs, busca híbrida (HNSW+tsvector via RRF), baseline recall@8=0,933, CLI `rag`/`rag-sync` e servidor MCP `rag_search`
+- [x] **Ingest RAG** (FASES 0–5): serviço pgvector (`rag-db`), loader via `git ls-files`, chunker AST (tree-sitter) p/ código e por `##` p/ docs, busca híbrida (HNSW+tsvector via RRF), **3 perfis de embedding trocáveis** (S32), baseline curada recall@8=1,000 / dataset-v2 qwen37 0,949, CLI `rag`/`rag-sync` e servidor MCP `rag_search` (com proveniência da fusão, S48)
 - [ ] **Headroom / context caching**: pré-processador de contexto (dedupe de chunks, resumo de histórico, trunc de tool-output) **+ cache de prefixo upstream**. Alvo: os ~105k prompt-tokens de ENTRADA por turno do agente Roo Code, medidos nos SpendLogs do LiteLLM (não a estimativa inicial de 16–54k). Ver `.planning/PLANO-RAG.md` §4b-6 e `PLANO-FASE6-CACHE.md`.
