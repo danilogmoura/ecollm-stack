@@ -429,6 +429,1393 @@ model_list:
     model_info:
       max_input_tokens: 131072
 
+  # ===== S100 — CATALOGO COMPLETO NovAI (padrao de nome travado) =====
+  # Pedido (2026-10-15): "conseguimos criar um padrao de nome? quero adicionar
+  # todos os modelos da NovAI". Escala os 8 upstreams da S95/S96 para o catalogo
+  # inteiro (121 ids, 11 labs). Fonte unica dos dados = docs/novai-model-marketplace.html
+  # (dump local do marketplace, gitignored via .gitignore '/docs/'; ctx + preco por
+  # 1M tokens + capacidades). O gateway NAO expoe API de info por modelo (404).
+  #
+  # ---- PADRAO DE NOME (TRAVADO) ----
+  #   chat      -> novai-<slug>            (+ sufixo -fast = thinking OFF)
+  #   embedding -> novai-embed-<slug>
+  #   image     -> novai-image-<slug>
+  #   tts       -> novai-tts-<slug>
+  #   asr       -> novai-asr-<slug>
+  #   video     -> novai-video-<slug>      (via passthrough, ver general_settings)
+  #   3d        -> novai-3d-<slug>         (via passthrough, ver general_settings)
+  # Chat mantem o id da S95/S96 (retrocompativel). Token de familia nas demais
+  # modalidades evita colisao de slug entre categorias (o catalogo nao tem colisao,
+  # mas o token deixa o id auto-descritivo no seletor).
+  #
+  # ---- CONVENCAO -fast (S44/S46/S95) ----
+  # base = thinking ON (herda default upstream, SEM extra_body); -fast = thinking OFF
+  # via extra_body thinking:{type:disabled}. Medido funcionar em ZhiPu (S43), ByteDance
+  # (S46) e DeepSeek (S95) via este gateway. Em modelos sem thinking o extra_body e
+  # ignorado (nao quebra). Colisao de sufixo -fast upstream = ZERO (os 2 slugs
+  # terminados em -fast sao de VIDEO, que nao ganha sufixo de thinking).
+  #
+  # ---- CUSTOS ----
+  # Travados SO onde extraiveis do dump (USD/1M -> USD/token = /1e6). Onde o dump
+  # mostra FREE, 0.0 explicito (nunca inventar). Onde o dump mostra '—' (ctx nao
+  # informado), max_input_tokens e OMITIDO (nao inventar janela).
+  #
+  # ---- INVARIANTE 7 ----
+  # Nenhum novai-* entra em rag-chat, fallbacks ou embeddings do RAG. Chat-only
+  # (precedente glm/deepseek). Os grupos novai-embed-* sao de EMBEDDING do gateway
+  # NovAI, NAO do indice RAG (que usa gemini/qwen37/bgem3) — nao entram em fallbacks.
+  #
+  # ---- CHAT (61 upstreams x thinking ON/OFF = 122 grupos) ----
+  - model_name: novai-qwen3.8-max
+    litellm_params:
+      model: openai/qwen3.8-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.84e-06
+      output_cost_per_token: 5.52e-06
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-qwen3.8-max-fast
+    litellm_params:
+      model: openai/qwen3.8-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.84e-06
+      output_cost_per_token: 5.52e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-qwen3.7-max
+    litellm_params:
+      model: openai/qwen3.7-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.16e-06
+      output_cost_per_token: 3.48e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3.7-max-fast
+    litellm_params:
+      model: openai/qwen3.7-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.16e-06
+      output_cost_per_token: 3.48e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3.6-max-preview
+    litellm_params:
+      model: openai/qwen3.6-max-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.03e-06
+      output_cost_per_token: 6.16e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3.6-max-preview-fast
+    litellm_params:
+      model: openai/qwen3.6-max-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.03e-06
+      output_cost_per_token: 6.16e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3-max
+    litellm_params:
+      model: openai/qwen3-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 5.7e-07
+      output_cost_per_token: 2.65e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3-max-fast
+    litellm_params:
+      model: openai/qwen3-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 5.7e-07
+      output_cost_per_token: 2.65e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3-coder-plus
+    litellm_params:
+      model: openai/qwen3-coder-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6.5e-07
+      output_cost_per_token: 3.25e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-coder-plus-fast
+    litellm_params:
+      model: openai/qwen3-coder-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6.5e-07
+      output_cost_per_token: 3.25e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen-vl-max
+    litellm_params:
+      model: openai/qwen-vl-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-07
+      output_cost_per_token: 3.2e-06
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-vl-max-fast
+    litellm_params:
+      model: openai/qwen-vl-max
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-07
+      output_cost_per_token: 3.2e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen3-vl-plus
+    litellm_params:
+      model: openai/qwen3-vl-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.1e-07
+      output_cost_per_token: 6.3e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-vl-plus-fast
+    litellm_params:
+      model: openai/qwen3-vl-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.1e-07
+      output_cost_per_token: 6.3e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3.5-ocr
+    litellm_params:
+      model: openai/qwen3.5-ocr
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7e-07
+      output_cost_per_token: 7e-07
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen3.5-ocr-fast
+    litellm_params:
+      model: openai/qwen3.5-ocr
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7e-07
+      output_cost_per_token: 7e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-vl-ocr
+    litellm_params:
+      model: openai/qwen-vl-ocr
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7e-07
+      output_cost_per_token: 7e-07
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-vl-ocr-fast
+    litellm_params:
+      model: openai/qwen-vl-ocr
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7e-07
+      output_cost_per_token: 7e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-mt-plus
+    litellm_params:
+      model: openai/qwen-mt-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.5e-07
+      output_cost_per_token: 7.5e-07
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-qwen-mt-plus-fast
+    litellm_params:
+      model: openai/qwen-mt-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.5e-07
+      output_cost_per_token: 7.5e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-qwen-plus
+    litellm_params:
+      model: openai/qwen-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.85e-07
+      output_cost_per_token: 5.3e-07
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen-plus-fast
+    litellm_params:
+      model: openai/qwen-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.85e-07
+      output_cost_per_token: 5.3e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-qwen3-coder-flash
+    litellm_params:
+      model: openai/qwen3-coder-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 7.5e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-coder-flash-fast
+    litellm_params:
+      model: openai/qwen3-coder-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 7.5e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-vl-flash
+    litellm_params:
+      model: openai/qwen3-vl-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-08
+      output_cost_per_token: 2.4e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-vl-flash-fast
+    litellm_params:
+      model: openai/qwen3-vl-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-08
+      output_cost_per_token: 2.4e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-qwen3-omni-flash
+    litellm_params:
+      model: openai/qwen3-omni-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6e-07
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen3-omni-flash-fast
+    litellm_params:
+      model: openai/qwen3-omni-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-omni-turbo
+    litellm_params:
+      model: openai/qwen-omni-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 6e-07
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-qwen-omni-turbo-fast
+    litellm_params:
+      model: openai/qwen-omni-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 6e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-doubao-seed-2.1-pro
+    litellm_params:
+      model: openai/doubao-seed-2.1-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4e-07
+      output_cost_per_token: 2e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-doubao-seed-2.1-pro-fast
+    litellm_params:
+      model: openai/doubao-seed-2.1-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4e-07
+      output_cost_per_token: 2e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-doubao-seed-2.0-code
+    litellm_params:
+      model: openai/doubao-seed-2.0-code
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.48e-07
+      output_cost_per_token: 2.24e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-doubao-seed-2.0-code-fast
+    litellm_params:
+      model: openai/doubao-seed-2.0-code
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.48e-07
+      output_cost_per_token: 2.24e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-doubao-seed-2.1-turbo
+    litellm_params:
+      model: openai/doubao-seed-2.1-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 9e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-doubao-seed-2.1-turbo-fast
+    litellm_params:
+      model: openai/doubao-seed-2.1-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 9e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-doubao-seed-2.0-lite
+    litellm_params:
+      model: openai/doubao-seed-2.0-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.5e-08
+      output_cost_per_token: 4.5e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-doubao-seed-2.0-lite-fast
+    litellm_params:
+      model: openai/doubao-seed-2.0-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.5e-08
+      output_cost_per_token: 4.5e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-m3
+    litellm_params:
+      model: openai/minimax-m3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 1.2e-06
+    model_info:
+      max_input_tokens: 512000
+  - model_name: novai-minimax-m3-fast
+    litellm_params:
+      model: openai/minimax-m3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 1.2e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 512000
+  - model_name: novai-minimax-m2.7
+    litellm_params:
+      model: openai/minimax-m2.7
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 1.2e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-m2.7-fast
+    litellm_params:
+      model: openai/minimax-m2.7
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 1.2e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-m2.5
+    litellm_params:
+      model: openai/minimax-m2.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.7e-07
+      output_cost_per_token: 1.08e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-m2.5-fast
+    litellm_params:
+      model: openai/minimax-m2.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.7e-07
+      output_cost_per_token: 1.08e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-text-01
+    litellm_params:
+      model: openai/minimax-text-01
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.4e-07
+      output_cost_per_token: 1.1e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-minimax-text-01-fast
+    litellm_params:
+      model: openai/minimax-text-01
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.4e-07
+      output_cost_per_token: 1.1e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k3
+    litellm_params:
+      model: openai/kimi-k3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.9e-06
+      output_cost_per_token: 1.45e-05
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-kimi-k3-fast
+    litellm_params:
+      model: openai/kimi-k3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.9e-06
+      output_cost_per_token: 1.45e-05
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-kimi-k2.8-preview
+    litellm_params:
+      model: openai/kimi-k2.8-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.3e-07
+      output_cost_per_token: 3.89e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.8-preview-fast
+    litellm_params:
+      model: openai/kimi-k2.8-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.3e-07
+      output_cost_per_token: 3.89e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.7-code
+    litellm_params:
+      model: openai/kimi-k2.7-code
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6.7e-07
+      output_cost_per_token: 3.4e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.7-code-fast
+    litellm_params:
+      model: openai/kimi-k2.7-code
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6.7e-07
+      output_cost_per_token: 3.4e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.7-code-highspeed
+    litellm_params:
+      model: openai/kimi-k2.7-code-highspeed
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.07e-06
+      output_cost_per_token: 8.61e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.7-code-highspeed-fast
+    litellm_params:
+      model: openai/kimi-k2.7-code-highspeed
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.07e-06
+      output_cost_per_token: 8.61e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.6
+    litellm_params:
+      model: openai/kimi-k2.6
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.5e-07
+      output_cost_per_token: 4e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.6-fast
+    litellm_params:
+      model: openai/kimi-k2.6
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.5e-07
+      output_cost_per_token: 4e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.5
+    litellm_params:
+      model: openai/kimi-k2.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6e-07
+      output_cost_per_token: 3e-06
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-kimi-k2.5-fast
+    litellm_params:
+      model: openai/kimi-k2.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6e-07
+      output_cost_per_token: 3e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-step-5-preview
+    litellm_params:
+      model: openai/step-5-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4e-07
+      output_cost_per_token: 1.2e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-step-5-preview-fast
+    litellm_params:
+      model: openai/step-5-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4e-07
+      output_cost_per_token: 1.2e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-hy4-preview
+    litellm_params:
+      model: openai/hy4-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8.34e-07
+      output_cost_per_token: 2.501e-06
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-hy4-preview-fast
+    litellm_params:
+      model: openai/hy4-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8.34e-07
+      output_cost_per_token: 2.501e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-hy3
+    litellm_params:
+      model: openai/hy3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.8e-07
+      output_cost_per_token: 7.2e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-hy3-fast
+    litellm_params:
+      model: openai/hy3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.8e-07
+      output_cost_per_token: 7.2e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-hunyuan-t1-vision
+    litellm_params:
+      model: openai/hunyuan-t1-vision
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 5.5e-07
+      output_cost_per_token: 1.64e-06
+  - model_name: novai-hunyuan-t1-vision-fast
+    litellm_params:
+      model: openai/hunyuan-t1-vision
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 5.5e-07
+      output_cost_per_token: 1.64e-06
+      extra_body:
+        thinking:
+          type: disabled
+  - model_name: novai-hy-vision-2.0-instruct
+    litellm_params:
+      model: openai/hy-vision-2.0-instruct
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.154e-06
+      output_cost_per_token: 2.692e-06
+  - model_name: novai-hy-vision-2.0-instruct-fast
+    litellm_params:
+      model: openai/hy-vision-2.0-instruct
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.154e-06
+      output_cost_per_token: 2.692e-06
+      extra_body:
+        thinking:
+          type: disabled
+  - model_name: novai-hunyuan-turbos-vision-video
+    litellm_params:
+      model: openai/hunyuan-turbos-vision-video
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.62e-07
+      output_cost_per_token: 1.385e-06
+  - model_name: novai-hunyuan-turbos-vision-video-fast
+    litellm_params:
+      model: openai/hunyuan-turbos-vision-video
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.62e-07
+      output_cost_per_token: 1.385e-06
+      extra_body:
+        thinking:
+          type: disabled
+  - model_name: novai-hy-mt2-pro
+    litellm_params:
+      model: openai/hy-mt2-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.9e-07
+      output_cost_per_token: 8.7e-07
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hy-mt2-pro-fast
+    litellm_params:
+      model: openai/hy-mt2-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 2.9e-07
+      output_cost_per_token: 8.7e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hy-mt2-plus
+    litellm_params:
+      model: openai/hy-mt2-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.2e-08
+      output_cost_per_token: 2.87e-07
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-hy-mt2-plus-fast
+    litellm_params:
+      model: openai/hy-mt2-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.2e-08
+      output_cost_per_token: 2.87e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-hunyuan-role
+    litellm_params:
+      model: openai/hunyuan-role
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.7e-07
+      output_cost_per_token: 1.86e-06
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hunyuan-role-fast
+    litellm_params:
+      model: openai/hunyuan-role
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.7e-07
+      output_cost_per_token: 1.86e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hy-role
+    litellm_params:
+      model: openai/hy-role
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3.69e-07
+      output_cost_per_token: 1.477e-06
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hy-role-fast
+    litellm_params:
+      model: openai/hy-role
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3.69e-07
+      output_cost_per_token: 1.477e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 32000
+  - model_name: novai-hy3-preview
+    litellm_params:
+      model: openai/hy3-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.27e-07
+      output_cost_per_token: 4.23e-07
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-hy3-preview-fast
+    litellm_params:
+      model: openai/hy3-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.27e-07
+      output_cost_per_token: 4.23e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 256000
+  - model_name: novai-hy-mt2-lite
+    litellm_params:
+      model: openai/hy-mt2-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.3e-08
+      output_cost_per_token: 1.72e-07
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-hy-mt2-lite-fast
+    litellm_params:
+      model: openai/hy-mt2-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.3e-08
+      output_cost_per_token: 1.72e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 8000
+  - model_name: novai-mimo-v2.5-pro
+    litellm_params:
+      model: openai/mimo-v2.5-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.27e-07
+      output_cost_per_token: 8.55e-07
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-mimo-v2.5-pro-fast
+    litellm_params:
+      model: openai/mimo-v2.5-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.27e-07
+      output_cost_per_token: 8.55e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-mimo-v2.6-pro
+    litellm_params:
+      model: openai/mimo-v2.6-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.3e-07
+      output_cost_per_token: 8.7e-07
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-mimo-v2.6-pro-fast
+    litellm_params:
+      model: openai/mimo-v2.6-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 4.3e-07
+      output_cost_per_token: 8.7e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-mimo-v2.6-flash
+    litellm_params:
+      model: openai/mimo-v2.6-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1e-07
+      output_cost_per_token: 2.8e-07
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-mimo-v2.6-flash-fast
+    litellm_params:
+      model: openai/mimo-v2.6-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1e-07
+      output_cost_per_token: 2.8e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.3
+    litellm_params:
+      model: openai/glm-5.3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.25e-06
+      output_cost_per_token: 4e-06
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-glm-5.3-fast
+    litellm_params:
+      model: openai/glm-5.3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.25e-06
+      output_cost_per_token: 4e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-glm-5.2
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.19e-06
+      output_cost_per_token: 3.74e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.2-fast
+    litellm_params:
+      model: openai/glm-5.2
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.19e-06
+      output_cost_per_token: 3.74e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.1
+    litellm_params:
+      model: openai/glm-5.1
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.05e-06
+      output_cost_per_token: 3.96e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.1-fast
+    litellm_params:
+      model: openai/glm-5.1
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.05e-06
+      output_cost_per_token: 3.96e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5
+    litellm_params:
+      model: openai/glm-5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6e-07
+      output_cost_per_token: 1.92e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5-fast
+    litellm_params:
+      model: openai/glm-5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 6e-07
+      output_cost_per_token: 1.92e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5v-turbo
+    litellm_params:
+      model: openai/glm-5v-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.08e-06
+      output_cost_per_token: 3.69e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5v-turbo-fast
+    litellm_params:
+      model: openai/glm-5v-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.08e-06
+      output_cost_per_token: 3.69e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.6v
+    litellm_params:
+      model: openai/glm-4.6v
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 9e-07
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.6v-fast
+    litellm_params:
+      model: openai/glm-4.6v
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 3e-07
+      output_cost_per_token: 9e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.3-flash
+    litellm_params:
+      model: openai/glm-5.3-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-08
+      output_cost_per_token: 2.8e-07
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-glm-5.3-flash-fast
+    litellm_params:
+      model: openai/glm-5.3-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-08
+      output_cost_per_token: 2.8e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 1000000
+  - model_name: novai-glm-5-turbo
+    litellm_params:
+      model: openai/glm-5-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.08e-06
+      output_cost_per_token: 3.69e-06
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5-turbo-fast
+    litellm_params:
+      model: openai/glm-5-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.08e-06
+      output_cost_per_token: 3.69e-06
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.6v-flash
+    litellm_params:
+      model: openai/glm-4.6v-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.6v-flash-fast
+    litellm_params:
+      model: openai/glm-4.6v-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.1v-thinking-flash
+    litellm_params:
+      model: openai/glm-4.1v-thinking-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-4.1v-thinking-flash-fast
+    litellm_params:
+      model: openai/glm-4.1v-thinking-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 0
+      output_cost_per_token: 0
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.3-flashx
+    litellm_params:
+      model: openai/glm-5.3-flashx
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.2e-07
+      output_cost_per_token: 4e-07
+    model_info:
+      max_input_tokens: 128000
+  - model_name: novai-glm-5.3-flashx-fast
+    litellm_params:
+      model: openai/glm-5.3-flashx
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.2e-07
+      output_cost_per_token: 4e-07
+      extra_body:
+        thinking:
+          type: disabled
+    model_info:
+      max_input_tokens: 128000
+
+  # ---- EMBEDDING (6 upstreams) — NAO e o indice RAG (invariante 7) ----
+  - model_name: novai-embed-qwen3.7-text-embedding
+    litellm_params:
+      model: openai/qwen3.7-text-embedding
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 1.1e-07
+  - model_name: novai-embed-text-embedding-v4
+    litellm_params:
+      model: openai/text-embedding-v4
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 8e-08
+  - model_name: novai-embed-kinfra-text-embedding-4b
+    litellm_params:
+      model: openai/kinfra-text-embedding-4b
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.23e-08
+  - model_name: novai-embed-kinfra-vl-embedding-8b
+    litellm_params:
+      model: openai/kinfra-vl-embedding-8b
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 9.23e-08
+  - model_name: novai-embed-kinfra-text-embedding-0.6b
+    litellm_params:
+      model: openai/kinfra-text-embedding-0.6b
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.69e-08
+  - model_name: novai-embed-kinfra-vl-embedding-2b
+    litellm_params:
+      model: openai/kinfra-vl-embedding-2b
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      input_cost_per_token: 7.69e-08
+
+  # ---- IMAGE (14 upstreams) — endpoint /v1/images/generations ----
+  - model_name: novai-image-qwen-image
+    litellm_params:
+      model: openai/qwen-image
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-qwen-image-plus
+    litellm_params:
+      model: openai/qwen-image-plus
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-wan2.5-t2i-preview
+    litellm_params:
+      model: openai/wan2.5-t2i-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-wan2.2-t2i-flash
+    litellm_params:
+      model: openai/wan2.2-t2i-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-doubao-seedream-4.5
+    litellm_params:
+      model: openai/doubao-seedream-4.5
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-seedream-image-v5.0-pro
+    litellm_params:
+      model: openai/seedream-image-v5.0-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-doubao-seedream-4.0
+    litellm_params:
+      model: openai/doubao-seedream-4.0
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-seedream-image-v5.0-lite
+    litellm_params:
+      model: openai/seedream-image-v5.0-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-hy-image-v3
+    litellm_params:
+      model: openai/hy-image-v3
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-vidu-image-q2
+    litellm_params:
+      model: openai/vidu-image-q2
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-wand-vega-image-pro
+    litellm_params:
+      model: openai/wand-vega-image-pro
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-wand-vega-image-flash
+    litellm_params:
+      model: openai/wand-vega-image-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-wand-vega-image-lite
+    litellm_params:
+      model: openai/wand-vega-image-lite
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+  - model_name: novai-image-cogview-3-flash
+    litellm_params:
+      model: openai/cogview-3-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: image_generation
+
+  # ---- TTS / MUSIC (11 upstreams) — endpoint /v1/audio/speech ----
+  - model_name: novai-tts-qwen-tts-latest
+    litellm_params:
+      model: openai/qwen-tts-latest
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-qwen-tts
+    litellm_params:
+      model: openai/qwen-tts
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-qwen3-tts-flash
+    litellm_params:
+      model: openai/qwen3-tts-flash
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-2.8-hd
+    litellm_params:
+      model: openai/minimax-speech-2.8-hd
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-2.6-hd
+    litellm_params:
+      model: openai/minimax-speech-2.6-hd
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-02-hd
+    litellm_params:
+      model: openai/minimax-speech-02-hd
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-2.8-turbo
+    litellm_params:
+      model: openai/minimax-speech-2.8-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-2.6-turbo
+    litellm_params:
+      model: openai/minimax-speech-2.6-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-speech-02-turbo
+    litellm_params:
+      model: openai/minimax-speech-02-turbo
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-music-v3.0
+    litellm_params:
+      model: openai/minimax-music-v3.0
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+  - model_name: novai-tts-minimax-music-v2.6
+    litellm_params:
+      model: openai/minimax-music-v2.6
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_speech
+
+  # ---- ASR (2 upstreams) — endpoint /v1/audio/transcriptions ----
+  - model_name: novai-asr-hy-asr-3.0-preview
+    litellm_params:
+      model: openai/hy-asr-3.0-preview
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_transcription
+  - model_name: novai-asr-wand-asr-v1
+    litellm_params:
+      model: openai/wand-asr-v1
+      api_base: https://aiapi-pro.com/v1
+      api_key: os.environ/NOVAI_API_KEY
+      mode: audio_transcription
+
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
   # auto-normaliza as dims truncadas — verificado no teste A/B 2026-09-24).
@@ -533,3 +1920,29 @@ litellm_settings:
     # agente ⇒ hit ~zero, só adds latência Redis).
     supported_call_types: ["aembedding"]
     ttl: 86400 # respostas de embed válidas p/ re-ingest no mesmo dia
+
+# ===== S100 — PASSTHROUGH (video + 3D) =====
+# LiteLLM NAO tem CallType nativo p/ video nem 3D (CallTypesLiteral: sem 'video'
+# nem '3d'). O provider openai de video chama {api_base}/videos, mas o gateway
+# NovAI usa /v1/video/generations e /v1/three_d/generations => "Method Not Allowed"
+# no caminho nativo. Solucao MEDIDA nesta sessao: pass_through_endpoints (proxy
+# repassa o request cru p/ o target, sem traduzir). Testado HTTP 200:
+#   POST /novai/video -> {"id":"cgt-...","status":"queued"}
+#   POST /novai/3d    -> {"id":"1502430838674833408","status":"queued"}
+# O cliente chama http://localhost:4000/novai/video (ou /novai/3d) com o corpo do
+# gateway; o proxy injeta o Authorization e repassa. NAO entra em /v1/models (nao
+# e um model group) — e rota crua. Ids de modelo vao no corpo (ex.: "model":
+# "doubao-seedance-2.0"), conforme o gateway espera.
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+  pass_through_endpoints:
+    - path: /novai/video
+      target: https://aiapi-pro.com/v1/video/generations
+      headers:
+        Authorization: "Bearer os.environ/NOVAI_API_KEY"
+      include_subpath: false
+    - path: /novai/3d
+      target: https://aiapi-pro.com/v1/three_d/generations
+      headers:
+        Authorization: "Bearer os.environ/NOVAI_API_KEY"
+      include_subpath: false

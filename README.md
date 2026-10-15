@@ -35,6 +35,21 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `deepseek-flash-fast` / `deepseek-v4-pro-fast` | DeepSeek (mesmos upstreams) | OFF | preferidas em loop de agente com tools |
 | `novai-glm-4.7-flash` / `-fast` | NovAI (aiapi-pro.com, **free-forever $0**) | ON / OFF | chat opcional (conta em **modo standard**: 60 rpm, cota **unlimited**) |
 | `novai-doubao-seed-2.0-pro` / `-fast` | NovAI (ByteDance, **pago**) | ON / OFF | chat opcional (contexto 256K) |
+| `novai-<slug>` / `-fast` (**S100**) | NovAI — **catálogo completo** (55 upstreams de chat × ON/OFF = 110 grupos) | ON / OFF | qualquer modelo de chat do gateway (Qwen, Doubao, DeepSeek, MiniMax, Kimi, GLM, Hunyuan, MiMo, Step…) |
+
+**Outras modalidades NovAI (S100 — catálogo completo, 121 ids):**
+
+| Família | Padrão de id | Endpoint | Nº |
+| --- | --- | --- | --- |
+| chat | `novai-<slug>` / `-fast` | `/v1/chat/completions` | 61 upstreams |
+| embedding | `novai-embed-<slug>` | `/v1/embeddings` | 6 |
+| image | `novai-image-<slug>` | `/v1/images/generations` | 14 |
+| tts/music | `novai-tts-<slug>` | `/v1/audio/speech` | 11 |
+| asr | `novai-asr-<slug>` | `/v1/audio/transcriptions` | 2 |
+| video | `novai-video-<slug>` | `/novai/video` (**passthrough**) | 9 roteáveis (de 20 no catálogo) |
+| 3d | `novai-3d-<slug>` | `/novai/3d` (**passthrough**) | 7 |
+
+> **Vídeo/3D via passthrough:** o LiteLLM não tem CallType nativo para vídeo nem 3D, e o provider `openai` de vídeo chama `{api_base}/videos` (o gateway NovAI usa `/v1/video/generations` e `/v1/three_d/generations`). Solução medida: `pass_through_endpoints` em `general_settings` — o cliente chama `http://localhost:4000/novai/video` (ou `/novai/3d`) com o corpo do gateway e o proxy injeta o `Authorization`. Não aparece em `/v1/models` (é rota crua, não model group). ⚠️ **Vídeo: 20 no catálogo, só 9 roteáveis** — 11 slugs anunciados em `/v1/models` do gateway não respondem no endpoint (gap registrado, não mascarado).
 
 **Embeddings (perfis trocáveis, um espaço vetorial cada):**
 
