@@ -131,3 +131,71 @@ def test_s20_detecta_coluna_tsv_pt_nao_gerada(monkeypatch):
                         _fake_fetch({**HEALTHY, "tsv": [("tsv", "s"), ("tsv_pt", "")]}))
     results = verify.check("u")
     assert any((not ok) and "tsv_pt" in m for ok, m in results)
+
+
+# ---------------------------------------------------------------------------
+# S85 — main() (CLI) + ramos de erro (cobertura do verify_schema)
+# ---------------------------------------------------------------------------
+
+def test_main_sucesso_retorna_zero(monkeypatch, capsys):
+    monkeypatch.setattr(verify, "check", lambda url: [(True, "ok1"), (True, "ok2")])
+    monkeypatch.setattr(verify, "db_url_from_env", lambda: "postgresql://u:p@h/db")
+    rc = verify.main([])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "schema íntegro" in out
+    assert "h/db" in out          # imprime a URL SEM a senha
+    assert "u:p" not in out       # senha NÃO vaza
+
+
+def test_main_falha_retorna_um(monkeypatch, capsys):
+    monkeypatch.setattr(verify, "check", lambda url: [(True, "ok"), (False, "ruim")])
+    monkeypatch.setattr(verify, "db_url_from_env", lambda: "postgresql://h/db")
+    rc = verify.main([])
+    assert rc == 1
+    out = capsys.readouterr().out
+    assert "1 checagem(ns) falharam" in out
+    assert "down -v" in out       # orienta a recuperação
+
+
+def test_main_conexao_falha_retorna_um(monkeypatch, capsys):
+    def boom(url):
+        raise RuntimeError("connection refused")
+    monkeypatch.setattr(verify, "check", boom)
+    monkeypatch.setattr(verify, "db_url_from_env", lambda: "postgresql://h/db")
+    rc = verify.main([])
+    assert rc == 1
+    assert "FALHA ao conectar" in capsys.readouterr().out
+
+
+def test_main_usa_url_do_arg(monkeypatch):
+    seen = {}
+    monkeypatch.setattr(verify, "check", lambda url: seen.update(url=url) or [(True, "ok")])
+    rc = verify.main(["--url", "postgresql://custom/db"])
+    assert rc == 0
+    assert seen["url"] == "postgresql://custom/db"
+
+
+def test_required_for_tabela_nao_chunks():
+    """_required_for: tabela de perfil deriva os nomes trocando o prefixo."""
+    req = verify._required_for("chunks_qwen37")
+    assert "chunks_qwen37_embedding_hnsw" in req
+    assert req["chunks_qwen37_embedding_hnsw"] == "hnsw"
+
+
+def test_required_for_tabela_estranha_retorna_vazio():
+    """_required_for: tabela que não começa com 'chunks' → {} (sem checagens)."""
+    assert verify._required_for("outra_tabela") == {}
+
+
+def test_check_detecta_perfil_publicado_ausente(monkeypatch):
+    """Ramo: perfil publicado cuja tabela NÃO existe → falha reportada."""
+    def fetch(url, sql):
+        if "published_profile" in sql:
+            return [("qwen37",)]
+        if "to_regclass" in sql and "chunks_qwen37" in sql:
+            return [(False,)]          # tabela do perfil ausente
+        return _fake_fetch(HEALTHY)(url, sql)
+    monkeypatch.setattr(verify, "_fetch_all", fetch)
+    results = verify.check("u")
+    assert any((not ok) and "chunks_qwen37" in m for ok, m in results)

@@ -46,7 +46,7 @@ addopts = "-q"
 # O gate de cobertura e opt-in via comando abaixo (CI/closeout).
 #   .venv/bin/python -m pytest --cov=ingest --cov=eval --cov=mcpsrv
 [tool.coverage.run]
-source = ["ingest", "eval", "mcpsrv"]
+source = ["ingest", "eval", "mcpsrv", "rag-db"]
 # S66: mede RAMOS (branch), nao so linhas. Um `except`/`else` defensivo que nunca
 # dispara deixa de contar como coberto. Medido 2026-10-15: linha 96,00% -> branch
 # 94,46% (delta ~1,5pt; os maiores gaps sao cli.py 68% e chunker.py 85%, ramos de
