@@ -228,3 +228,121 @@ def test_chunk_file_facade_rota_por_kind():
     assert out and out[0].kind == "doc"
     out = chunker.chunk_file("c.yml", "config", "yaml", "a: 1\n")
     assert out and out[0].kind == "config"
+
+
+# ---------------------------------------------------------------------------
+# S82 — cobertura dos ramos de borda (gaps identificados na auditoria)
+# ---------------------------------------------------------------------------
+
+def test_code_sem_gramatica_janela_orfa():
+    """lang desconhecida → janela órfã de 400 tok (linha 125-129)."""
+    src = "linha solta\n" * 200
+    out = chunker.chunk_code("x.xyz", "unknown", src)
+    assert out and all(c.symbol is None for c in out)
+    assert all(c.approx_tokens <= chunker.CODE_WINDOW_TOK + 1 for c in out)
+
+
+def test_code_arquivo_vazio_retorna_vazio():
+    """source vazio → [] (não janela órfã)."""
+    assert chunker.chunk_code("x.py", "python", "") == []
+    assert chunker.chunk_code("x.py", "python", "   \n  ") == []
+
+
+def test_code_leftover_gigante_quebra_em_janelas():
+    """leftover (fora de definições) > 400 tok → janelas (linha 199-200)."""
+    # imports/constantes soltas gigantes (não são definições)
+    src = "\n".join(f"X{i} = {i}" for i in range(300))
+    out = chunker.chunk_code("x.py", "python", src)
+    assert out
+    assert all(c.approx_tokens <= chunker.CODE_WINDOW_TOK + 1 for c in out)
+
+
+def test_code_merge_absorve_minusculo_quando_anterior_pequeno():
+    """Ramo 'anterior estava minúsculo: absorve este' (linha 212-213)."""
+    # duas funções minúsculas seguidas → a 2ª é absorvida pela 1ª
+    src = "def a():\n    pass\n\ndef b():\n    pass\n"
+    out = chunker.chunk_code("x.py", "python", src)
+    # ambas minúsculas → fundem num só chunk
+    assert len(out) == 1
+    assert "def a" in out[0].content and "def b" in out[0].content
+
+
+def test_doc_fence_nao_quebra_heading_dentro_de_codigo():
+    """Heading dentro de ``` não é tratado como seção (fence, linha 243)."""
+    src = "# T\n\n## A\n\n```\n## nao-e-heading\n```\n\ntexto\n"
+    out = chunker.chunk_doc("d.md", src)
+    # '## nao-e-heading' está dentro do fence → NÃO vira seção
+    titles = [c.symbol for c in out]
+    assert not any("nao-e-heading" in (t or "") for t in titles)
+
+
+def test_doc_sem_heading_retorna_um_chunk():
+    """Doc sem heading → 1 chunk (sem âncora)."""
+    out = chunker.chunk_doc("d.md", "texto puro sem heading\n" * 5)
+    assert len(out) == 1
+    assert out[0].symbol is None
+
+
+def test_doc_paragrafo_gigante_quebra_linha_a_linha():
+    """Parágrafo único > cap → pré-quebra linha a linha (linha 290)."""
+    # um parágrafo (sem \n\n) gigante
+    src = "## A\n\n" + "\n".join(f"linha {i} " + "x" * 50 for i in range(200))
+    out = chunker.chunk_doc("d.md", src)
+    assert len(out) > 1
+    assert all(c.approx_tokens <= chunker.DOC_MAX_TOK + 5 for c in out)
+
+
+def test_config_toml_preamble_sem_section():
+    """TOML com pares soltos antes de [section] → preamble (linha 358)."""
+    src = 'titulo = "x"\n\n[secao]\nchave = 1\n'
+    out = chunker.chunk_config("c.toml", "toml", src)
+    assert out
+    assert any("titulo" in c.content for c in out)
+
+
+def test_config_yaml_documento_multiplo():
+    """S82: YAML multi-documento (---) — comportamento ATUAL documentado.
+
+    ACHADO (S82): o `---` separa os documentos em `items`, MAS o merge
+    (CFG_MIN_TOK=25) junta de volta quando cada documento é minúsculo. Ou seja,
+    documentos YAML pequenos NÃO ficam separados. É LATENTE (nenhum YAML
+    multi-doc no corpus atual). Documentado aqui; se um dia o corpus tiver YAML
+    multi-doc grande, reavaliar (documentos são unidades lógicas).
+    """
+    src = "a: 1\n---\nb: 2\n---\nc: 3\n"
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    # comportamento atual: funde (documentos minúsculos < CFG_MIN_TOK)
+    assert len(out) == 1
+    assert "a: 1" in out[0].content and "c: 3" in out[0].content
+
+
+def test_config_yaml_documento_multiplo_grande_separa():
+    """S82: YAML multi-documento (---) — o merge ATRAVESSA o separador.
+
+    ACHADO (S82): o `---` fecha o `buf` em `items`, mas o merge subsequente
+    (CFG_MIN_TOK/CFG_PACK_TOK) agrupa as chaves dos DOIS documentos num único
+    chunk — o separador de documento NÃO é respeitado. LATENTE (nenhum YAML
+    multi-doc no corpus). Documentado; reavaliar se o corpus ganhar YAML
+    multi-doc (documentos são unidades lógicas e deveriam ficar separados).
+    """
+    doc = "\n".join(f"k{i}: {i}" for i in range(50))
+    src = f"{doc}\n---\n{doc}\n"
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    # comportamento atual: funde os 2 documentos num chunk (bug latente)
+    assert len(out) == 1
+    assert out[0].content.count("k0:") == 2  # ambos os documentos presentes
+
+
+def test_config_bloco_unico_gigante_quebra():
+    """Bloco único > CFG_MAX_TOK → janela (linha 418-419)."""
+    src = "chave: |\n" + "\n".join(f"  linha {i}" for i in range(400))
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    assert out
+    assert all(c.approx_tokens <= chunker.CFG_MAX_TOK + 5 for c in out)
+
+
+def test_chunk_file_kind_desconhecido_levanta():
+    """kind inválido → ValueError (linha 437)."""
+    import pytest
+    with pytest.raises(ValueError, match="kind desconhecido"):
+        chunker.chunk_file("x.bin", "binary", None, "data")
