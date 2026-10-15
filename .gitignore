@@ -5,6 +5,8 @@
 .planning/
 # Relatórios de suporte aos provedores LLM (diagnóstico local, nunca sobe)
 /reports/
+# Docs/narrativas locais (diagnóstico, runbooks, explicações) — local-only, nunca sobe
+/docs/
 .venv/
 __pycache__/
 *.pyc
