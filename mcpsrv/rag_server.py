@@ -81,6 +81,12 @@ SEARCH_DEPTH = int(os.environ.get("RAG_SEARCH_DEPTH", "8"))  # largura da busca 
 # p/ p95, `sort -n | awk '{a[NR]=$1} END{print a[int(NR*0.95)+1]}'`.
 SLO_LATENCY_MS = 200
 
+# S76: TTL do cache do staleness (diagnóstico). O HEAD do git não muda a cada
+# chamada; cachear evita reabrir DB+git (~20ms) em rajadas de rag_search. Só o
+# diagnóstico é cacheado — a busca e o contrato do envelope ficam intactos.
+STALENESS_TTL_S = float(os.environ.get("RAG_STALENESS_TTL_S", "5"))
+_STALENESS_CACHE: dict[str, tuple[float, str | None]] = {}  # repo -> (monotonic, note)
+
 
 def _log_line(obj: dict) -> None:
     """Escreve UMA linha JSON em stderr (S22). Nunca levanta: observabilidade não
@@ -299,12 +305,24 @@ def run_search(
 
 
 def staleness_note(repo: str | None = None) -> str | None:
-    """S14: mensagem de indice desatualizado (ou None se fresco). Nunca levanta."""
+    """S14: mensagem de indice desatualizado (ou None se fresco). Nunca levanta.
+
+    S76: cacheado por TTL curto (STALENESS_TTL_S). O HEAD do git não muda a cada
+    chamada, então reabrir DB+git em rajadas de rag_search é desperdício (~20ms/
+    chamada medido). O cache é SÓ do diagnóstico — não afeta a busca nem o contrato.
+    """
+    key = repo or _default_repo()
+    now = time.monotonic()
+    cached = _STALENESS_CACHE.get(key)
+    if cached is not None and (now - cached[0]) < STALENESS_TTL_S:
+        return cached[1]
     try:
         from ingest import search as _search
-        return _search.staleness_warning(REPO_ROOT, repo or _default_repo())
+        note = _search.staleness_warning(REPO_ROOT, key)
     except Exception:  # noqa: BLE001 — frescor é melhor-esforço, nunca derruba a tool
-        return None
+        note = None
+    _STALENESS_CACHE[key] = (now, note)
+    return note
 
 
 server = MCPServer(
@@ -365,7 +383,17 @@ async def rag_search(
     payload: dict = {"results": results}
     # S14: se o indice pode estar desatualizado, sinaliza no envelope (sem quebrar
     # o contrato {results:[...]} — campo extra e retrocompativel).
+    # S76: mede o custo do staleness (abre DB+git) — fica FORA do latency_ms da
+    # busca (logado no run_search), então logamos separado p/ o SLO não mentir.
+    _t_stale = time.perf_counter()
     note = staleness_note()
+    staleness_ms = round((time.perf_counter() - _t_stale) * 1000, 2)
+    _log_line({
+        "event": "rag_search_staleness",
+        "ts": round(time.time(), 3),
+        "staleness_ms": staleness_ms,
+        "stale": bool(note),
+    })
     if note:
         payload["stale"] = True
         payload["notice"] = note

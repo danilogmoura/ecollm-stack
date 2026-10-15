@@ -569,3 +569,63 @@ def test_marcador_contem_source():
     loc = "mod.py::fun [code]"
     out = rag_server.compact_content(content, loc, cap=100)
     assert loc in out
+
+
+# --- S76: cache TTL do staleness + medição ---------------------------------
+
+def test_staleness_note_cacheia_por_ttl(monkeypatch):
+    """S76: 2 chamadas seguidas dentro do TTL → 1 só cálculo (DB+git)."""
+    rag_server._STALENESS_CACHE.clear()
+    calls = {"n": 0}
+
+    def fake_warn(root, repo):
+        calls["n"] += 1
+        return None
+
+    monkeypatch.setattr("ingest.search.staleness_warning", fake_warn)
+    rag_server.staleness_note("repo-x")
+    rag_server.staleness_note("repo-x")
+    assert calls["n"] == 1  # 2ª veio do cache
+
+
+def test_staleness_note_recalcula_apos_ttl(monkeypatch):
+    """Após o TTL, recalcula (não serve valor velho para sempre)."""
+    rag_server._STALENESS_CACHE.clear()
+    calls = {"n": 0}
+
+    def fake_warn(root, repo):
+        calls["n"] += 1
+        return None
+
+    monkeypatch.setattr("ingest.search.staleness_warning", fake_warn)
+    monkeypatch.setattr(rag_server, "STALENESS_TTL_S", 0.0)  # TTL zero → sempre expira
+    rag_server.staleness_note("repo-y")
+    rag_server.staleness_note("repo-y")
+    assert calls["n"] == 2
+
+
+def test_staleness_note_cacheia_por_repo(monkeypatch):
+    """Repos diferentes têm entradas de cache independentes."""
+    rag_server._STALENESS_CACHE.clear()
+    seen = []
+
+    def fake_warn(root, repo):
+        seen.append(repo)
+        return None
+
+    monkeypatch.setattr("ingest.search.staleness_warning", fake_warn)
+    rag_server.staleness_note("repo-a")
+    rag_server.staleness_note("repo-b")
+    assert seen == ["repo-a", "repo-b"]  # cada repo calculou 1x
+
+
+def test_staleness_note_nunca_levanta_com_cache(monkeypatch):
+    """Erro no cálculo → None, e o cache guarda None (não re-tenta em loop)."""
+    rag_server._STALENESS_CACHE.clear()
+
+    def boom(root, repo):
+        raise RuntimeError("db fora")
+
+    monkeypatch.setattr("ingest.search.staleness_warning", boom)
+    assert rag_server.staleness_note("repo-z") is None
+    assert rag_server.staleness_note("repo-z") is None  # cacheado (None)
