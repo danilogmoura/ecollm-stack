@@ -335,8 +335,10 @@ model_list:
   # responde a imagem base64 (cor correta).
   # NAO sombreia as rotas DIRETAS S55 (deepseek-flash/deepseek-v4-pro...): grupos
   # aqui usam prefixo novai-. Chat-only (invariante 7): fora de rag-chat/fallbacks.
-  # Custos TRAVADOS S96 (fonte unica: docs/model-marketplace.html, tabela oficial
-  # NovAI por modelo, preco por 1M tokens): v4.1-flash e v4-flash-vision
+  # Custos TRAVADOS S96 (fonte unica: docs/novai-model-marketplace.html -- dump
+  # local do marketplace, gitignored via .gitignore:9 '/docs/'; antes chamado
+  # model-marketplace.html, renomeado 2026-10-15; tabela oficial NovAI por
+  # modelo, preco por 1M tokens): v4.1-flash e v4-flash-vision
   # $0.308/$1.231 (Exclusive); v4-pro $0.57/$1.15; v4-flash $0.08/$0.17.
   # O conflito apontado na S95 era entre NovAI e a DeepSeek OFICIAL (rotas
   # diretas S55), NAO dentro da NovAI -- aqui vale o preco NovAI.
