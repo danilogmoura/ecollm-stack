@@ -46,6 +46,11 @@ CFG_PACK_TOK = 300        # alvo de empacotamento por chunk (plano: 100-300 tok)
 CFG_MAX_TOK = 512         # teto duro: chave unica gigante passa disso e e entao
                           # dividida em janelas de CFG_PACK_TOK
 
+# S83: sentinela de FRONTEIRA de documento YAML (`---`). O merge de config NÃO
+# atravessa esta fronteira — documentos YAML são unidades lógicas e não devem
+# fundir entre si (bug latente achado na S82). Nunca vira chunk.
+_DOC_BOUNDARY = "\x00__doc_boundary__"
+
 
 @dataclass(frozen=True)
 class Chunk:
@@ -383,6 +388,10 @@ def chunk_config(path: str, lang: str | None, source: str) -> list[Chunk]:
                 if buf:
                     items.append((cur_key or "document", "".join(buf)))
                     buf, cur_key = [], None
+                # S83: marca a FRONTEIRA de documento p/ o merge NÃO atravessá-la
+                # (documentos YAML são unidades lógicas). O sentinela é consumido
+                # no merge abaixo e nunca vira chunk.
+                items.append((_DOC_BOUNDARY, ""))
                 continue
             if re.match(r"^[^#\s\-]", line) and ":" in line.split("#")[0]:
                 if buf:
@@ -397,14 +406,21 @@ def chunk_config(path: str, lang: str | None, source: str) -> list[Chunk]:
                 for w in _split_lines_window(source, CFG_MAX_TOK)]
 
     # empacota: itens < CFG_MIN_TOK grudam no anterior; chunk fecha ao passar de
-    # CFG_PACK_TOK (alvo do plano) ou se o proximo item estourar o teto duro
+    # CFG_PACK_TOK (alvo do plano) ou se o proximo item estourar o teto duro.
+    # S83: a fronteira de documento YAML (_DOC_BOUNDARY) BLOQUEIA o merge — o
+    # proximo item inicia um novo grupo (documentos não fundem entre si).
     grouped: list[tuple[str | None, str]] = []
     for key, body in items:
-        if (grouped and _est_tokens(body) < CFG_MIN_TOK
+        if key == _DOC_BOUNDARY:
+            # fecha o grupo atual: o próximo item começa um documento novo.
+            grouped.append((_DOC_BOUNDARY, ""))
+            continue
+        prev_is_boundary = bool(grouped) and grouped[-1][0] == _DOC_BOUNDARY
+        if (grouped and not prev_is_boundary and _est_tokens(body) < CFG_MIN_TOK
                 and _est_tokens(grouped[-1][1]) + _est_tokens(body) <= CFG_PACK_TOK):
             pk, pb = grouped[-1]
             grouped[-1] = (pk, pb + body)
-        elif (grouped and _est_tokens(grouped[-1][1]) < CFG_MIN_TOK
+        elif (grouped and not prev_is_boundary and _est_tokens(grouped[-1][1]) < CFG_MIN_TOK
                 and _est_tokens(grouped[-1][1]) + _est_tokens(body) <= CFG_PACK_TOK):
             pk, pb = grouped[-1]  # anterior era minusculo: absorve o atual
             grouped[-1] = (pk, pb + body)
@@ -414,6 +430,8 @@ def chunk_config(path: str, lang: str | None, source: str) -> list[Chunk]:
     # bloco unico maior que o teto: janela final (arquivo degenerado/minificado)
     out: list[Chunk] = []
     for key, body in grouped:
+        if key == _DOC_BOUNDARY:
+            continue  # sentinela nunca vira chunk
         if _est_tokens(body) > CFG_MAX_TOK:
             for i, part in enumerate(_split_lines_window(body, CFG_PACK_TOK)):
                 out.append(Chunk(path, "config", lang,

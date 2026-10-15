@@ -301,36 +301,34 @@ def test_config_toml_preamble_sem_section():
 
 
 def test_config_yaml_documento_multiplo():
-    """S82: YAML multi-documento (---) — comportamento ATUAL documentado.
+    """S83: YAML multi-documento (---) SEPARA os documentos (fix do bug S82).
 
-    ACHADO (S82): o `---` separa os documentos em `items`, MAS o merge
-    (CFG_MIN_TOK=25) junta de volta quando cada documento é minúsculo. Ou seja,
-    documentos YAML pequenos NÃO ficam separados. É LATENTE (nenhum YAML
-    multi-doc no corpus atual). Documentado aqui; se um dia o corpus tiver YAML
-    multi-doc grande, reavaliar (documentos são unidades lógicas).
+    Antes (S82): o `---` separava em `items`, mas o merge (CFG_MIN_TOK) juntava
+    de volta. Agora a fronteira de documento BLOQUEIA o merge — cada documento
+    vira chunk(s) próprio(s), mesmo minúsculo.
     """
     src = "a: 1\n---\nb: 2\n---\nc: 3\n"
     out = chunker.chunk_config("c.yml", "yaml", src)
-    # comportamento atual: funde (documentos minúsculos < CFG_MIN_TOK)
-    assert len(out) == 1
-    assert "a: 1" in out[0].content and "c: 3" in out[0].content
+    assert len(out) == 3  # 3 documentos separados
+    assert "a: 1" in out[0].content
+    assert "b: 2" in out[1].content
+    assert "c: 3" in out[2].content
 
 
 def test_config_yaml_documento_multiplo_grande_separa():
-    """S82: YAML multi-documento (---) — o merge ATRAVESSA o separador.
-
-    ACHADO (S82): o `---` fecha o `buf` em `items`, mas o merge subsequente
-    (CFG_MIN_TOK/CFG_PACK_TOK) agrupa as chaves dos DOIS documentos num único
-    chunk — o separador de documento NÃO é respeitado. LATENTE (nenhum YAML
-    multi-doc no corpus). Documentado; reavaliar se o corpus ganhar YAML
-    multi-doc (documentos são unidades lógicas e deveriam ficar separados).
-    """
+    """S83: documentos YAML grandes também ficam separados."""
     doc = "\n".join(f"k{i}: {i}" for i in range(50))
     src = f"{doc}\n---\n{doc}\n"
     out = chunker.chunk_config("c.yml", "yaml", src)
-    # comportamento atual: funde os 2 documentos num chunk (bug latente)
-    assert len(out) == 1
-    assert out[0].content.count("k0:") == 2  # ambos os documentos presentes
+    assert len(out) >= 2  # documentos NÃO fundem
+    assert out[0].content.count("k0:") == 1  # cada doc no seu chunk
+
+
+def test_config_yaml_sem_separador_ainda_funde():
+    """S83: sem `---`, o merge normal continua (chaves minúsculas fundem)."""
+    src = "a: 1\nb: 2\nc: 3\n"
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    assert len(out) == 1  # sem fronteira → funde (comportamento normal)
 
 
 def test_config_bloco_unico_gigante_quebra():
