@@ -1,0 +1,15 @@
+# S77 — Timer systemd user: sincroniza o índice RAG 1×/hora (rede de segurança).
+# Local-only (~/.config/systemd/user/ não é versionado). Instalar:
+#   mkdir -p ~/.config/systemd/user
+#   cp rag-db/rag-sync.service rag-db/rag-sync.timer ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now rag-sync.timer
+# Verificar: systemctl --user list-timers rag-sync.timer
+# O script checa o HEAD antes de gastar cota (sync_if_stale.sh) — sem mudança, grátis.
+[Unit]
+Description=RAG sync (só se o índice estiver defasado)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/ecollm-stack
+ExecStart=/usr/bin/env bash %h/ecollm-stack/rag-db/sync_if_stale.sh

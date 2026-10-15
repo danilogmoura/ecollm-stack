@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# S77 — Hook pós-commit: sincroniza o índice RAG em BACKGROUND após cada commit.
+# Local-only (.git/hooks/ não é versionado). Instalar:
+#   cp rag-db/post-commit.sample .git/hooks/post-commit && chmod +x .git/hooks/post-commit
+# Roda em background (&) para NUNCA travar o commit. O script checa o HEAD antes
+# de gastar cota (sync_if_stale.sh), então commits sem mudança de corpus são grátis.
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+nohup bash "$REPO_ROOT/rag-db/sync_if_stale.sh" >>"$REPO_ROOT/.planning/rag-sync.log" 2>&1 &
+disown 2>/dev/null || true
+exit 0

@@ -1,0 +1,11 @@
+# S77 — Timer systemd user (par do rag-sync.service). Roda 1×/hora.
+# Local-only. Instalar junto com o .service (ver cabeçalho dele).
+[Unit]
+Description=RAG sync horário (rede de segurança p/ o hook pós-commit)
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
