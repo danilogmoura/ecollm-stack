@@ -135,3 +135,36 @@ def test_gate_segredo_aborta_mesmo_com_skip(repo, monkeypatch):
     ok, msg = ingest.gitleaks_gate(repo, [], skip=True)
     assert ok is False
     assert "ACHOU segredo" in msg
+
+
+def test_gate_sem_config_nao_passa_flag_config(repo, monkeypatch):
+    """Sem .gitleaks.toml no repo, o gate NÃO passa --config (senão o gitleaks
+    aborta com FTL e o gate leria como segredo — bug 4be6d61)."""
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: "/usr/bin/gitleaks")
+    captured = {}
+
+    def fake_run(cmd, *a, **k):
+        captured["cmd"] = cmd
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(ingest.subprocess, "run", fake_run)
+    ok, _ = ingest.gitleaks_gate(repo, [])
+    assert ok is True
+    assert "--config" not in captured["cmd"]
+
+
+def test_gate_com_config_passa_flag_config(repo, monkeypatch):
+    """Com .gitleaks.toml presente, o gate passa --config apontando p/ ele."""
+    (repo / ".gitleaks.toml").write_text("[allowlist]\n", encoding="utf-8")
+    monkeypatch.setattr(ingest.shutil, "which", lambda name: "/usr/bin/gitleaks")
+    captured = {}
+
+    def fake_run(cmd, *a, **k):
+        captured["cmd"] = cmd
+        return type("R", (), {"returncode": 0, "stdout": "", "stderr": ""})()
+
+    monkeypatch.setattr(ingest.subprocess, "run", fake_run)
+    ok, _ = ingest.gitleaks_gate(repo, [])
+    assert ok is True
+    assert "--config" in captured["cmd"]
+    assert str(repo / ".gitleaks.toml") in captured["cmd"]

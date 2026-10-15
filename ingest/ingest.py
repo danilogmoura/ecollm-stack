@@ -148,11 +148,15 @@ def gitleaks_gate(repo_root: Path, entries: list[loader.FileEntry],
     tmp = Path(tempfile.mkdtemp(prefix="rag-gate-"))
     try:
         _stage_corpus(repo_root, entries, tmp)
-        res = subprocess.run(
-            [gitleaks, "dir", str(tmp), "--exit-code", "1", "--no-banner", "--redact",
-             "--config", str(Path(repo_root) / ".gitleaks.toml")],
-            capture_output=True, text=True,
-        )
+        cmd = [gitleaks, "dir", str(tmp), "--exit-code", "1", "--no-banner", "--redact"]
+        # Override OPCIONAL por repo (4be6d61): só passa --config se o arquivo
+        # existir. Passar --config apontando p/ arquivo ausente faz o gitleaks
+        # abortar com FTL ("unable to load gitleaks config") → o gate leria isso
+        # como "achou segredo" e bloquearia o sync indevidamente.
+        cfg = Path(repo_root) / ".gitleaks.toml"
+        if cfg.is_file():
+            cmd += ["--config", str(cfg)]
+        res = subprocess.run(cmd, capture_output=True, text=True)
         if res.returncode == 0:
             return True, "gitleaks: 0 achados no corpus"
         out = (res.stdout + res.stderr)[-2000:]
