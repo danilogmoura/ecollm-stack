@@ -287,7 +287,9 @@ model_list:
   # modelo removido na S40 — item NOVO de backlog, nao retrabalho (blocos antigos no historico git).
   # Tarifas OFICIAIS (card marketplace + pagina do modelo): $0,40 in / $2,00 out por 1M tokens =>
   # input_cost 4.0e-07 / output_cost 2.0e-06. PAGO com saldo da conta NovAI (min recarga $5 USDT
-  # TRC20); NAO consome os 10/dia free; 402 possivel se saldo zerado. owned_by=bytedance no catalogo
+  # TRC20); NAO e free-forever como o glm (cobra por token); 402 possivel se saldo zerado.
+  # (conta em modo standard / cota unlimited — S56; o teto de cobranca aqui e SALDO, nao rpm/cota.)
+  # owned_by=bytedance no catalogo
   # (id unico "doubao-seed-2.0-pro"; "-fast" e convencao NOSSA, nao existe upstream).
   # Thinking MEDIDO nesta sessao (n=1, direto no gateway): default -> reasoning 284/330 = ON por
   # padrão upstream; extra_body thinking:{type:disabled} -> reasoning_tokens=0 = FUNCIONA tambem em
