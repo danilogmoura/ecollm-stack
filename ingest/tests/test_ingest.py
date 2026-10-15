@@ -168,3 +168,93 @@ def test_gate_com_config_passa_flag_config(repo, monkeypatch):
     assert ok is True
     assert "--config" in captured["cmd"]
     assert str(repo / ".gitleaks.toml") in captured["cmd"]
+
+
+# ---------------------------------------------------------------------------
+# S94: ramos de borda (cobertura de ramo)
+# ---------------------------------------------------------------------------
+
+def test_git_state_fora_de_repo_retorna_none_false(tmp_path):
+    """S94: _git_state num dir não-git → (None, False) via CalledProcessError."""
+    head, dirty = ingest._git_state(tmp_path)
+    assert head is None
+    assert dirty is False
+
+
+def test_lock_key_com_profile_objeto():
+    """S94: _lock_key aceita um Profile (usa .slug)."""
+    from ingest import profiles
+    prof = profiles.resolve("qwen37")
+    key = ingest._lock_key("meu-repo", prof)
+    assert key == "rag_sync:meu-repo:qwen37"
+
+
+def test_lock_key_com_slug_string():
+    """S94: _lock_key aceita um slug string."""
+    assert ingest._lock_key("r", "bgem3") == "rag_sync:r:bgem3"
+
+
+def test_lock_key_default_sem_profile():
+    """S94: _lock_key sem profile usa o DEFAULT_PROFILE."""
+    from ingest import profiles
+    assert ingest._lock_key("r") == f"rag_sync:r:{profiles.DEFAULT_PROFILE}"
+
+
+def test_stage_corpus_copia_arquivos(tmp_path):
+    """S94: _stage_corpus copia os arquivos do corpus p/ o destino."""
+    from ingest import loader
+    src = tmp_path / "src"
+    (src / "sub").mkdir(parents=True)
+    (src / "a.py").write_text("x = 1\n")
+    (src / "sub" / "b.md").write_text("# t\n")
+    entries = [loader.FileEntry(path="a.py", kind="code", lang="python",
+                                blob_sha="s1", size=6),
+               loader.FileEntry(path="sub/b.md", kind="doc", lang="markdown",
+                                blob_sha="s2", size=4)]
+    dest = tmp_path / "dest"
+    ingest._stage_corpus(src, entries, dest)
+    assert (dest / "a.py").read_text() == "x = 1\n"
+    assert (dest / "sub" / "b.md").read_text() == "# t\n"
+
+
+def test_is_index_stale_sem_conexao():
+    """S94: is_index_stale sem conexão → (True, motivo) conservador."""
+    stale, msg = ingest.is_index_stale(None, "r", ".")
+    assert stale is True
+    assert "sem conexao" in msg
+
+
+def test_is_index_stale_tabela_ausente():
+    """S94: is_index_stale com erro de query → (True, motivo) conservador."""
+    class Conn:
+        def execute(self, *a, **k):
+            raise RuntimeError("tabela ausente")
+    stale, msg = ingest.is_index_stale(Conn(), "r", ".")
+    assert stale is True
+    assert "indisponivel" in msg
+
+
+def test_is_index_stale_sem_registro():
+    """S94: is_index_stale sem linha de sync → (True, 'nenhum registro')."""
+    class Conn:
+        def execute(self, *a, **k):
+            return type("C", (), {"fetchone": lambda self: None})()
+    stale, msg = ingest.is_index_stale(Conn(), "r", ".")
+    assert stale is True
+    assert "nenhum registro" in msg
+
+
+def test_main_dry_run_nao_imprime_summary(repo, patched, capsys):
+    """S94: main com --dry-run não imprime o summary (só o plano)."""
+    rc = ingest.main(["--repo", str(repo), "--dry-run", "--quiet"])
+    assert rc == 0
+    out = capsys.readouterr().out
+    assert "[store:" not in out  # summary não é impresso em dry-run
+
+
+def test_main_gate_aborta_retorna_codigo(repo, monkeypatch):
+    """S94: main captura SystemExit do gate e retorna o código."""
+    monkeypatch.setattr(ingest, "gitleaks_gate",
+                        lambda root, entries, *, skip=False: (False, "segredo!"))
+    rc = ingest.main(["--repo", str(repo), "--quiet"])
+    assert rc == 2

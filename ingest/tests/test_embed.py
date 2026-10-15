@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import struct
+
 import pytest
 
 from ingest import embed
@@ -115,6 +117,117 @@ def test_post_batch_valida_dimensao_incorreta(monkeypatch):
         embed.embed_texts(["a"], cfg=CFG, sleep=lambda s: None)
 
 
+def test_post_batch_manda_authorization_com_api_key(monkeypatch):
+    """S94: com api_key no cfg, o header Authorization é enviado."""
+    seen_headers: list[dict] = []
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"index": 0, "embedding": [0.1] * CFG["dim"]}]}
+
+    class Session:
+        def post(self, url, json=None, headers=None, timeout=None):
+            seen_headers.append(headers)
+            return Resp()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(embed.requests, "Session", lambda: Session())
+    cfg = {**CFG, "api_key": "sk-test"}
+    embed.embed_texts(["a"], cfg=cfg, sleep=lambda s: None)
+    assert seen_headers[0]["Authorization"] == "Bearer sk-test"
+
+
+def test_post_batch_sem_api_key_nao_manda_authorization(monkeypatch):
+    seen_headers: list[dict] = []
+
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"index": 0, "embedding": [0.1] * CFG["dim"]}]}
+
+    class Session:
+        def post(self, url, json=None, headers=None, timeout=None):
+            seen_headers.append(headers)
+            return Resp()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(embed.requests, "Session", lambda: Session())
+    cfg = {k: v for k, v in CFG.items() if k != "api_key"}
+    embed.embed_texts(["a"], cfg=cfg, sleep=lambda s: None)
+    assert "Authorization" not in seen_headers[0]
+
+
+def test_post_batch_http_nao_200_levanta(monkeypatch):
+    class Resp:
+        status_code = 500
+        text = "erro interno"
+
+        def json(self):
+            return {}
+
+    class Session:
+        def post(self, *a, **k):
+            return Resp()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(embed.requests, "Session", lambda: Session())
+    with pytest.raises(embed.EmbedError, match="HTTP 500"):
+        embed.embed_texts(["a"], cfg=CFG, sleep=lambda s: None)
+
+
+def test_post_batch_contagem_de_vetores_errada_levanta(monkeypatch):
+    class Resp:
+        status_code = 200
+
+        def json(self):
+            return {"data": [{"index": 0, "embedding": [0.1] * CFG["dim"]}]}  # 1 p/ 2
+
+    class Session:
+        def post(self, *a, **k):
+            return Resp()
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+    monkeypatch.setattr(embed.requests, "Session", lambda: Session())
+    with pytest.raises(embed.EmbedError, match="vetores"):
+        embed.embed_texts(["a", "b"], cfg=CFG, sleep=lambda s: None)
+
+
+def test_embed_texts_chama_on_progress():
+    """S94: on_progress é chamado com (feitos, total) ao fim de cada lote."""
+    calls: list[tuple[int, int]] = []
+
+    def post(texts, cfg, session):
+        return [[0.1] * cfg["dim"] for _ in texts]
+
+    embed.embed_texts(["a", "b", "c"], cfg=CFG, batch_size=2,
+                      sleep=lambda s: None, post=post,
+                      on_progress=lambda done, total: calls.append((done, total)))
+    assert calls == [(2, 3), (3, 3)]
+
+
 def test_embed_documents_aplica_prefixo_antes_do_embed():
     seen: list[list[str]] = []
 
@@ -168,3 +281,50 @@ def test_vector_to_halfvec_text_formato():
     parts = txt[1:-1].split(",")
     assert len(parts) == 3
     assert float(parts[1]) == pytest.approx(1.5)
+
+
+# --- S94: halfvec_bytes, load_dotenv, config_for_profile -------------------
+
+def test_halfvec_bytes_wire_format():
+    """S94: halfvec_bytes empacota n_dims + n_unused + floats fp16."""
+    b = embed.halfvec_bytes([1.0, 2.0, 3.0])
+    n_dims, n_unused = struct.unpack(">HH", b[:4])
+    assert n_dims == 3
+    assert n_unused == 1
+    # 3 floats fp16 = 6 bytes após o header de 4.
+    assert len(b) == 4 + 3 * 2
+    vals = struct.unpack(">eee", b[4:])
+    assert vals == pytest.approx((1.0, 2.0, 3.0))
+
+
+def test_load_dotenv_ignora_comentarios_e_vazias(tmp_path, monkeypatch):
+    """S94: load_dotenv lê KEY=VALUE, ignora #/vazias, não sobrescreve o ambiente."""
+    env = tmp_path / ".env"
+    env.write_text("# comentário\n\nFOO=bar\nBAZ='quoted'\nJA_SETADO=novo\n")
+    monkeypatch.setenv("JA_SETADO", "antigo")
+    monkeypatch.delenv("FOO", raising=False)
+    monkeypatch.delenv("BAZ", raising=False)
+    embed.load_dotenv(str(env))
+    import os
+    assert os.environ["FOO"] == "bar"
+    assert os.environ["BAZ"] == "quoted"          # aspas removidas
+    assert os.environ["JA_SETADO"] == "antigo"    # não sobrescreve
+
+
+def test_load_dotenv_arquivo_ausente_noop(tmp_path):
+    """S94: arquivo ausente → no-op (não levanta)."""
+    embed.load_dotenv(str(tmp_path / "nao-existe.env"))  # não levanta
+
+
+def test_config_for_profile_usa_registry(monkeypatch):
+    """S94: config_for_profile deriva model/dim do registry (não de env solto)."""
+    from ingest import profiles
+    prof = profiles.resolve("qwen37")
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000/")
+    monkeypatch.setenv("LITELLM_MASTER_KEY", "sk-x")
+    cfg = embed.config_for_profile(prof)
+    assert cfg["model"] == prof.model
+    assert cfg["dim"] == prof.dim
+    assert cfg["base_url"] == "http://proxy:4000"   # rstrip("/")
+    assert cfg["api_key"] == "sk-x"
+    assert cfg["profile_slug"] == "qwen37"

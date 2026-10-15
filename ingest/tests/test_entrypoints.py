@@ -78,6 +78,19 @@ def test_import_ingest_nao_sobrescreve_env_existente(monkeypatch, tmp_path):
     assert os.environ.get("S65_SENTINELA") == "do_ambiente"
 
 
+def test_load_env_once_engole_erro(monkeypatch):
+    """S94: _load_env_once engole exceção (ambiente mínimo sem .env)."""
+    import ingest
+
+    from ingest import embed as embed_mod
+
+    def boom(path=None):
+        raise RuntimeError("sem .env")
+
+    monkeypatch.setattr(embed_mod, "load_dotenv", boom)
+    ingest._load_env_once()  # não levanta
+
+
 # ---------------------------------------------------------------------------
 # ingest.main
 # ---------------------------------------------------------------------------

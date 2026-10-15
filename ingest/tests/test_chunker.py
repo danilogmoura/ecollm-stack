@@ -344,3 +344,103 @@ def test_chunk_file_kind_desconhecido_levanta():
     import pytest
     with pytest.raises(ValueError, match="kind desconhecido"):
         chunker.chunk_file("x.bin", "binary", None, "data")
+
+
+# ---------------------------------------------------------------------------
+# S94: ramos de borda (cobertura de ramo)
+# ---------------------------------------------------------------------------
+
+def test_split_lines_window_linha_gigante_corte_duro():
+    """S94: linha única > limite é cortada duramente em blocos (BUG-003)."""
+    # window_tok=1 → limit = CHARS_PER_TOKEN chars; linha bem maior.
+    limit = 1 * chunker.CHARS_PER_TOKEN
+    text = "x" * (limit * 3 + 5)  # 3 blocos cheios + resto
+    parts = chunker._split_lines_window(text, 1)
+    assert len(parts) >= 3
+    assert all(len(p) <= limit for p in parts)
+    assert "".join(parts) == text  # nada perdido
+
+
+def test_split_lines_window_quebra_por_linha_quando_couber():
+    """S94: linhas que cabem não são cortadas no meio."""
+    text = "abc\ndef\nghi\n"
+    parts = chunker._split_lines_window(text, 100)  # limite folgado
+    assert parts == [text]  # tudo num bloco só
+
+
+def test_node_name_usa_field_name():
+    """S94: _node_name extrai o nome via field 'name' (ex.: função Python)."""
+    src = b"def minha_funcao():\n    pass\n"
+    tree = chunker._PARSERS["python"].parse(src)
+    fn = tree.root_node.children[0]
+    assert chunker._node_name(fn, src) == "minha_funcao"
+
+
+def test_code_const_declaration_sem_nome_e_leftover():
+    """S94: go const_declaration sem identificador útil vira leftover (linha 176)."""
+    # const_declaration sem nome → `continue` (não emite como definição).
+    src = "package main\n\nconst (\n\tA = 1\n\tB = 2\n)\n"
+    chunks = chunker.chunk_code("m.go", "go", src)
+    # não deve quebrar; o conteúdo é preservado como leftover.
+    assert chunks
+    assert any("A = 1" in c.content for c in chunks)
+
+
+def test_doc_heading_transicao_minusculo_nao_vira_orfao():
+    """S94: heading de transição minúsculo funde na seção cheia anterior."""
+    big = "## Secao cheia\n\n" + "\n\n".join(f"paragrafo {i} " + "x" * 200
+                                             for i in range(20))
+    src = big + "\n\n## Transicao\n\ncurto\n"
+    out = chunker.chunk_doc("d.md", src)
+    # a seção de transição minúscula não vira chunk órfão.
+    assert all(c.approx_tokens >= 1 for c in out)
+    assert len(out) >= 1
+
+
+def test_config_toml_preamble_e_sections():
+    """S94: TOML com preamble + [[table]] + [table] separa corretamente."""
+    src = (
+        "topo = 1\n"
+        "[section]\n"
+        "a = 1\n"
+        "[[array]]\n"
+        "b = 2\n"
+    )
+    out = chunker.chunk_config("c.toml", "toml", src)
+    assert out
+    joined = "".join(c.content for c in out)
+    assert "topo = 1" in joined and "a = 1" in joined and "b = 2" in joined
+
+
+def test_config_lang_desconhecida_janela():
+    """S94: config com lang não-toml/yaml/json → janela por linhas (linha 405)."""
+    src = "\n".join(f"linha {i} = valor" for i in range(50))
+    out = chunker.chunk_config("c.ini", "ini", src)
+    assert out
+    assert all(c.kind == "config" for c in out)
+
+
+def test_config_merge_absorve_minusculo_quando_anterior_pequeno():
+    """S94: item minúsculo é absorvido quando o ANTERIOR também é pequeno (elif)."""
+    # duas chaves minúsculas → a 2ª é absorvida pela 1ª (anterior < CFG_MIN_TOK).
+    src = "a: 1\nb: 2\n"
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    assert len(out) == 1
+    assert "a: 1" in out[0].content and "b: 2" in out[0].content
+
+
+def test_config_yaml_documento_multiplo_nao_funde():
+    """S94: `---` bloqueia o merge entre documentos (sentinela _DOC_BOUNDARY)."""
+    src = "a: 1\n---\nb: 2\n"
+    out = chunker.chunk_config("c.yml", "yaml", src)
+    # 2 documentos → 2 chunks (a fronteira impede a fusão).
+    assert len(out) == 2
+
+
+def test_code_merge_absorve_minusculo_quando_anterior_pequeno():
+    """S94: chunk de código minúsculo absorvido quando o anterior é pequeno (elif)."""
+    # duas funções minúsculas → fundem num chunk só.
+    src = "def a():\n    pass\n\ndef b():\n    pass\n"
+    out = chunker.chunk_code("m.py", "python", src)
+    assert len(out) == 1
+    assert "def a" in out[0].content and "def b" in out[0].content

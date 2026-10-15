@@ -149,3 +149,40 @@ def test_load_corpus_ordem_lexical(repo: Path):
     _commit_files(repo, {"z.py": b"z=1\n", "a.py": b"a=1\n", "m/b.py": b"b=1\n"})
     paths = [e.path for e in loader.load_corpus(repo)]
     assert paths == sorted(paths)
+
+
+# ---------------------------------------------------------------------------
+# S94: ramos de borda (cobertura de ramo)
+# ---------------------------------------------------------------------------
+
+def test_load_corpus_skip_arquivo_grande(repo: Path, capsys):
+    """S94: arquivo > MAX_BYTES é pulado com aviso (linha 164-165)."""
+    big = b"x" * (loader.MAX_BYTES + 1)
+    _commit_files(repo, {"grande.py": big, "ok.py": b"a = 1\n"})
+    entries = loader.load_corpus(repo)
+    paths = {e.path for e in entries}
+    assert "grande.py" not in paths
+    assert "ok.py" in paths
+    assert "SKIP grande demais" in capsys.readouterr().out
+
+
+def test_load_corpus_skip_symlink_quebrado(repo: Path):
+    """S94: symlink quebrado (não é arquivo regular) é pulado (linha 161)."""
+    (repo / "real.py").write_text("a = 1\n")
+    (repo / "link.py").symlink_to(repo / "nao-existe.py")  # quebrado
+    _git(repo, "add", "-A")
+    _git(repo, "commit", "-q", "-m", "symlink")
+    entries = loader.load_corpus(repo)
+    paths = {e.path for e in entries}
+    assert "real.py" in paths
+    assert "link.py" not in paths
+
+
+def test_git_blob_shas_bulk_ignora_linhas_malformadas(monkeypatch):
+    """S94: linhas sem tab ou com <2 campos são ignoradas (linhas 134, 137)."""
+    class Res:
+        stdout = b"100644 abc123 0\tok.py\0sem-tab\0  \0"
+
+    monkeypatch.setattr(loader.subprocess, "run", lambda *a, **k: Res())
+    out = loader._git_blob_shas_bulk(Path("."))
+    assert out == {"ok.py": "abc123"}

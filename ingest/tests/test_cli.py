@@ -376,3 +376,60 @@ def test_cmd_profile_use_fail_closed_indice_vazio(monkeypatch, capsys):
     rc = cli.cmd_profile(types.SimpleNamespace(action="use", repo=".", slug="qwen37"))
     assert rc == 3
     assert "vazio" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# S94: ramos de borda (cobertura de ramo)
+# ---------------------------------------------------------------------------
+
+def test_chat_cfg_le_env(monkeypatch):
+    """S94: _chat_cfg monta o cfg do chat a partir do ambiente."""
+    monkeypatch.setenv("LITELLM_BASE_URL", "http://proxy:4000/")
+    monkeypatch.setenv("LITELLM_MASTER_KEY", "sk-x")
+    monkeypatch.setenv("RAG_CHAT_MODEL", "meu-modelo")
+    cfg = cli._chat_cfg()
+    assert cfg["base_url"] == "http://proxy:4000"   # rstrip("/")
+    assert cfg["api_key"] == "sk-x"
+    assert cfg["model"] == "meu-modelo"
+
+
+def test_chat_cfg_defaults(monkeypatch):
+    """S94: _chat_cfg usa defaults quando o env não define."""
+    monkeypatch.delenv("RAG_CHAT_MODEL", raising=False)
+    cfg = cli._chat_cfg()
+    assert cfg["model"] == cli.ASK_MODEL_DEFAULT
+
+
+def test_profile_status_rows_lista_todos_os_perfis(monkeypatch):
+    """S94: _profile_status_rows devolve uma linha por perfil do registry."""
+    conn = _WarnConn(exists=True, chunks=5)
+    rows = cli._profile_status_rows(conn, "r")
+    assert len(rows) == len(cli.profiles.PROFILES)
+    assert all("slug" in r and "exists" in r for r in rows)
+
+
+def test_profile_status_rows_tabela_ausente(monkeypatch):
+    """S94: _profile_status_rows com tabela ausente → exists=False, chunks=0."""
+    conn = _WarnConn(exists=False)
+    rows = cli._profile_status_rows(conn, "r")
+    assert all(r["exists"] is False for r in rows)
+    assert all(r["chunks"] == 0 for r in rows)
+
+
+def test_cmd_profile_switch_sync_falha_nao_publica(monkeypatch, capsys):
+    """S94: switch com sync falhando → retorna o código, nada publicado."""
+    conn = _WarnConn(exists=True, chunks=5)
+    monkeypatch.setattr(store, "connect", lambda *a, **k: conn)
+    monkeypatch.setattr(cli.ingest_mod, "_git_state", lambda p: ("abc", False))
+    monkeypatch.setattr(cli, "cmd_sync", lambda args: 7)  # sync falha
+    rc = cli.cmd_profile(types.SimpleNamespace(action="switch", repo=".",
+                                               slug="qwen37", quiet=True,
+                                               skip_gitleaks=False))
+    assert rc == 7
+    assert "falhou" in capsys.readouterr().err
+
+
+def test_main_sem_func_imprime_help_retorna_1(monkeypatch, capsys):
+    """S94: main sem subcomando → help + rc=1."""
+    rc = cli.main([])
+    assert rc == 1

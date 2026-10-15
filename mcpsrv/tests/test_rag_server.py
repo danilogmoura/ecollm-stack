@@ -629,3 +629,71 @@ def test_staleness_note_nunca_levanta_com_cache(monkeypatch):
     monkeypatch.setattr("ingest.search.staleness_warning", boom)
     assert rag_server.staleness_note("repo-z") is None
     assert rag_server.staleness_note("repo-z") is None  # cacheado (None)
+
+
+# ---------------------------------------------------------------------------
+# S94: ramos de borda (cobertura de ramo)
+# ---------------------------------------------------------------------------
+
+def test_log_line_nunca_levanta(monkeypatch):
+    """S94: _log_line engole exceção de escrita (observabilidade best-effort)."""
+    class Boom:
+        def write(self, *a):
+            raise OSError("stderr fechado")
+
+        def flush(self):
+            raise OSError("stderr fechado")
+
+    monkeypatch.setattr(rag_server.sys, "stderr", Boom())
+    rag_server._log_line({"event": "x"})  # não levanta
+
+
+def test_provenance_unknown_quando_sem_ranks():
+    """S94: provenance 'unknown' quando vec_rank e lex_rank são None."""
+    assert rag_server._provenance(None, None) == "unknown"
+
+
+def test_k_omitido_sem_request_context_retorna_false():
+    """S94: _k_omitido fora de request real (ctx sem request_context) → False."""
+    class Ctx:
+        request_context = None
+    assert rag_server._k_omitido(Ctx()) is False
+
+
+def test_k_omitido_params_none_retorna_false():
+    """S94: _k_omitido com params None → False."""
+    class RC:
+        params = None
+
+    class Ctx:
+        request_context = RC()
+    assert rag_server._k_omitido(Ctx()) is False
+
+
+def test_k_omitido_le_dict_params():
+    """S94: _k_omitido lê params como dict (SDK 2.2.0) — k ausente → True."""
+    class RC:
+        params = {"arguments": {"query": "x"}}  # sem 'k'
+
+    class Ctx:
+        request_context = RC()
+    assert rag_server._k_omitido(Ctx()) is True
+
+
+def test_k_omitido_le_objeto_params():
+    """S94: _k_omitido lê params como objeto (histórico) — k ausente → True."""
+    class Params:
+        arguments = {"query": "x"}
+
+    class RC:
+        params = Params()
+
+    class Ctx:
+        request_context = RC()
+    assert rag_server._k_omitido(Ctx()) is True
+
+
+def test_default_repo_usa_env(monkeypatch):
+    """S94: _default_repo lê RAG_REPO do ambiente."""
+    monkeypatch.setenv("RAG_REPO", "meu-repo")
+    assert rag_server._default_repo() == "meu-repo"
