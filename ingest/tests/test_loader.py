@@ -126,3 +126,26 @@ def test_blob_sha_muda_so_com_conteudo(repo: Path):
 def test_content_sha_estavel_e_sensivel():
     assert loader.content_sha256("ola mundo") == loader.content_sha256("ola mundo")
     assert loader.content_sha256("a") != loader.content_sha256("b")
+
+
+# ---------------------------------------------------------------------------
+# S78 — blob sha em LOTE (ls-files -s) == hash-object por arquivo
+# ---------------------------------------------------------------------------
+
+def test_blob_sha_lote_igual_ao_por_arquivo(repo: Path):
+    """S78: o sha do lote (`ls-files -s`) é IDÊNTICO ao de `hash-object` por arquivo."""
+    _commit_files(repo, {
+        "a.py": b"a = 1\n",
+        "sub/b.md": b"# titulo\n",
+        "c.yaml": b"k: v\n",
+    })
+    lote = loader._git_blob_shas_bulk(repo)
+    for rel in ("a.py", "sub/b.md", "c.yaml"):
+        assert lote[rel] == loader._git_blob_sha(repo, rel)
+
+
+def test_load_corpus_ordem_lexical(repo: Path):
+    """S78: a lista sai em ordem lexical de path (idempotência)."""
+    _commit_files(repo, {"z.py": b"z=1\n", "a.py": b"a=1\n", "m/b.py": b"b=1\n"})
+    paths = [e.path for e in loader.load_corpus(repo)]
+    assert paths == sorted(paths)
