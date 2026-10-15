@@ -108,26 +108,98 @@ model_list:
       cache_read_input_token_cost: 1.7e-07
       cache_creation_input_token_cost: 2.5e-06
 
-  # ===== DEEPSEEK (chat, rota opcional — fora do RAG) =====
-  # NAO entra em rag-chat nem no fluxo RAG. Destinada a uso pontual do agente
-  # (ex.: dumps grandes de engenharia reversa) e ao bench H5b multi-modelo.
-  # Chave em DEEPSEEK_API_KEY (.env, conta separada do Qwen — creditos do Token
-  # Plan NAO valem aqui). Sem a chave definida, o grupo falha-closed na porta e
-  # nao afeta nenhum outro modelo (ver docker-compose.yml, ${DEEPSEEK_API_KEY:-}).
-  # Tarifas = card oficial off-peak (headroom pricing/deepseek_tiers.py, verificado
-  # 2026-09-14): cache-hit $0.003/M | input-miss $0.15/M | output $0.60/M. DeepSeek
-  # NAO cobra surcharge de cache-write (write billa como input-miss), por isso
-  # cache_creation == input. ATENCAO: desconto de cache de 98% torna canibalizar
-  # zona cacheada AINDA pior que no Qwen (89%) — relevante p/ decisao headroom.
-  # Modelo upstream: deepseek-chat = V3 (generalista); deepseek-reasoner = R1.
+  # ===== DEEPSEEK (chat, rotas opcionais — fora do RAG) =====
+  # S55 (2026-10-14): de 1 grupo legado para 4 — flash + pro, cada um com thinking
+  # ON e OFF. NAO entram em rag-chat nem no fluxo RAG/embeddings (invariante 7).
+  # Uso: pontual do agente (ex.: dumps grandes de engenharia reversa) e bench H5b
+  # multi-modelo. Chave em DEEPSEEK_API_KEY (.env, conta separada do Qwen — creditos
+  # do Token Plan NAO valem aqui). Sem a chave, os 4 grupos falham-closed na porta e
+  # nao afetam nenhum outro modelo (docker-compose.yml: ${DEEPSEEK_API_KEY:-}).
+  #
+  # IDs UPSTREAM ATUAIS — confirmados em GET /v1/models ao vivo + docs oficiais
+  # (Models & Pricing, 2026-10-14):
+  #   deepseek-flash   = DeepSeek-V4.1-Flash  | ctx 1M (1.048.576) | out max 393.216 | visao OK
+  #   deepseek-v4-pro  = DeepSeek-V4-Pro-0813 | ctx 1M (1.048.576) | out max 393.216 | SEM visao
+  #   deepseek-chat / deepseek-reasoner = aliases LEGADOS em aposentacao (ainda
+  #   aceitos, porem servidos e cobrados como Flash). NAO usar. Armadilha medida:
+  #   supports_reasoning("deepseek/deepseek-chat") = False => o alias legado nem
+  #   habilita o caminho de reasoning no LiteLLM (motivo extra para migrar).
+  #
+  # THINKING — DIFERE da convencao S44 (extra_body): aqui `thinking` vai TOP-LEVEL
+  # no litellm_params dos 4 grupos. Motivo medido no codigo instalado do provedor
+  # (llms/deepseek/chat/transformation.py): _thinking_mode_active() so retorna True
+  # com optional_params["thinking"]["type"] == "enabled", e somente entao o LiteLLM
+  # chama _fill_reasoning_content(), que reinjeta o reasoning_content faltante nas
+  # mensagens de assistant. Enterrar thinking dentro de extra_body NAO arma esse shim
+  # (sonda: get_optional_params com extra_body => thinking nao aparece no resultado).
+  # Consequencia pratica: em loop de agente multi-turno o upstream responde HTTP 400
+  # ("The reasoning_content in the thinking mode must be passed back to the API",
+  # docs §4.3). Por isso a rota ON declara thinking explicito em vez de herdar o
+  # default. Efeito do OFF e identico ao dos -fast historicos.
+  # Nota §5.2/§5.3: em thinking ON, temperature/top_p/presence_penalty/
+  # frequency_penalty sao inertes (podem ate ser rejeitados) e completion_tokens
+  # INCLUI os tokens de raciocinio => saida muito mais cara por tarefa curta.
+  #
+  # Tarifas = card OFICIAL off-peak (USD/1M ÷ 1e6). DeepSeek NAO cobra surcharge de
+  # cache-write (write billa como input-miss), por isso cache_creation == input.
+  #   flash: cache-hit $0,003 | input-miss $0,15 | output $0,60
+  #   pro:   cache-hit $0,022 | input-miss $0,66 | output $1,98
+  # ATENCAO: PEAK = 2x esses valores (01:00-04:00 e 06:00-10:00 UTC, seg-sex;
+  # feriado chines conta como off-peak). O preco aqui e flat off-peak, entao em
+  # janela de peak o SpendLogs SUB-notifica o custo por 2x (nunca sobre-notifica).
+  # Desconto de cache de 98% torna canibalizar zona cacheada AINDA pior que no Qwen
+  # (89%) — relevante p/ decisao headroom.
+  # Concorrencia upstream: flash 2500 / pro 500 (excesso = erro 3003).
+  # Recomendacao: usar as rotas -fast em modos de agente com tools; reservar as
+  # rotas ON para chamada unica sem loop de ferramentas.
   - model_name: deepseek-flash
     litellm_params:
-      model: deepseek/deepseek-chat
+      model: deepseek/deepseek-flash
       api_key: os.environ/DEEPSEEK_API_KEY
+      thinking:
+        type: enabled
       input_cost_per_token: 1.5e-07
       output_cost_per_token: 6.0e-07
       cache_read_input_token_cost: 3.0e-09
       cache_creation_input_token_cost: 1.5e-07
+    model_info:
+      max_input_tokens: 1048576
+  - model_name: deepseek-flash-fast
+    litellm_params:
+      model: deepseek/deepseek-flash
+      api_key: os.environ/DEEPSEEK_API_KEY
+      thinking:
+        type: disabled
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6.0e-07
+      cache_read_input_token_cost: 3.0e-09
+      cache_creation_input_token_cost: 1.5e-07
+    model_info:
+      max_input_tokens: 1048576
+  - model_name: deepseek-v4-pro
+    litellm_params:
+      model: deepseek/deepseek-v4-pro
+      api_key: os.environ/DEEPSEEK_API_KEY
+      thinking:
+        type: enabled
+      input_cost_per_token: 6.6e-07
+      output_cost_per_token: 1.98e-06
+      cache_read_input_token_cost: 2.2e-08
+      cache_creation_input_token_cost: 6.6e-07
+    model_info:
+      max_input_tokens: 1048576
+  - model_name: deepseek-v4-pro-fast
+    litellm_params:
+      model: deepseek/deepseek-v4-pro
+      api_key: os.environ/DEEPSEEK_API_KEY
+      thinking:
+        type: disabled
+      input_cost_per_token: 6.6e-07
+      output_cost_per_token: 1.98e-06
+      cache_read_input_token_cost: 2.2e-08
+      cache_creation_input_token_cost: 6.6e-07
+    model_info:
+      max_input_tokens: 1048576
 
   # ===== NOVAI GATEWAY (chat, rota opcional — fora do RAG) =====
   # NAO entra em rag-chat nem no fluxo RAG/embeddings. Gateway OpenAI-compativel

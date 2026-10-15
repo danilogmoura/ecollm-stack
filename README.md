@@ -31,7 +31,8 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `rag-chat` | gemini-3.8-flash → fallback qwen3:4b local | — | chat do RAG |
 | `qwen3.8-max` / `qwen3.8-flash` | Token Plan | ON | Architect / debug difícil |
 | `qwen3.8-max-fast` / `qwen3.8-flash-fast` | Token Plan | OFF | loop de agente (Code/Ask/Copilot) |
-| `deepseek-flash` | DeepSeek `deepseek-chat` (rota opcional, fora do RAG) | — | uso pontual / bench multi-modelo |
+| `deepseek-flash` / `deepseek-v4-pro` | DeepSeek V4.1-Flash / V4-Pro (rota opcional, fora do RAG) | ON | uso pontual / bench multi-modelo (ctx 1M; pro sem visão) |
+| `deepseek-flash-fast` / `deepseek-v4-pro-fast` | DeepSeek (mesmos upstreams) | OFF | preferidas em loop de agente com tools |
 | `novai-glm-4.7-flash` / `-fast` | NovAI (aiapi-pro.com, **free**) | ON / OFF | chat opcional (cota 10/dia·upstream, compartilhada) |
 | `novai-doubao-seed-2.0-pro` / `-fast` | NovAI (ByteDance, **pago**) | ON / OFF | chat opcional (contexto 256K) |
 
