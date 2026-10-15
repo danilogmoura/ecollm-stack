@@ -1,6 +1,11 @@
 # ============================================================================
 # FASE 1 — Loader + Chunker (ver .planning/PLANO-RAG.md §3)
 # Python 3.12, sem framework de RAG (decisao travada no plano).
+#
+# S67: FONTE CANONICA = pyproject.toml (pins) + uv.lock (grafo travado; a CI roda
+# `uv sync`). Este arquivo e um espelho LEGIVEL — mantenha-o em lockstep com o
+# pyproject. Divergencia aqui nao afeta a CI (que usa o lock), mas confunde quem
+# instala a mao. Verificado 2026-10-15: as versoes abaixo batem com o pyproject.
 # ============================================================================
 
 # --- runtime da stack (nao instalavel via pip/uv; servico Docker) ---
@@ -13,6 +18,7 @@ tree-sitter-javascript==0.25.0
 tree-sitter-typescript==0.23.2
 tree-sitter-go==0.25.0
 tree-sitter-bash==0.25.1
+tree-sitter-c-sharp>=0.23  # loader aceita .cs (S67: faltava no pyproject/uv.lock)
 pyyaml>=6
 requests>=2.31          # embed.py fala com LiteLLM via HTTP
 psycopg[binary]>=3.2    # store.py (FASE 2)
@@ -20,4 +26,4 @@ mcp>=2.2,<3             # FASE 5: servidor MCP rag_search (stdio). Codigo usa AP
 
 # --- dev/testes ---
 pytest>=8
-tree-sitter-c-sharp>=0.23
+pytest-cov>=7.1.0       # S67: gate de cobertura (--cov); estava so no pyproject

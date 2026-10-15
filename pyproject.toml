@@ -17,6 +17,7 @@ dependencies = [
     "tree-sitter-typescript==0.23.2",
     "tree-sitter-go==0.25.0",
     "tree-sitter-bash==0.25.1",
+    "tree-sitter-c-sharp>=0.23",  # S67: loader aceita .cs; faltava no pyproject/uv.lock
     "pyyaml>=6",
     "requests>=2.31",          # embed.py fala com LiteLLM via HTTP
     "psycopg[binary]>=3.2",    # store.py (FASE 2)
