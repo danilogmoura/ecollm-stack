@@ -21,9 +21,9 @@ Checagens (todas derivadas das regras BUG-001 / BUG-002):
      BUG-002: operator class errada = seq scan silencioso, índice vira enfeite);
   5. a coluna gerada ``tsv`` existe (caminho lexical da busca híbrida).
 
-Por que NÃO checamos o EXPLAIN diretamente: com o corpus atual (207 chunks) o
-planner escolhe legitimamente seq-scan (mais barato que HNSW em tabelas
-pequenas), então um teste de plano daria falso-negativo. A checagem estrutural
+Por que NÃO checamos o EXPLAIN diretamente: com o corpus atual (centenas de
+chunks por perfil) o planner escolhe legitimamente seq-scan (mais barato que
+HNSW em tabelas pequenas), então um teste de plano daria falso-negativo. A checagem estrutural
 (índice hnsw válido + operator class halfvec_cosine_ops) garante que, quando o
 corpus crescer, o índice SERÁ usável — que é exatamente o que BUG-002 quebrou.
 

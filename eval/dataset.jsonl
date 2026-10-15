@@ -1,4 +1,4 @@
-{"id": "q01", "question": "Qual modelo gera os embeddings da stack e com quantas dimensões?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "note": "README 'Embeddings -> exclusivamente Google (gemini-embedding-2, 3072 dims)'"}
+{"id": "q01", "question": "Qual modelo gera os embeddings da stack e com quantas dimensões?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "note": "README 'Embeddings' -> 3 perfis trocaveis (S32): gemini 3072 / qwen37 1024 / bgem3 1024; ativo via RAG_PROFILE"}
 {"id": "q02", "question": "Por que o HNSW recusa vector(3072) e qual foi a solução?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "note": "Gotcha: teto de 2000 dimensoes, halfvec(3072)"}
 {"id": "q03", "question": "O que acontece se eu usar a operator class errada num índice halfvec?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "note": "Gotcha 'indice enfeite', seq scan silencioso"}
 {"id": "q04", "question": "Como o init.sql do Postgres pode falhar em silencio?", "expect_paths": ["README.md"], "expect_kinds": ["doc"], "note": "Gotcha bootstrap statement-a-statement"}

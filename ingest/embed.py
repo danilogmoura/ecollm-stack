@@ -1,9 +1,15 @@
-"""Embedder da FASE 2 — texto -> vetor via LiteLLM (rag-embeddings).
+"""Embedder da FASE 2 — texto -> vetor via LiteLLM (perfis de embedding).
 
 Regras travadas no plano (.planning/PLANO-RAG.md §1, §3 FASE 2):
-  - Embedder SÓ Google: grupo `rag-embeddings` = gemini-embedding-2, 3072d.
-    Trocar embedder = re-embedar TUDO; por isso NAO ha fallback aqui (um vetor
-    de outro espaco corromperia o indice unico).
+  - Embedder por PERFIL (S32): o registry `ingest/profiles.py` e a fonte canonica
+    (nao mais "so Google"). Tres perfis trocaveis, cada um com tabela propria:
+      gemini  -> rag-embeddings         3072d  (chunks)
+      qwen37  -> rag-embeddings-qwen37  1024d  (chunks_qwen37)
+      bgem3   -> rag-embeddings-bgem3   1024d  (chunks_bgem3, local/Ollama $0)
+    Perfil ativo: RAG_PROFILE (env) > published_profile (banco) > DEFAULT_PROFILE.
+    Trocar de espaco = re-embedar o indice daquele perfil; por isso NAO ha
+    fallback entre perfis (invariante 7: um vetor de outro espaco corromperia a
+    busca). Os DEFAULT_* abaixo sao o perfil gemini legado, p/ compat com imports.
   - Task-prefix ASSIMETRICO aplicado AQUI, no texto ANTES do embed:
       docs/config -> "task: code retrieval | doc: <conteudo>"
       queries     -> "task: code retrieval | query: <conteudo>"
