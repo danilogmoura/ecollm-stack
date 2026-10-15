@@ -65,6 +65,9 @@ def _fake_fetch(table: dict):
             return table["state"]
         if "attname = 'gen'" in s or "attname='gen'" in s:
             return table["gen"]
+        # S69: checagem da coluna meta.
+        if "attname = 'meta'" in s or "attname='meta'" in s:
+            return table.get("meta", [("meta",)])
         raise AssertionError(f"SQL não mapeado no fake: {sql!r}")
     return fetch
 

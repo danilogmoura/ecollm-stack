@@ -51,6 +51,13 @@ CREATE TABLE IF NOT EXISTS chunks (
     -- um sync monta gen=published_gen+1 e publica com flip atômico. Default 0 mantém
     -- o índice legível pelo código novo sem re-boot. Espelha a migração 004_add_gen.sql.
     gen           bigint NOT NULL DEFAULT 0,
+    -- S18/S69: metadados JSONB livres do chunk (âncora de heading, flags de avaliação,
+    -- proveniência). Espelha a migração 002_add_meta.sql — e o template de perfil em
+    -- ingest/store.py (_PROFILE_DDL_TEMPLATE), que JÁ a tinha. O init.sql estava SEM
+    -- esta coluna: um volume NOVO (sem rodar as migrações MANUAIS) criava `chunks` sem
+    -- `meta` e o copy-forward/upsert (que inserem `meta`) quebravam. Lockstep travado
+    -- por teste (S69).
+    meta          jsonb,
 
     -- Idempotencia bruta: mesmo repo+path+conteudo jamais duplica DENTRO de uma
     -- geracao. S29 inclui `gen` na unicidade: o mesmo conteudo pode coexistir em

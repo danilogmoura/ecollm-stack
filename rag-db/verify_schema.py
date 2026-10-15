@@ -181,6 +181,17 @@ def _check_table(url: str, table: str, dim: int) -> list[tuple[bool, str]]:
         """,
     )
     results.append((bool(gen_rows), f"coluna '{table}.gen' presente (S29 blue-green)"))
+
+    # coluna `meta` (S18/migração 002; S69: faltava no init.sql, mas o template de
+    # perfil e o upsert a usam — sem ela o copy-forward/upsert quebram num volume novo).
+    meta_rows = _fetch_all(
+        url,
+        f"""
+        SELECT a.attname FROM pg_attribute a
+        WHERE a.attrelid='{table}'::regclass AND a.attname = 'meta' AND a.attnum > 0
+        """,
+    )
+    results.append((bool(meta_rows), f"coluna '{table}.meta' presente (S18/S69)"))
     return results
 
 
