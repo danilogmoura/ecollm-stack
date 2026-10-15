@@ -407,7 +407,9 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             conn.commit()
 
             # 7) GC da geração anterior, em transação separada, APÓS o flip (R4).
-            report.deleted = store.gc_old_generations(conn, repo, new_gen, profile=prof)
+            # S89: `gc` (chunks de gerações antigas) é distinto de `removed_files`
+            # (arquivos que sumiram do repo) — antes ambos caíam em "removidos".
+            report.gc = store.gc_old_generations(conn, repo, new_gen, profile=prof)
             conn.commit()
 
             report.chunks_total = store.count_chunks(conn, repo, gen=new_gen, profile=prof)

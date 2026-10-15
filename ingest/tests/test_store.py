@@ -120,15 +120,37 @@ def test_count_chunks_retorna_escalar():
 
 def test_sync_report_summary_omite_retomados_quando_zero():
     rep = store.SyncReport(repo="r", files_seen=2, chunks_total=5,
-                           inserted=5, unchanged=0, deleted=0)
+                           inserted=5, unchanged=0, gc=0)
     assert "retomados" not in rep.summary()
 
 
 def test_sync_report_summary_inclui_retomados():
     """S88: retomada fica visível no resumo (antes era invisível)."""
     rep = store.SyncReport(repo="r", files_seen=2, chunks_total=5,
-                           inserted=3, unchanged=2, deleted=0,
+                           inserted=3, unchanged=2, gc=0,
                            resumed=1, resumed_files=["a.py"])
     s = rep.summary()
     assert "retomados=1" in s
     assert rep.resumed_files == ["a.py"]
+
+
+def test_sync_report_summary_separa_gc_de_removidos():
+    """S89: `gc` (chunks de gerações antigas) ≠ `removidos` (arquivos do repo).
+
+    Antes o summary rotulava `removidos={deleted}` (o GC) — enganoso: um sync sem
+    remoção mostrava `removidos=858`. Agora `removidos` = len(removed_files) e o
+    GC aparece como `gc=N`.
+    """
+    rep = store.SyncReport(repo="r", files_seen=50, chunks_total=870,
+                           inserted=0, unchanged=870, gc=858,
+                           removed_files=[])
+    s = rep.summary()
+    assert "removidos=0" in s
+    assert "gc=858" in s
+    # com arquivos removidos de verdade, o rótulo reflete a contagem real.
+    rep2 = store.SyncReport(repo="r", files_seen=49, chunks_total=860,
+                            inserted=0, unchanged=860, gc=10,
+                            removed_files=["notes.md", "old.py"])
+    s2 = rep2.summary()
+    assert "removidos=2" in s2
+    assert "gc=10" in s2

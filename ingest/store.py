@@ -7,7 +7,7 @@ Regras travadas no plano (.planning/PLANO-RAG.md §3 FASE 2, §4b-3):
     para reduzir manutencao): compara o git blob sha (`file_hash`) por path;
     arquivo cujo blob mudou ou sumiu tem seus chunks antigos removidos e os
     novos re-embedados (o embedador + cache Redis cuidam do resto).
-  - Contadores minimos p/ relatorio: inserted / unchanged / deleted.
+  - Contadores minimos p/ relatorio: inserted / unchanged / gc / removed_files.
   - Coluna embedding = halfvec(3072); inserimos como texto "[...]"::halfvec.
     NUNCA usar operator class vector_* numa coluna halfvec (BUG-002).
 
@@ -168,7 +168,6 @@ class SyncReport:
     chunks_total: int = 0
     inserted: int = 0
     unchanged: int = 0
-    deleted: int = 0
     changed_files: list[str] = field(default_factory=list)
     removed_files: list[str] = field(default_factory=list)
     # S88: observabilidade de retomada (o sync é retomável — S29). `resumed` =
@@ -176,11 +175,17 @@ class SyncReport:
     # 429/crash); `resumed_files` lista-os. Sem isto, uma retomada era invisível.
     resumed: int = 0
     resumed_files: list[str] = field(default_factory=list)
+    # S89: `gc` = chunks de gerações ANTIGAS apagados pelo GC pós-flip (housekeeping,
+    # NÃO são arquivos removidos do repo). Antes era rotulado "removidos" no summary
+    # — enganoso (um sync sem remoção mostrava `removidos=858`). `removed_files`
+    # (arquivos que sumiram do repo) é a métrica real de remoção.
+    gc: int = 0
 
     def summary(self) -> str:
         base = (
             f"[store:{self.repo}] arquivos={self.files_seen} chunks={self.chunks_total} "
-            f"inseridos={self.inserted} inalterados={self.unchanged} removidos={self.deleted}"
+            f"inseridos={self.inserted} inalterados={self.unchanged} "
+            f"removidos={len(self.removed_files)} gc={self.gc}"
         )
         if self.resumed:
             base += f" retomados={self.resumed}"

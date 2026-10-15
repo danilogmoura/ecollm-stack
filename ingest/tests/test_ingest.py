@@ -22,7 +22,7 @@ _REAL_GITLEAKS_GATE = ingest.gitleaks_gate
 def test_primeira_execucao_inserta_tudo(repo, patched):
     rep = ingest.run_ingest(repo, verbose=False)
     assert rep.inserted > 0
-    assert rep.deleted == 0
+    assert rep.gc == 0
     assert rep.chunks_total == rep.inserted
     # conteudo embedado NAO contem task-prefix (prefixo so na chamada de embed,
     # mas embed_documents recebe texto puro + kind; aqui validamos que nao vazou)
@@ -48,7 +48,7 @@ def test_arquivo_editado_reembeda_so_ele(repo, patched):
     # só hello.py foi re-embedado
     paths_embedded = {c for c in patched.embedded}
     assert rep.changed_files == ["hello.py"]
-    assert rep.deleted >= 1  # chunk antigo de hello.py removido
+    assert rep.gc >= 1  # chunk antigo de hello.py removido (GC pós-flip)
     assert rep.inserted >= 1
 
 
@@ -60,7 +60,7 @@ def test_arquivo_apagado_remove_chunks(repo, patched):
     _git(repo, "commit", "-q", "-m", "rm")
     rep = ingest.run_ingest(repo, verbose=False)
     assert "notes.md" in rep.removed_files
-    assert rep.deleted >= 1
+    assert rep.gc >= 1
     assert patched.count("myrepo") < total_before
 
 

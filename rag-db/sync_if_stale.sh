@@ -56,3 +56,13 @@ fi
 log "[sync-if-stale] defasado (publicado=${PUBLISHED:0:7} atual=${HEAD_SHA:0:7}) — sincronizando perfil '$PROFILE'..."
 RAG_PROFILE="$PROFILE" "$PY" -m ingest.cli sync --repo "$REPO_ROOT"
 log "[sync-if-stale] OK."
+
+# S89 (A3): snapshot do custo acumulado (append-only) a cada sync — série temporal
+# do gasto, imune a poda/rotação do SpendLogs. Best-effort: falha NÃO derruba o
+# sync (o índice já está publicado). Só roda se o proxy estiver acessível.
+SNAP="$REPO_ROOT/.planning/c6-cost-history.json"
+if "$PY" -m eval.cache_report --snapshot "$SNAP" >/dev/null 2>&1; then
+  log "[sync-if-stale] snapshot de custo atualizado ($SNAP)."
+else
+  log "[sync-if-stale] snapshot de custo indisponível (proxy/DB?) — ignorado."
+fi
