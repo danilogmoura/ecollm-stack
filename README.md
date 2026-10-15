@@ -44,7 +44,7 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `rag-embeddings-qwen37` | openai/qwen3.7-text-embedding (MaaS) | 1024 | `chunks_qwen37` |
 | `rag-embeddings-bgem3` | bge-m3 (Ollama local, $0) | 1024 | `chunks_bgem3` |
 
-Os grupos `-fast` dos Qwen fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. Nos grupos NovAI o thinking OFF usa `extra_body: {thinking: {type: disabled}}` (a flag `enable_thinking` **não** funciona no Doubao — gotcha medido). Convenção em todo o repo: id **base** = thinking ON, sufixo **`-fast`** = thinking OFF. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
+Os grupos `-fast` dos Qwen fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. Nos grupos NovAI o thinking OFF usa `extra_body: {thinking: {type: disabled}}` (a flag `enable_thinking` **não** funciona no Doubao — gotcha medido). Nas rotas DeepSeek o `thinking` vai **top-level** em `litellm_params` (`thinking: {type: enabled|disabled}`), não em `extra_body`: só assim o LiteLLM arma o shim que devolve `reasoning_content` em multi-turno e evita HTTP 400 em loop de agente. Convenção em todo o repo: id **base** = thinking ON, sufixo **`-fast`** = thinking OFF — a **flag correta é por provider**. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
 
 ## Setup rápido
 
