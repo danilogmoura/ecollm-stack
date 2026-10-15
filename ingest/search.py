@@ -302,7 +302,11 @@ def search(
                 _LEXICAL_PT_SQL.format(t=t), {**params_common, "q": query, "n": lexical_topk}
             ).fetchall()
             lists.append(lex_pt_rows)
-            all_weights.append(lexical_pt_weight)
+            # S72: usar `pt_weight` (já resolvido = arg ou default do módulo), NÃO
+            # `lexical_pt_weight` (que é None quando o chamador não passa o kwarg).
+            # Com `LEXICAL_PT_WEIGHT>0` e kwarg omitido, o arg cru virava None em
+            # `all_weights` → TypeError no RRF ("None / int").
+            all_weights.append(pt_weight)
 
         fused = reciprocal_rank_fusion(lists, weights=all_weights, k=rrf_k)
         hits = [_row_to_hit(row, score, vr, lr, dist)

@@ -184,6 +184,33 @@ def test_s20_lexical_pt_weight_posivo_liga_caminho():
     assert any("websearch_to_tsquery('simple'" in s for s in sqls)  # léxico simple
 
 
+def test_s72_default_positivo_sem_kwarg_nao_crasha(monkeypatch):
+    """S72: com o DEFAULT do módulo >0 e o chamador SEM passar o kwarg (None),
+    o 3º ramo deve usar `pt_weight` (não `None`) — senão o RRF estoura TypeError.
+
+    Regressão do bug: `all_weights.append(lexical_pt_weight)` appenda None quando
+    LEXICAL_PT_WEIGHT>0 e o kwarg é omitido (ex.: recall.py sem --lexical-pt).
+    """
+    monkeypatch.setattr(search, "LEXICAL_PT_WEIGHT", 0.5)  # liga o "botão" pelo default
+    doc = _row(5, "README.md", kind="doc")
+    conn = FakeConn([], [], [doc])
+    # kwarg OMITIDO (None) → antes: weights=[1.0, 1.0, None] → TypeError
+    hits = search.search("índice", repo="r", conn=conn, qvec=[0.0], final_k=2)
+    assert any(h.id == "id5" for h in hits)  # não crashou; doc resgatado pelo ramo pt
+
+
+def test_s72_peso_do_3o_ramo_usa_pt_weight(monkeypatch):
+    """O peso do ramo pt aplicado ao RRF deve ser o DEFAULT resolvido (0.5),
+    não o arg cru — confirmado pelo score (0.5/61) somar no doc."""
+    monkeypatch.setattr(search, "LEXICAL_PT_WEIGHT", 0.5)
+    doc = _row(5, "README.md", kind="doc")
+    conn = FakeConn([], [], [doc])
+    hits = search.search("índice", repo="r", conn=conn, qvec=[0.0], final_k=2)
+    score = {h.id: h.score for h in hits}["id5"]
+    # doc só no ramo pt (rank 1) com peso 0.5 → 0.5/(60+1)
+    assert score == pytest.approx(0.5 / 61)
+
+
 def test_s20_doc_reforcado_pelo_lexico_pt_sobe_no_ranking():
     """Um doc resgatado só pelo léxico-pt ganha score extra quando o caminho liga."""
     doc = _row(5, "README.md", kind="doc")
