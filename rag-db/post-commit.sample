@@ -6,10 +6,10 @@
 # de gastar cota (sync_if_stale.sh), então commits sem mudança de corpus são grátis.
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 LOG="$REPO_ROOT/.planning/rag-sync.log"
-# S87: rotação simples — mantém as últimas 500 linhas (evita crescer infinito).
-if [ -f "$LOG" ] && [ "$(wc -l < "$LOG")" -gt 1000 ]; then
-  tail -n 500 "$LOG" > "$LOG.tmp" && mv "$LOG.tmp" "$LOG"
-fi
+# S87/S90: rotação simples — mantém as últimas 500 linhas (evita crescer infinito).
+# S90/B2: o mesmo vale para o log do MCP (mcp-stderr.log).
+bash "$REPO_ROOT/rag-db/rotate_log.sh" "$LOG" 1000 500
+bash "$REPO_ROOT/rag-db/rotate_log.sh" "$REPO_ROOT/.planning/mcp-stderr.log" 1000 500
 nohup bash "$REPO_ROOT/rag-db/sync_if_stale.sh" >>"$LOG" 2>&1 &
 disown 2>/dev/null || true
 exit 0
