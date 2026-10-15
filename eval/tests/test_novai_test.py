@@ -115,9 +115,77 @@ def test_verdict_stream_no_done():
     assert not ok
 
 
-# --- embeddings ------------------------------------------------------------
+# --- stream FORTE (parser tolerante + veredito com diagnóstico de framing) --
 
-def test_verdict_embeddings_ok_with_dim():
+def _chunk(content):
+    return f'data: {{"choices":[{{"delta":{{"content":"{content}"}}}}]}}'
+
+
+def test_parse_sse_lines_conformant_double_newline():
+    raw = f'{_chunk("O")}\n\n{_chunk("K")}\n\ndata: [DONE]\n\n'
+    info = nt.parse_sse_lines(raw)
+    assert info["json_ok"] == 2 and info["done"] and info["json_bad"] == 0
+    # 3 terminadores \n\n, 0 eventos quebrados por \n simples.
+    assert info["sep_blank"] == 3 and info["sep_single"] == 0
+
+
+def test_parse_sse_lines_tolerates_single_newline_bug():
+    # Framing bugado NovAI (\\n simples): parser ainda extrai os chunks.
+    raw = f'{_chunk("O")}\n{_chunk("K")}\ndata: [DONE]'
+    info = nt.parse_sse_lines(raw)
+    assert info["json_ok"] == 2 and info["done"]
+    # Nenhum \n\n; 2 pares de eventos vizinhos separados só por \n simples.
+    assert info["sep_blank"] == 0 and info["sep_single"] == 2
+
+
+def test_assemble_stream_text_concatenates_deltas():
+    payloads = [
+        '{"choices":[{"delta":{"content":"Ol"}}]}',
+        '{"choices":[{"delta":{"content":"á!"}}]}',
+        "[DONE]",
+    ]
+    assert nt.assemble_stream_text(payloads) == "Olá!"
+
+
+def test_verdict_stream_strong_pass_conformant():
+    raw = f'{_chunk("O")}\n\n{_chunk("K")}\n\ndata: [DONE]\n\n'
+    ok, ev = nt.verdict_stream_strong(nt.parse_sse_lines(raw), expect_substr="OK")
+    assert ok and "texto=" in ev
+
+
+def test_verdict_stream_strong_flags_framing_regression():
+    # Payload bom mas \\n simples sem \\n\\n => REGRESSÃO do bug já corrigido.
+    raw = f'{_chunk("O")}\n{_chunk("K")}\ndata: [DONE]'
+    ok, ev = nt.verdict_stream_strong(nt.parse_sse_lines(raw))
+    assert not ok and "REGRESSÃO" in ev
+
+
+def test_verdict_stream_strong_bad_json_chunk():
+    raw = 'data: {nao-json}\n\ndata: [DONE]\n\n'
+    ok, ev = nt.verdict_stream_strong(nt.parse_sse_lines(raw))
+    assert not ok and "JSON inválido" in ev
+
+
+def test_verdict_stream_strong_empty_text():
+    raw = 'data: {"choices":[{"delta":{}}]}\n\ndata: [DONE]\n\n'
+    ok, ev = nt.verdict_stream_strong(nt.parse_sse_lines(raw))
+    assert not ok and "texto montado vazio" in ev
+
+
+def test_verdict_stream_strong_missing_done():
+    raw = f'{_chunk("OI")}\n\n'
+    ok, ev = nt.verdict_stream_strong(nt.parse_sse_lines(raw))
+    assert not ok and "faltou [DONE]" in ev
+
+
+def test_run_chat_stream_live_uses_strong_verdict():
+    raw = f'{_chunk("O")}\n\n{_chunk("K")}\n\ndata: [DONE]\n\n'
+    resp = _FakeResp(200, text=raw)
+    sender = _sender_factory(resp)
+    res = nt.run_chat(sender, "novai-x", stream=True)
+    assert res.passed and res.test == "chat.stream"
+
+
     resp = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
     ok, ev = nt.verdict_embeddings(resp, expected_dim=3)
     assert ok and "dim=3" in ev

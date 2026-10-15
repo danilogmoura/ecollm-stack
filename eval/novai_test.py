@@ -142,6 +142,71 @@ def split_sse_events(raw_text: str) -> list[str]:
     return [chunk for chunk in raw_text.split("\n\n") if chunk.strip()]
 
 
+def parse_sse_lines(raw_text: str) -> dict:
+    """Parser SSE TOLERANTE a ambos os framings (conforme WHATWG e o gateway NovAI).
+
+    O gateway NovAI emite eventos separados por UM '\\n' em vez do blank line
+    '\\n\\n' exigido pela spec (bug documentado em
+    ``reports/2026-10-14-novai-sse-streaming.md``). Um parser estrito colapsa tudo
+    num único evento multi-linha e morre em ``json.loads`` com 'Extra data'. Este
+    parser trata cada linha ``data:`` como um evento próprio, então funciona nos
+    DOIS framings e ainda MEDIE qual o gateway usou.
+
+    Retorna dict com:
+      payloads   : lista dos strings após 'data:' (inclui '[DONE]' se presente)
+      json_ok    : nº de payloads JSON-parseáveis
+      json_bad   : nº de payloads NÃO-parseáveis (exclui '[DONE]')
+      done       : True se algum payload == '[DONE]'
+      sep_blank  : nº de terminadores '\\n\\n' entre eventos (framing CONFORME)
+      sep_single : nº de terminadores '\\n' simples entre eventos (framing BUGADO)
+    """
+    payloads: list[str] = []
+    for line in raw_text.splitlines():
+        s = line.strip()
+        if s.startswith("data:"):
+            payloads.append(s[len("data:"):].strip())
+    json_ok = 0
+    json_bad = 0
+    done = False
+    for p in payloads:
+        if p == "[DONE]":
+            done = True
+            continue
+        try:
+            json.loads(p)
+            json_ok += 1
+        except ValueError:
+            json_bad += 1
+    # Medição de framing sobre o texto bruto (independente do parsing tolerante).
+    # Um evento CONFORME termina com blank line; no wire isso aparece como o
+    # terminador '\\n\\n' (antes do próximo 'data:' ou antes de EOF). Contamos
+    # terminadores, não ocorrências de '}\ndata:' — assim um único evento grande
+    # (ex.: [DONE] isolado) também é medido corretamente.
+    sep_blank = raw_text.count("\n\n")
+    n_data = len(payloads)
+    # Eventos sem blank line entre si = '\\n' simples (framing bugado/regressão).
+    sep_single = max(0, (n_data - 1) - sep_blank) if n_data > 1 else 0
+    return {"payloads": payloads, "json_ok": json_ok, "json_bad": json_bad,
+            "done": done, "sep_blank": sep_blank, "sep_single": sep_single}
+
+
+def assemble_stream_text(payloads: list[str]) -> str:
+    """Concatena ``choices[].delta.content`` dos chunks SSE (monta a resposta real)."""
+    out: list[str] = []
+    for p in payloads:
+        if p == "[DONE]":
+            continue
+        try:
+            obj = json.loads(p)
+        except ValueError:
+            continue
+        for ch in obj.get("choices") or []:
+            piece = ((ch.get("delta") or {}).get("content")) or ""
+            if piece:
+                out.append(piece)
+    return "".join(out)
+
+
 def verdict_stream(events: list[str]) -> tuple[bool, str]:
     """streaming: ≥1 evento 'data:' JSON válido + marcador [DONE]."""
     data_lines = [e for e in events if e.startswith("data:")]
@@ -160,6 +225,42 @@ def verdict_stream(events: list[str]) -> tuple[bool, str]:
             bad += 1
     ok = parsed >= 1 and done and bad == 0
     return ok, f"events_data={len(data_lines)} parsed={parsed} bad={bad} done={done}"
+
+
+def verdict_stream_strong(info: dict, *, expect_substr: str | None = None
+                          ) -> tuple[bool, str]:
+    """Veredito SSE FORTALECIDO: valida payload E diagnostica o framing do gateway.
+
+    Passa somente se: ≥1 chunk JSON válido + [DONE] presente + zero JSON inválido
+    (+ substring esperada no texto montado, quando pedida). Quando falha por
+    payload, diz exatamente o quê; quando o payload está OK mas o framing é
+    bugado ('\\n' simples sem '\\n\\n'), marca explicitamente o bug NovAI na
+    evidência — para não confundir 'gateway devolve lixo' com 'gateway devolve
+    JSON bom mas não-conforme'.
+    """
+    assembled = assemble_stream_text(info["payloads"])
+    base = (f"chunks_json={info['json_ok']} bad={info['json_bad']} "
+            f"done={info['done']} text_len={len(assembled)} "
+            f"framing(blank={info['sep_blank']},single={info['sep_single']})")
+    if info["json_bad"] > 0:
+        return False, f"{base} :: {info['json_bad']} chunk(s) JSON inválido"
+    if info["json_ok"] < 1:
+        return False, f"{base} :: nenhum chunk JSON"
+    if not info["done"]:
+        return False, f"{base} :: faltou [DONE]"
+    if not assembled.strip():
+        return False, f"{base} :: texto montado vazio"
+    if expect_substr is not None and expect_substr.lower() not in assembled.lower():
+        return False, f"{base} :: esperado {expect_substr!r} ausente no texto"
+    # Payload íntegro; agora checa CONFORMIDADE do framing (padrão corrigido NovAI).
+    # Desde 2026-10 reportado→resolvido pela NovAI: eventos DEVEM vir separados por
+    # blank line (\n\n). '\\n' simples entre eventos = REGRESSÃO do bug antigo.
+    if info["sep_single"] > 0 and info["sep_blank"] == 0:
+        return False, (f"{base} :: FRAMING NAO-CONFORME — eventos sep. por \\n "
+                       f"simples sem \\n\\n (REGRESSÃO do bug NovAI já corrigido)")
+    if info["sep_blank"] == 0 and len(info["payloads"]) > 1:
+        return False, f"{base} :: sem \\n\\n entre eventos (framing ausente)"
+    return True, f"{base} :: texto={assembled[:40]!r}"
 
 
 def verdict_embeddings(resp: dict, expected_dim: int | None = None) -> tuple[bool, str]:
@@ -286,8 +387,8 @@ def run_chat(sender: Sender, group: str, *, stream=False, tools=False,
                            f"HTTP {r.status_code}: {r.text[:120]}")
 
     if stream:
-        events = split_sse_events(r.text)
-        ok, ev = verdict_stream(events)
+        info = parse_sse_lines(r.text)
+        ok, ev = verdict_stream_strong(info, expect_substr="OK")
         return CheckResult(group, "chat", label, ok, ev)
 
     resp = r.json()
@@ -431,7 +532,8 @@ def select(rows: list[dict], family: str | None, only_id: str | None) -> list[di
 # ---------------------------------------------------------------------------
 
 
-def run_one(row: dict, sender: Sender | None, live: bool) -> list[CheckResult]:
+def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = False
+            ) -> list[CheckResult]:
     mod = row["modality"]
     grp = row["group"]
     if not live:
@@ -446,9 +548,11 @@ def run_one(row: dict, sender: Sender | None, live: bool) -> list[CheckResult]:
         return [run_tts(sender, grp)]
     if mod == "asr":
         return [run_asr(sender, grp)]
-    # chat: texto + thinking conforme ON/OFF; streaming/tools só numa amostra barata
+    # chat: texto + thinking conforme ON/OFF. Com --stream, roda também o caso SSE.
     thinking = "disabled" if mod == "chat-fast" else "on"
     out = [run_chat(sender, grp, thinking=thinking)]
+    if stream and mod.startswith("chat"):
+        out.append(run_chat(sender, grp, stream=True))
     return out
 
 
@@ -475,6 +579,8 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--id", dest="only_id", help="um único grupo")
     ap.add_argument("--all", action="store_true", help="todos os grupos")
     ap.add_argument("--live", action="store_true", help="de fato chama o proxy")
+    ap.add_argument("--stream", action="store_true",
+                    help="chat: roda também o caso SSE (stream:true) com veredito forte")
     ap.add_argument("--list", action="store_true", help="só imprime seleção")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     args = ap.parse_args(argv)
@@ -499,7 +605,7 @@ def main(argv: list[str] | None = None) -> int:
     sender = make_sender(cfg) if args.live else None
     results: list[CheckResult] = []
     for r in sel:
-        results.extend(run_one(r, sender, args.live))
+        results.extend(run_one(r, sender, args.live, stream=args.stream))
 
     npass = sum(1 for x in results if x.passed)
     nskip = sum(1 for x in results if x.skipped)
