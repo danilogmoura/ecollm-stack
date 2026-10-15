@@ -146,6 +146,51 @@ def test_build_report_vazio_nao_quebra():
     assert "Nenhuma chamada" in md
 
 
+# --- S88: snapshot do custo acumulado (append-only) -------------------------
+
+def _snap_source(_sql):
+    return [
+        {"startTime": "2026-09-27", "model_group": "qwen3.8-flash",
+         "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 900,
+         "spend": 0.0001},
+    ]
+
+
+def test_write_cost_snapshot_cria_e_faz_append(tmp_path):
+    import json
+    p = tmp_path / "snap.json"
+    e1 = cr.write_cost_snapshot(str(p), days=1, row_source=_snap_source)
+    assert e1["calls"] == 1
+    assert e1["scope"] == "qwen3.8-*"
+    assert e1["hit_rate"] == pytest.approx(0.9)
+    assert e1["spend_with_cache"] == pytest.approx(0.0001)
+    # append: segunda chamada adiciona, não sobrescreve.
+    cr.write_cost_snapshot(str(p), days=1, row_source=_snap_source)
+    data = json.loads(p.read_text())
+    assert len(data["snapshots"]) == 2
+    assert data["snapshots"][0]["ts"].endswith("Z")
+
+
+def test_write_cost_snapshot_escopo_all_e_models(tmp_path):
+    import json
+    p = tmp_path / "snap.json"
+    cr.write_cost_snapshot(str(p), all_models=True, row_source=_snap_source)
+    cr.write_cost_snapshot(str(p), models=["deepseek-flash"], row_source=_snap_source)
+    data = json.loads(p.read_text())
+    assert data["snapshots"][0]["scope"] == "all"
+    assert data["snapshots"][1]["scope"] == "deepseek-flash"
+
+
+def test_write_cost_snapshot_arquivo_corrompido_recomeca(tmp_path):
+    import json
+    p = tmp_path / "snap.json"
+    p.write_text("{lixo nao-json")
+    e = cr.write_cost_snapshot(str(p), row_source=_snap_source)
+    data = json.loads(p.read_text())
+    assert len(data["snapshots"]) == 1  # recomeça sem perder o novo
+    assert e["calls"] == 1
+
+
 # --- H1: cauda nao-cacheada (uncached) -------------------------------------
 
 def test_uncached_propriedade_basica():

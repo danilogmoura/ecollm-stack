@@ -75,6 +75,23 @@ def test_falha_definitiva_apos_esgotar_retries():
                           sleep=lambda s: None, post=always_fail)
 
 
+def test_retry_loga_em_stderr(capsys):
+    """S88: cada retry é logado em stderr (antes era silencioso)."""
+    attempts = {"n": 0}
+
+    def flaky(texts, cfg, session):
+        attempts["n"] += 1
+        if attempts["n"] < 2:
+            raise embed.EmbedError("429 rate limit")
+        return [[0.1] * CFG["dim"] for _ in texts]
+
+    embed.embed_texts(["a"], cfg=CFG, max_retries=3,
+                      sleep=lambda s: None, post=flaky)
+    err = capsys.readouterr().err
+    assert "[embed] retry 1/2" in err
+    assert "EmbedError" in err
+
+
 def test_post_batch_valida_dimensao_incorreta(monkeypatch):
     """_post_batch (caminho HTTP real) deve rejeitar vetor com dim errada."""
     class Resp:

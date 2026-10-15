@@ -38,6 +38,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -524,6 +525,71 @@ def build_report(
     return "\n".join(lines) + "\n"
 
 
+def write_cost_snapshot(
+    path: str,
+    *,
+    days: int | None = None,
+    model: str | None = None,
+    models: Sequence[str] | None = None,
+    all_models: bool = False,
+    row_source: Callable[[str], list[dict]] | None = None,
+) -> dict:
+    """S88: persiste um snapshot do custo acumulado (histórico append-only).
+
+    Grava ``{"snapshots": [...]}`` em ``path`` (JSON). Cada entrada registra o
+    instante UTC, o escopo e os totais de custo/tokens. Reexecutar faz APPEND —
+    o arquivo vira uma série temporal do gasto acumulado (o SpendLogs é a fonte,
+    mas o snapshot congela o valor no momento da leitura, imune a poda/rotação).
+    """
+    source = row_source or fetch_rows_via_docker
+    raws = source(build_sql(days, model, models=models, all_models=all_models))
+    rows = [parse_row(r) for r in raws]
+    overall = compute_metrics(rows)
+    unc = compute_uncached(rows)
+    rh = compute_redis_hits(rows)
+
+    if all_models:
+        scope = "all"
+    elif models:
+        scope = ",".join(models)
+    elif model:
+        scope = model
+    else:
+        scope = "qwen3.8-*"
+
+    entry = {
+        "ts": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "scope": scope,
+        "days": days,
+        "calls": overall.calls,
+        "prompt_tokens": overall.prompt_tokens,
+        "completion_tokens": overall.completion_tokens,
+        "cached_tokens": overall.cached_tokens,
+        "hit_rate": round(overall.hit_rate, 6),
+        "spend_with_cache": round(overall.spend_with_cache, 6),
+        "cost_no_cache": round(overall.cost_no_cache, 6),
+        "savings": round(overall.savings, 6),
+        "uncached_cost": round(unc.cost, 6),
+        "redis_hits": rh.hits,
+        "redis_misses": rh.misses,
+    }
+
+    data: dict = {"snapshots": []}
+    if os.path.exists(path):
+        try:
+            with open(path, encoding="utf-8") as fh:
+                loaded = json.load(fh)
+            if isinstance(loaded, dict) and isinstance(loaded.get("snapshots"), list):
+                data = loaded
+        except (json.JSONDecodeError, OSError):
+            data = {"snapshots": []}  # arquivo corrompido → recomeça (não perde o novo)
+    data["snapshots"].append(entry)
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(data, fh, ensure_ascii=False, indent=2)
+        fh.write("\n")
+    return entry
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Relatório de context cache (C6).")
     ap.add_argument("--days", type=int, default=None, help="Janela: últimos N dias.")
@@ -533,8 +599,18 @@ def main(argv: Sequence[str] | None = None) -> int:
     ap.add_argument("--all", dest="all_models", action="store_true",
                     help="Sem filtro de grupo (todos os model_group).")
     ap.add_argument("--out", default=None, help="Escrever markdown neste arquivo.")
+    ap.add_argument("--snapshot", default=None,
+                    help="S88: persistir snapshot do custo acumulado neste JSON (append).")
     args = ap.parse_args(argv)
     models = [m.strip() for m in args.models.split(",") if m.strip()] if args.models else None
+    if args.snapshot:
+        entry = write_cost_snapshot(
+            args.snapshot, days=args.days, model=args.model,
+            models=models, all_models=args.all_models,
+        )
+        print(f"[c6] snapshot gravado em {args.snapshot} "
+              f"(spend=${entry['spend_with_cache']:.4f}, calls={entry['calls']})",
+              file=sys.stderr)
     report = build_report(days=args.days, model=args.model,
                           models=models, all_models=args.all_models)
     if args.out:

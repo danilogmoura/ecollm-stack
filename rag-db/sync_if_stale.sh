@@ -31,10 +31,15 @@ PROFILE="${PROFILE:-qwen37}"
 FORCE=0
 [ "${1:-}" = "--force" ] && FORCE=1
 
+# S88: timestamp em cada linha do log (correlaciona sync com commits). O hook
+# redireciona stdout/stderr p/ rag-sync.log; prefixamos com data/hora UTC.
+_ts() { date -u '+%Y-%m-%dT%H:%M:%SZ'; }
+log() { echo "[$(_ts)] $*"; }
+
 # HEAD atual do git.
 HEAD_SHA="$(git -C "$REPO_ROOT" rev-parse HEAD 2>/dev/null || true)"
 if [ -z "$HEAD_SHA" ]; then
-  echo "[sync-if-stale] não é um repo git — nada a fazer." >&2
+  log "[sync-if-stale] não é um repo git — nada a fazer." >&2
   exit 0
 fi
 
@@ -44,10 +49,10 @@ PUBLISHED="$(docker compose exec -T rag-db psql -U rag -d rag -tA \
   2>/dev/null | tr -d '[:space:]' || true)"
 
 if [ "$FORCE" -eq 0 ] && [ -n "$PUBLISHED" ] && [ "$PUBLISHED" = "$HEAD_SHA" ]; then
-  echo "[sync-if-stale] índice FRESCO (${HEAD_SHA:0:7} == publicado) — nada a fazer."
+  log "[sync-if-stale] índice FRESCO (${HEAD_SHA:0:7} == publicado) — nada a fazer."
   exit 0
 fi
 
-echo "[sync-if-stale] defasado (publicado=${PUBLISHED:0:7} atual=${HEAD_SHA:0:7}) — sincronizando perfil '$PROFILE'..."
+log "[sync-if-stale] defasado (publicado=${PUBLISHED:0:7} atual=${HEAD_SHA:0:7}) — sincronizando perfil '$PROFILE'..."
 RAG_PROFILE="$PROFILE" "$PY" -m ingest.cli sync --repo "$REPO_ROOT"
-echo "[sync-if-stale] OK."
+log "[sync-if-stale] OK."

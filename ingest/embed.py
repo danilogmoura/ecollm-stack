@@ -30,6 +30,7 @@ from __future__ import annotations
 import base64
 import os
 import struct
+import sys
 import time
 from typing import Callable, Sequence
 
@@ -233,6 +234,10 @@ def embed_texts(
                             f"batch @{start} falhou apos {max_retries} tentativas: {exc}"
                         ) from exc
                     delay = BACKOFF_BASE * (2 ** (attempt - 1))
+                    # S88: loga o retry (antes era silencioso — problemas de cota/
+                    # rede ficavam invisíveis). stderr, nunca stdout (protocolo MCP).
+                    print(f"[embed] retry {attempt}/{max_retries - 1} batch @{start} "
+                          f"em {delay:.1f}s: {type(exc).__name__}", file=sys.stderr)
                     sleep(delay)
             if on_progress:
                 on_progress(len(out), total)

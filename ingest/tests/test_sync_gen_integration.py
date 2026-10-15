@@ -264,6 +264,56 @@ def test_sync_interrompido_reexecucao_converge(monkeypatch, test_repo, live_conn
         _cleanup(live_conn, ref_repo)
 
 
+def test_sync_resume_registra_retomados(monkeypatch, test_repo, live_conn):
+    """S88: arquivo já commitado na geração em montagem → resume contabilizado.
+
+    Simula um sync interrompido APÓS commitar um arquivo MUDADO na geração nova
+    (mas antes do flip): a re-execução encontra `file_in_generation` True e pula o
+    re-embed. O relatório deve registrar `resumed`/`resumed_files` (antes invisível).
+    """
+    from ingest import embed, ingest, loader
+
+    repo = test_repo.resolve().name
+    _cleanup(live_conn, repo)
+    monkeypatch.setattr(ingest, "gitleaks_gate",
+                        lambda root, entries, *, skip=False: (True, "ok"))
+    monkeypatch.setattr(embed, "embed_documents",
+                        lambda pairs, *, cfg=None, **k: [[0.1] * 3072 for _ in pairs])
+    try:
+        # 1) Publica gen 0 com a.py numa versão ANTIGA (hash diferente do atual).
+        _seed_gen(live_conn, repo, 0, {"a.py": "oldblob", "b.md": "bblob"})
+        store.publish_generation(live_conn, repo, 0)
+        live_conn.commit()
+
+        # 2) a.py muda no working tree → vira "changed" vs gen publicada.
+        (test_repo / "a.py").write_text("def f():\n    return 2\n")
+        subprocess.run(["git", "add", "."], cwd=test_repo, check=True,
+                       capture_output=True)
+        subprocess.run(["git", "commit", "-q", "-m", "muda a"], cwd=test_repo,
+                       check=True, capture_output=True,
+                       env={**subprocess.os.environ,
+                            "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"})
+        a_sha = {e.path: e for e in loader.load_corpus(test_repo)}["a.py"].blob_sha
+
+        # 3) Geração 1 em montagem já contém a.py NOVO (commitado antes do crash).
+        _seed_gen(live_conn, repo, 1, {"a.py": a_sha})
+        store.set_in_progress_gen(live_conn, repo, 1)
+        live_conn.commit()
+
+        rep = ingest.run_ingest(test_repo, verbose=False)
+        assert rep.resumed == 1
+        assert rep.resumed_files == ["a.py"]
+        # b.md inalterado → copy-forward (não resume, não re-embed).
+        pub = store.get_published_gen(live_conn, repo)
+        got = {r[0] for r in live_conn.execute(
+            "SELECT DISTINCT path FROM chunks WHERE repo=%s AND gen=%s",
+            (repo, pub)).fetchall()}
+        assert got == {"a.py", "b.md"}
+    finally:
+        _cleanup(live_conn, repo)
+
+
 # ---------------------------------------------------------------------------
 # 13 · verify_schema verde após a migração 004 (lockstep I9/R6)
 # ---------------------------------------------------------------------------

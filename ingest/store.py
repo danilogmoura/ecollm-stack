@@ -171,12 +171,20 @@ class SyncReport:
     deleted: int = 0
     changed_files: list[str] = field(default_factory=list)
     removed_files: list[str] = field(default_factory=list)
+    # S88: observabilidade de retomada (o sync é retomável — S29). `resumed` =
+    # arquivos pulados por já estarem commitados nesta geração (retomada após
+    # 429/crash); `resumed_files` lista-os. Sem isto, uma retomada era invisível.
+    resumed: int = 0
+    resumed_files: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        return (
+        base = (
             f"[store:{self.repo}] arquivos={self.files_seen} chunks={self.chunks_total} "
             f"inseridos={self.inserted} inalterados={self.unchanged} removidos={self.deleted}"
         )
+        if self.resumed:
+            base += f" retomados={self.resumed}"
+        return base
 
 
 _UPSERT_SQL = """

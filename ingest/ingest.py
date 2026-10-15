@@ -321,7 +321,6 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
         # o que MUDARIA; o caminho escrito usa published_gen correto).
         existing = store.existing_file_hashes(conn, repo, profile=prof) if conn else {}
         plans = plan_sync(repo_root, existing)
-
         to_embed = [p for p in plans if p.action in ("new", "changed")]
         unchanged_plans = [p for p in plans if p.action == "unchanged"]
         live_paths = [p.entry.path for p in plans]
@@ -352,6 +351,22 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
             store.begin_generation(conn, repo, new_gen, profile=prof)
             conn.commit()
 
+            # I3 (S88): o plano DEVE comparar contra a geração PUBLICADA, não contra
+            # todas as gerações. Com gen=None, um arquivo já commitado na geração em
+            # montagem (resume) aparecia como "unchanged" → era copy-forwardado da
+            # publicada (onde não existe) e sumia da geração nova. Recomputa o plano
+            # aqui, sob o lock, com o published_gen correto.
+            existing = store.existing_file_hashes(conn, repo, gen=published_gen,
+                                                  profile=prof)
+            plans = plan_sync(repo_root, existing)
+            to_embed = [p for p in plans if p.action in ("new", "changed")]
+            unchanged_plans = [p for p in plans if p.action == "unchanged"]
+            live_paths = [p.entry.path for p in plans]
+            removed = sorted(set(existing.keys()) - set(live_paths))
+            report.files_seen = len(plans)
+            report.changed_files = [p.entry.path for p in plans if p.action == "changed"]
+            report.removed_files = removed
+
             # 3) copy-forward: arquivos inalterados da publicada → nova (0 cota).
             #    Paths removidas NÃO entram aqui nem no embed → somem da geração nova.
             unchanged_paths = [p.entry.path for p in unchanged_plans]
@@ -364,7 +379,12 @@ def run_ingest(repo_root: str | Path, *, dry_run: bool = False,
                 if store.file_in_generation(conn, repo, new_gen, p.entry.path,
                                             p.entry.blob_sha, profile=prof):
                     # resume: este arquivo já foi commitado nesta geração → pula.
+                    # S88: registra a retomada (antes era invisível no relatório).
                     report.unchanged += len(p.chunks)
+                    report.resumed += 1
+                    report.resumed_files.append(p.entry.path)
+                    if verbose:
+                        print(f"[resume] {p.entry.path} já na geração {new_gen} — pulado")
                     continue
                 _embed_and_upsert_file(conn, repo, p, new_gen, cfg, report, profile=prof)
 

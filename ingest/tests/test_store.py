@@ -116,3 +116,19 @@ def test_existing_file_hashes_dedup_por_path():
 def test_count_chunks_retorna_escalar():
     conn = FakeConn(results=[[(42,)]])
     assert store.count_chunks(conn, "r") == 42
+
+
+def test_sync_report_summary_omite_retomados_quando_zero():
+    rep = store.SyncReport(repo="r", files_seen=2, chunks_total=5,
+                           inserted=5, unchanged=0, deleted=0)
+    assert "retomados" not in rep.summary()
+
+
+def test_sync_report_summary_inclui_retomados():
+    """S88: retomada fica visível no resumo (antes era invisível)."""
+    rep = store.SyncReport(repo="r", files_seen=2, chunks_total=5,
+                           inserted=3, unchanged=2, deleted=0,
+                           resumed=1, resumed_files=["a.py"])
+    s = rep.summary()
+    assert "retomados=1" in s
+    assert rep.resumed_files == ["a.py"]
