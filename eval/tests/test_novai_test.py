@@ -290,3 +290,136 @@ def test_run_one_dry_is_skipped():
     row = {"group": "novai-a", "modality": "chat", "upstream_id": "a"}
     out = nt.run_one(row, None, live=False)
     assert len(out) == 1 and out[0].skipped and out[0].status() == "skipped"
+
+
+# --- extract_reasoning -----------------------------------------------------
+
+def _resp(reasoning_content="", reasoning_tokens=0, output_tokens=None, content="ok"):
+    det = {}
+    if reasoning_tokens:
+        det["reasoning_tokens"] = reasoning_tokens
+    usage = {"completion_tokens_details": det}
+    if output_tokens is not None:
+        usage["output_tokens_details"] = {"reasoning_tokens": output_tokens}
+    return {"choices": [{"message": {"content": content,
+                                     "reasoning_content": reasoning_content}}],
+            "usage": usage}
+
+
+def test_extract_reasoning_from_completion_details():
+    c, t = nt.extract_reasoning(_resp(reasoning_tokens=42))
+    assert (c, t) == (0, 42)
+
+
+def test_extract_reasoning_from_content_chars():
+    c, t = nt.extract_reasoning(_resp(reasoning_content="pensei bastante"))
+    assert c == len("pensei bastante") and t == 0
+
+
+def test_extract_reasoning_sums_both_positions():
+    # LiteLLM pode reportar em completion OU output details — somar evita subcontar.
+    c, t = nt.extract_reasoning(_resp(reasoning_tokens=10, output_tokens=5))
+    assert t == 15
+
+
+def test_extract_reasoning_empty_response():
+    c, t = nt.extract_reasoning({})
+    assert (c, t) == (0, 0)
+
+
+# --- verdict_thinking_sense ------------------------------------------------
+
+def test_sense_funciona_on_has_off_zero():
+    cat, ev = nt.verdict_thinking_sense(_resp(reasoning_tokens=100), _resp())
+    assert cat == "funciona" and "tok=100" in ev
+
+
+def test_sense_nao_suporta_ambos_zero():
+    cat, _ = nt.verdict_thinking_sense(_resp(), _resp())
+    assert cat == "nao-suporta"
+
+
+def test_sense_so_on_off_nao_zera():
+    # OFF ainda tem reasoning → alavanca disabled não funciona aqui.
+    cat, _ = nt.verdict_thinking_sense(_resp(reasoning_tokens=50),
+                                       _resp(reasoning_tokens=30))
+    assert cat == "so-on"
+
+
+def test_sense_so_off_invertido():
+    cat, _ = nt.verdict_thinking_sense(_resp(), _resp(reasoning_tokens=7))
+    assert cat == "so-off"
+
+
+def test_sense_erro_empty_choices_list():
+    # choices=[] explícito → sem escolha válida → erro (não confunde com nao-suporta).
+    cat, ev = nt.verdict_thinking_sense({"choices": []}, _resp())
+    assert cat == "erro" and "sem choices" in ev
+
+
+def test_sense_erro_error_dict():
+    # dict de erro (sem message válido) → erro, NÃO nao-suporta.
+    cat, ev = nt.verdict_thinking_sense({"error": "boom"}, _resp())
+    assert cat == "erro" and "sem choices" in ev
+
+
+# --- pair_chat_models ------------------------------------------------------
+
+def test_pair_chat_models_complete_pairs_only():
+    rows = [
+        {"group": "novai-a", "modality": "chat", "upstream_id": "a"},
+        {"group": "novai-a-fast", "modality": "chat-fast", "upstream_id": "a"},
+        {"group": "novai-b", "modality": "chat", "upstream_id": "b"},  # sem -fast
+        {"group": "novai-c-fast", "modality": "chat-fast", "upstream_id": "c"},  # órfã
+        {"group": "novai-embed-x", "modality": "embedding", "upstream_id": "x"},
+    ]
+    pairs = nt.pair_chat_models(rows)
+    assert pairs == [("novai-a", "novai-a-fast")]
+
+
+def test_pair_chat_models_preserves_order():
+    rows = [
+        {"group": "novai-z", "modality": "chat", "upstream_id": "z"},
+        {"group": "novai-z-fast", "modality": "chat-fast", "upstream_id": "z"},
+        {"group": "novai-a", "modality": "chat", "upstream_id": "a"},
+        {"group": "novai-a-fast", "modality": "chat-fast", "upstream_id": "a"},
+    ]
+    assert nt.pair_chat_models(rows) == [("novai-z", "novai-z-fast"),
+                                         ("novai-a", "novai-a-fast")]
+
+
+# --- run_thinking_probe (sender injetável, SEM rede) -----------------------
+
+def _probe_sender(on_resp, off_resp):
+    """Sender fake: primeira chamada (=ON, sem extra_body) devolve on_resp;
+    segunda (=OFF, com extra_body thinking.disabled) devolve off_resp."""
+    calls = []
+
+    def _send(path, **kw):
+        body = kw.get("json_body", {})
+        off = bool(body.get("extra_body"))
+        calls.append(off)
+        return _FakeResp(200, off_resp if off else on_resp)
+    return _send, calls
+
+
+def test_run_thinking_probe_funciona_passes():
+    sender, calls = _probe_sender(_resp(reasoning_tokens=88), _resp())
+    res = nt.run_thinking_probe(sender, "novai-a", "novai-a-fast")
+    assert res.passed and res.test == "thinking-sense"
+    assert res.evidence.startswith("funciona")
+    # ON disparado sem extra_body, OFF com extra_body → ordem correta dos modos.
+    assert calls == [False, True]
+
+
+def test_run_thinking_probe_nao_suporta_fails_but_classifies():
+    sender, _ = _probe_sender(_resp(), _resp())
+    res = nt.run_thinking_probe(sender, "novai-a", "novai-a-fast")
+    assert not res.passed and res.evidence.startswith("nao-suporta")
+
+
+def test_run_thinking_probe_http_error_reports():
+    def _send(path, **kw):
+        return _FakeResp(402, json_data={}, text="insufficient balance")
+    res = nt.run_thinking_probe(_send, "novai-a", "novai-a-fast")
+    assert not res.passed and "sonda falhou" in res.evidence and "402" in res.evidence

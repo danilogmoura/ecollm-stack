@@ -124,6 +124,63 @@ def verdict_thinking_off(resp: dict) -> tuple[bool, str]:
     return False, f"reasoning_chars={len(reasoning)} reasoning_tokens={rtok}"
 
 
+def extract_reasoning(resp: dict) -> tuple[int, int]:
+    """Extrai (chars de reasoning_content, reasoning_tokens) de uma resposta chat.
+
+    Soma reasoning_tokens das duas posições em que o LiteLLM pode reportá-lo
+    (``completion_tokens_details`` e ``output_tokens_details``), para não
+    subcontar modelos que só preenchem uma delas. Função PURA — base do sonda
+    de thinking (``verdict_thinking_sense`` / ``run_thinking_probe``).
+    """
+    msg = (resp.get("choices") or [{}])[0].get("message", {}) or {}
+    chars = len((msg.get("reasoning_content") or "").strip())
+    usage = resp.get("usage", {}) or {}
+    det = usage.get("completion_tokens_details", {}) or {}
+    odet = usage.get("output_tokens_details", {}) or {}
+    tok = int(det.get("reasoning_tokens", 0) or 0) + int(odet.get("reasoning_tokens", 0) or 0)
+    return chars, tok
+
+
+def verdict_thinking_sense(on_resp: dict, off_resp: dict) -> tuple[str, str]:
+    """Classifica se a dualidade thinking-ON/OFF *realmente faz sentido* num modelo.
+
+    Recebe as respostas cruas dos dois modos (base=ON sem extra_body; -fast=OFF com
+    ``thinking:{type:disabled}``) e decide por evidência medida, não pela convenção
+    declarada no config. Categorias (fail-closed — nunca inventa capability):
+
+      - ``nao-suporta``  : ON e OFF idênticos (ambos reasoning==0) → flag não tem
+                           efeito; ter rota -fast separada é redundante.
+      - ``so-on``        : ON tem reasoning mas OFF NÃO zera → alavanca OFF não
+                           funciona aqui; só o modo ON é distinto.
+      - ``so-off``       : OFF tem reasoning mas ON não → comportamento invertido
+                           (upstream default ligado); sinalizar para revisar.
+      - ``funciona``     : ON>0 e OFF==0 → thinking real E desligável → dual faz sentido.
+      - ``erro``         : qualquer lado sem shape válido de choices.
+
+    Retorna ``(categoria, evidencia)``.
+    """
+    on_c, on_t = extract_reasoning(on_resp)
+    off_c, off_t = extract_reasoning(off_resp)
+
+    def _valid(resp: dict) -> bool:
+        choices = resp.get("choices")
+        return bool(choices) and isinstance(choices[0], dict) \
+            and isinstance(choices[0].get("message"), dict)
+
+    ev = f"ON(chars={on_c},tok={on_t}) OFF(chars={off_c},tok={off_t})"
+    if not _valid(on_resp) or not _valid(off_resp):
+        return "erro", ev + " [sem choices]"
+    on_has = on_c > 0 or on_t > 0
+    off_has = off_c > 0 or off_t > 0
+    if on_has and not off_has:
+        return "funciona", ev
+    if not on_has and not off_has:
+        return "nao-suporta", ev
+    if on_has and off_has:
+        return "so-on", ev
+    return "so-off", ev
+
+
 def verdict_tool_calls(resp: dict) -> tuple[bool, str]:
     """tool-calling: finish_reason=tool_calls + arguments JSON parseável."""
     choice = (resp.get("choices") or [{}])[0]
@@ -411,6 +468,76 @@ def _cost_from_usage(resp: dict) -> float | None:
     return float(c) if isinstance(c, (int, float)) else None
 
 
+def _chat_raw(sender: Sender, group: str, *, thinking_off: bool) -> tuple[dict | None, str]:
+    """Dispara um chat mínimo e devolve (json_cru, erro). Erro='' quando OK.
+
+    ``thinking_off=True`` injeta ``extra_body.thinking:{type:disabled}`` (o mesmo
+    mecanismo que a rota -fast usa no config); ``False`` deixa herdar o default do
+    upstream (= ON). Usado por ``run_thinking_probe`` para medir reasoning cru.
+    """
+    body: dict = {
+        "model": group,
+        "messages": [{"role": "user", "content": "Diga apenas: OK"}],
+        "max_tokens": 512,
+    }
+    if thinking_off:
+        body["extra_body"] = {"thinking": {"type": "disabled"}}
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return None, f"erro rede: {exc}"
+    if r.status_code != 200:
+        return None, f"HTTP {r.status_code}: {r.text[:120]}"
+    try:
+        return r.json(), ""
+    except ValueError:
+        return None, "resposta não-JSON"
+
+
+def run_thinking_probe(sender: Sender, base_group: str, fast_group: str) -> CheckResult:
+    """Sonda se thinking-ON/OFF *realmente faz sentido* num modelo de raciocínio.
+
+    Manda a mesma pergunta mínima nos dois modos (base=ON, -fast=OFF via extra_body),
+    mede reasoning em cada lado e classifica com ``verdict_thinking_sense``. O veredito
+    é **evidência medida**, não a convenção declarada no config — responde exatamente
+    "em quais modelos ter as duas rotas vale a pena". ``passed=True`` só na categoria
+    ``funciona`` (ON raciocina E OFF zera de fato).
+    """
+    on_resp, on_err = _chat_raw(sender, base_group, thinking_off=False)
+    off_resp, off_err = _chat_raw(sender, fast_group, thinking_off=True)
+    if on_resp is None or off_resp is None:
+        detail = on_err or off_err
+        return CheckResult(base_group, "chat", "thinking-sense", False,
+                           f"sonda falhou: {detail}")
+    cat, ev = verdict_thinking_sense(on_resp, off_resp)
+    return CheckResult(base_group, "chat", "thinking-sense", cat == "funciona",
+                       f"{cat} :: {ev}")
+
+
+def pair_chat_models(rows: list[dict]) -> list[tuple[str, str]]:
+    """Emparelha grupos chat (base=ON) com seu -fast (OFF) pelo slug comum.
+
+    Só retorna pares COMPLETOS (base E -fast presentes). Base sem -fast correspondente
+    é descartada aqui (não tem o segundo modo para comparar). Ordem determinística pela
+    lista de entrada (preserva economia de prompt-cache ao citar).
+    """
+    by_slug: dict[str, dict[str, str]] = {}
+    for r in rows:
+        grp = r["group"]
+        if r["modality"] not in ("chat", "chat-fast"):
+            continue
+        if grp.endswith("-fast"):
+            slug = grp[: -len("-fast")]
+            by_slug.setdefault(slug, {})["off"] = grp
+        else:
+            by_slug.setdefault(grp, {})["on"] = grp
+    pairs: list[tuple[str, str]] = []
+    for slug, ends in by_slug.items():
+        if "on" in ends and "off" in ends:
+            pairs.append((ends["on"], ends["off"]))
+    return pairs
+
+
 def run_embedding(sender: Sender, group: str) -> CheckResult:
     body = {"model": group, "input": ["texto de teste"]}
     try:
@@ -582,6 +709,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--live", action="store_true", help="de fato chama o proxy")
     ap.add_argument("--stream", action="store_true",
                     help="chat: roda também o caso SSE (stream:true) com veredito forte")
+    ap.add_argument("--thinking", action="store_true",
+                    help="chat: sonda dual thinking-ON/OFF por modelo e classifica se "
+                         "a rota -fast realmente faz sentido (mede reasoning nos 2 modos)")
     ap.add_argument("--list", action="store_true", help="só imprime seleção")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
@@ -596,6 +726,33 @@ def main(argv: list[str] | None = None) -> int:
         sel = []
     elif args.all:
         sel = rows
+
+    # ---- Sonda de thinking (--thinking): para cada par base/-fast mede reasoning
+    # nos dois modos e classifica se a dualidade realmente faz sentido. ----
+    if args.thinking:
+        pairs = pair_chat_models(sel)
+        if args.list:
+            for on_g, off_g in pairs:
+                print(f"chat         {on_g}  <->  {off_g}")
+            print(f"# {len(pairs)} pares thinking-ON/OFF selecionados")
+            return 0
+        if not pairs:
+            print("nenhum par base/-fast de chat selecionado", file=sys.stderr)
+            return 2
+        cfg = proxy_config()
+        sender = make_sender(cfg) if args.live else None
+        t_results: list[CheckResult] = []
+        for i, (on_g, off_g) in enumerate(pairs):
+            if not args.live:
+                t_results.append(CheckResult(on_g, "chat", "thinking-sense", False,
+                                             "modo dry (use --live)", skipped=True))
+                continue
+            if args.sleep > 0 and i > 0:
+                time.sleep(args.sleep)
+            t_results.append(run_thinking_probe(sender, on_g, off_g))
+        _print_and_export(t_results, args.live, args.out, write_matrix=False)
+        return 0
+
     if args.list:
         for r in sel:
             print(f"{r['modality']:12s} {r['group']}")
@@ -613,6 +770,15 @@ def main(argv: list[str] | None = None) -> int:
             time.sleep(args.sleep)
         results.extend(run_one(r, sender, args.live, stream=args.stream))
 
+    _print_and_export(results, args.live, args.out, write_matrix=True)
+    npass = sum(1 for x in results if x.passed)
+    nskip = sum(1 for x in results if x.skipped)
+    return 0 if npass == len(results) - nskip else 1
+
+
+def _print_and_export(results: list[CheckResult], live: bool, out: str | None,
+                      *, write_matrix: bool) -> None:
+    """Imprime resumo + por-check; opcionalmente grava CSV-matriz e markdown."""
     npass = sum(1 for x in results if x.passed)
     nskip = sum(1 for x in results if x.skipped)
     print(f"checks={len(results)} pass={npass} fail={len(results)-npass-nskip} "
@@ -620,12 +786,10 @@ def main(argv: list[str] | None = None) -> int:
     for x in results:
         mark = {"pass": "✅", "fail": "❌", "skipped": "⬜"}[x.status()]
         print(f"  {mark} [{x.modality}] {x.group} :: {x.test} — {x.evidence}")
-
-    if args.live:
+    if live and write_matrix:
         update_matrix(results)
-    if args.out:
-        Path(args.out).write_text(_to_md(results), encoding="utf-8")
-    return 0 if npass == len(results) - nskip else 1
+    if out:
+        Path(out).write_text(_to_md(results), encoding="utf-8")
 
 
 def _to_md(results: list[CheckResult]) -> str:
