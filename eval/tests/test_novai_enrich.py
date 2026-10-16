@@ -14,6 +14,7 @@ from eval.novai_enrich import (
     parse_code_commands,
     parse_jsonld,
     parse_page_enrich,
+    redact_signed_urls,
     run_code_command,
 )
 
@@ -352,3 +353,63 @@ def test_make_site_getter_keeps_root_without_v1(monkeypatch):
                           "api_key": "nvai-x"})
     g("/models/glm-5.html")
     assert seen["url"] == "https://aiapi-pro.com/models/glm-5.html"
+
+
+# ---------------------------------------------------------------------------
+# S106: redação de URLs pré-assinadas (reports/ passou a ser público)
+# ---------------------------------------------------------------------------
+
+def test_redact_ucloud_signed_url():
+    out, n = redact_signed_urls(
+        "https://maas.ufileos.com/a.png?UCloudPublicKey=TOKEN_x"
+        "&Signature=abc%2Fdef&Expires=1792742192")
+    assert n == 1
+    assert "Signature=" not in out and "UCloudPublicKey=" not in out
+    assert out == "https://maas.ufileos.com/a.png?__REDACTED_SIGNED_URL__"
+
+
+def test_redact_volcano_and_aliyun_signed_urls():
+    out, n = redact_signed_urls(
+        "https://ark.volces.com/x.jpeg?Algorithm=HMAC-SHA256"
+        "&Credential=AKIA1234567890&Signature=zzz&SignedHeaders=host "
+        "https://oss.aliyuncs.com/y.png?OSSAccessKeyId=LTAI5tABC&Signature=q%2Bw%3D")
+    assert n == 2
+    assert "Credential=AKIA" not in out and "OSSAccessKeyId=" not in out
+
+
+def test_redact_tencent_cos_signed_url():
+    # Variante Tencent COS (q-sign-algorithm/q-ak=AKID.../q-signature) — a que
+    # o GitHub Secret Scanning sinaliza como credencial real. S106. Valor AKID
+    # é fake (não é SecretId real) — o teste exercita só o padrão do regex.
+    out, n = redact_signed_urls(
+        "https://130852.cos.ap-guangzhou.myqcloud.com/1409238524/img_0.png"
+        "?q-sign-algorithm=sha1&q-ak=AKIDEXAMPLEfakeFAKEexample000000000000"
+        "&q-sign-time=1792137784;1792180994&q-key-time=1792137784;1792180994"
+        "&q-header-list=host&q-url-param-list=&q-signature=1a2b3c4d5e6f")
+    assert n == 1
+    assert "q-ak=AKID" not in out and "q-signature=" not in out
+    assert "AKIDEXAMPLEfake" not in out
+    assert out == "https://130852.cos.ap-guangzhou.myqcloud.com/1409238524/img_0.png?__REDACTED_SIGNED_URL__"
+
+
+def test_redact_leaves_plain_urls_untouched():
+    for u in ("https://api.example.com/v1/chat/completions",
+              "https://aiapi-pro.com/models/doubao?tab=pricing"):
+        out, n = redact_signed_urls(u)
+        assert n == 0 and out == u
+
+
+def test_redact_respects_csv_delimiter():
+    out, n = redact_signed_urls(
+        "a,b,https://z.oss.com/i.png?OSSAccessKeyId=K&Signature=Q,c,d")
+    assert n == 1
+    assert "Signature=Q" not in out
+    assert out.endswith(",c,d")  # campos vizinhos não fundidos
+
+
+def test_redact_inside_escaped_stdout():
+    payload = json.dumps({"stdout": "url "
+        "https://x.ufileos.com/i.png?UCloudPublicKey=T&Signature=S"})
+    out, n = redact_signed_urls(payload)
+    assert n == 1 and "Signature=S" not in out
+    assert json.loads(out)["stdout"].startswith("url ")  # JSON segue válido

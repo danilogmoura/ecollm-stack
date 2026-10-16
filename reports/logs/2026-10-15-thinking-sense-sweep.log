@@ -1,0 +1,62 @@
+checks=61 pass=24 fail=37 skip=0
+  ✅ [chat] novai-glm-4.7-flash :: thinking-sense — funciona :: ON(chars=461,tok=127) OFF(chars=0,tok=0)
+  ✅ [chat] novai-doubao-seed-2.0-pro :: thinking-sense — funciona :: ON(chars=102,tok=28) OFF(chars=0,tok=0)
+  ✅ [chat] novai-deepseek-v4.1-flash :: thinking-sense — funciona :: ON(chars=139,tok=34) OFF(chars=0,tok=0)
+  ✅ [chat] novai-deepseek-v4-pro :: thinking-sense — funciona :: ON(chars=123,tok=30) OFF(chars=0,tok=0)
+  ✅ [chat] novai-deepseek-v4-flash :: thinking-sense — funciona :: ON(chars=114,tok=31) OFF(chars=0,tok=0)
+  ✅ [chat] novai-deepseek-v4-flash-vision :: thinking-sense — funciona :: ON(chars=100,tok=26) OFF(chars=0,tok=0)
+  ✅ [chat] novai-qwen3.8-max :: thinking-sense — funciona :: ON(chars=117,tok=32) OFF(chars=0,tok=0)
+  ✅ [chat] novai-qwen3.7-max :: thinking-sense — funciona :: ON(chars=745,tok=222) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen3.6-max-preview :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [chat] novai-qwen3-max :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [chat] novai-qwen3-coder-plus :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [chat] novai-qwen-vl-max :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [chat] novai-qwen3-vl-plus :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen3.5-ocr :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen-vl-ocr :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen-mt-plus :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen-plus :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen3-coder-flash :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen3-vl-flash :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [chat] novai-qwen3-omni-flash :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-qwen-omni-turbo :: thinking-sense — sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba (通义千问)] Model not exist.\n\nLiteLL
+  ✅ [chat] novai-doubao-seed-2.1-pro :: thinking-sense — funciona :: ON(chars=18,tok=20) OFF(chars=0,tok=0)
+  ✅ [chat] novai-doubao-seed-2.0-code :: thinking-sense — funciona :: ON(chars=69,tok=22) OFF(chars=0,tok=0)
+  ✅ [chat] novai-doubao-seed-2.1-turbo :: thinking-sense — funciona :: ON(chars=64,tok=32) OFF(chars=0,tok=0)
+  ✅ [chat] novai-doubao-seed-2.0-lite :: thinking-sense — funciona :: ON(chars=38,tok=29) OFF(chars=0,tok=0)
+  ✅ [chat] novai-minimax-m3 :: thinking-sense — funciona :: ON(chars=143,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-minimax-m2.7 :: thinking-sense — so-on :: ON(chars=97,tok=0) OFF(chars=107,tok=0)
+  ❌ [chat] novai-minimax-m2.5 :: thinking-sense — so-on :: ON(chars=95,tok=23) OFF(chars=59,tok=18)
+  ❌ [chat] novai-minimax-text-01 :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ✅ [chat] novai-kimi-k3 :: thinking-sense — funciona :: ON(chars=264,tok=62) OFF(chars=0,tok=0)
+  ❌ [chat] novai-kimi-k2.8-preview :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+  ❌ [chat] novai-kimi-k2.7-code :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+  ❌ [chat] novai-kimi-k2.7-code-highspeed :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+  ❌ [chat] novai-kimi-k2.6 :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+  ❌ [chat] novai-kimi-k2.5 :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+  ❌ [chat] novai-step-5-preview :: thinking-sense — so-on :: ON(chars=168,tok=0) OFF(chars=136,tok=0)
+  ✅ [chat] novai-hy4-preview :: thinking-sense — funciona :: ON(chars=194,tok=52) OFF(chars=0,tok=0)
+  ✅ [chat] novai-hy3 :: thinking-sense — funciona :: ON(chars=125,tok=36) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hunyuan-t1-vision :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy-vision-2.0-instruct :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hunyuan-turbos-vision-video :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy-mt2-pro :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy-mt2-plus :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hunyuan-role :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy-role :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy3-preview :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ❌ [chat] novai-hy-mt2-lite :: thinking-sense — nao-suporta :: ON(chars=0,tok=0) OFF(chars=0,tok=0)
+  ✅ [chat] novai-mimo-v2.5-pro :: thinking-sense — funciona :: ON(chars=94,tok=21) OFF(chars=0,tok=0)
+  ✅ [chat] novai-mimo-v2.6-pro :: thinking-sense — funciona :: ON(chars=39,tok=12) OFF(chars=0,tok=0)
+  ✅ [chat] novai-mimo-v2.6-flash :: thinking-sense — funciona :: ON(chars=35,tok=11) OFF(chars=0,tok=0)
+  ❌ [chat] novai-glm-5.3 :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] 该模型始终思考，不支持关闭思考；请使用 low、high 或 max。\n\nLite
+  ✅ [chat] novai-glm-5.2 :: thinking-sense — funciona :: ON(chars=330,tok=102) OFF(chars=0,tok=0)
+  ✅ [chat] novai-glm-5.1 :: thinking-sense — funciona :: ON(chars=438,tok=126) OFF(chars=0,tok=0)
+  ✅ [chat] novai-glm-5 :: thinking-sense — funciona :: ON(chars=426,tok=119) OFF(chars=0,tok=0)
+  ✅ [chat] novai-glm-5v-turbo :: thinking-sense — funciona :: ON(chars=449,tok=85) OFF(chars=0,tok=0)
+  ✅ [chat] novai-glm-4.6v :: thinking-sense — funciona :: ON(chars=333,tok=69) OFF(chars=0,tok=0)
+  ❌ [chat] novai-glm-5.3-flash :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] 该模型始终思考，不支持关闭思考；请使用 low、high 或 max。\n\nLite
+  ❌ [chat] novai-glm-5-turbo :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] The request is invalid: the request was rej
+  ❌ [chat] novai-glm-4.6v-flash :: thinking-sense — sonda falhou: HTTP 429: {"error":{"message":"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\n\nLiteLLM
+  ❌ [chat] novai-glm-4.1v-thinking-flash :: thinking-sense — so-on :: ON(chars=112,tok=0) OFF(chars=112,tok=0)
+  ❌ [chat] novai-glm-5.3-flashx :: thinking-sense — sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] The request is invalid: the request was rej

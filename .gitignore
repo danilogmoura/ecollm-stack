@@ -3,8 +3,17 @@
 
 # Planejamento, análise de bugs e resolução — exclusivo local, nunca sobe
 .planning/
-# Relatórios de suporte aos provedores LLM (diagnóstico local, nunca sobe)
-/reports/
+# Relatórios/logs de diagnóstico dos provedores LLM. Política S106 (2026-10-16):
+# reports/ é VERSIONADO — relatórios e logs do trilho NovAI são públicos. Ficam
+# locais apenas os 4 artefatos de telemetria operacional abaixo (contêm queries
+# reais de RAG e histórico de custo da conta). Nada de segredo aqui: URLs
+# pré-assinadas de saída de imagem são redigidas por `eval/novai_enrich.py`.
+/reports/logs/mcp-stderr.log
+/reports/logs/mcp-stderr.log.1
+/reports/logs/h4-mcp-stderr.log
+/reports/logs/rag-sync.log
+/reports/logs/rag-sync.log.1
+/reports/logs/c6-cost-history.json
 # Docs/narrativas locais (diagnóstico, runbooks, explicações) — local-only, nunca sobe
 /docs/
 .venv/

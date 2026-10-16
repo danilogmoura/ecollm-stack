@@ -1,0 +1,4654 @@
+[
+  {
+    "id": "cogview-3-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-cogview-3-flash",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://maas-watermark-prod-new.cn-wlcb.ufileos.com/202610161455021ceda3256e0c42",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 0,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "deepseek-v4-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-deepseek-v4-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 11,
+            "prompt_tokens": 35,
+            "total_tokens": 46,
+            "completion_tokens_details": {
+              "reasoning_tokens": 9
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 35
+          },
+          "model": "novai-deepseek-v4-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=66 reasoning_tokens=19",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 21,
+            "prompt_tokens": 44,
+            "total_tokens": 65,
+            "completion_tokens_details": {
+              "reasoning_tokens": 19
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 44
+          },
+          "model": "novai-deepseek-v4-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 278,
+            "total_tokens": 311,
+            "completion_tokens_details": {
+              "reasoning_tokens": 11
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 278
+          },
+          "model": "novai-deepseek-v4-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "deepseek-v4-flash-vision",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-deepseek-v4-flash-vision",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 36,
+            "prompt_tokens": 35,
+            "total_tokens": 71,
+            "completion_tokens_details": {
+              "reasoning_tokens": 34
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4-flash-vision",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=53 reasoning_tokens=17",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 19,
+            "prompt_tokens": 44,
+            "total_tokens": 63,
+            "completion_tokens_details": {
+              "reasoning_tokens": 17
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4-flash-vision",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 34,
+            "prompt_tokens": 278,
+            "total_tokens": 312,
+            "completion_tokens_details": {
+              "reasoning_tokens": 12
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4-flash-vision",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "deepseek-v4-pro",
+    "owned_by": "openai",
+    "pricing": null,
+    "type": null,
+    "group": "novai-deepseek-v4-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 15,
+            "prompt_tokens": 88,
+            "total_tokens": 103,
+            "completion_tokens_details": {
+              "reasoning_tokens": 13
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 88
+          },
+          "model": "novai-deepseek-v4-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=66 reasoning_tokens=20",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 22,
+            "prompt_tokens": 97,
+            "total_tokens": 119,
+            "completion_tokens_details": {
+              "reasoning_tokens": 20
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "prompt_cache_hit_tokens": 0,
+            "prompt_cache_miss_tokens": 97
+          },
+          "model": "novai-deepseek-v4-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 65,
+            "prompt_tokens": 341,
+            "total_tokens": 406,
+            "completion_tokens_details": {
+              "reasoning_tokens": 37
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 256
+            },
+            "prompt_cache_hit_tokens": 256,
+            "prompt_cache_miss_tokens": 85
+          },
+          "model": "novai-deepseek-v4-pro",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "deepseek-v4.1-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-deepseek-v4.1-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 19,
+            "prompt_tokens": 35,
+            "total_tokens": 54,
+            "completion_tokens_details": {
+              "reasoning_tokens": 17
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4.1-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=53 reasoning_tokens=17",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 19,
+            "prompt_tokens": 44,
+            "total_tokens": 63,
+            "completion_tokens_details": {
+              "reasoning_tokens": 17
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4.1-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 38,
+            "prompt_tokens": 278,
+            "total_tokens": 316,
+            "completion_tokens_details": {
+              "reasoning_tokens": 16
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-deepseek-v4.1-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seed-2.0-code",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-doubao-seed-2.0-code",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 22,
+            "prompt_tokens": 35,
+            "total_tokens": 57,
+            "completion_tokens_details": {
+              "reasoning_tokens": 21
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-code",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=119 reasoning_tokens=63",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 66,
+            "prompt_tokens": 46,
+            "total_tokens": 112,
+            "completion_tokens_details": {
+              "reasoning_tokens": 63
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-code",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 126,
+            "prompt_tokens": 368,
+            "total_tokens": 494,
+            "completion_tokens_details": {
+              "reasoning_tokens": 108
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-code",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seed-2.0-lite",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-doubao-seed-2.0-lite",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 27,
+            "prompt_tokens": 38,
+            "total_tokens": 65,
+            "completion_tokens_details": {
+              "reasoning_tokens": 26
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-lite",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=107 reasoning_tokens=71",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 74,
+            "prompt_tokens": 49,
+            "total_tokens": 123,
+            "completion_tokens_details": {
+              "reasoning_tokens": 71
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-lite",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 67,
+            "prompt_tokens": 459,
+            "total_tokens": 526,
+            "completion_tokens_details": {
+              "reasoning_tokens": 48
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-lite",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seed-2.0-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-doubao-seed-2.0-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 42,
+            "prompt_tokens": 54,
+            "total_tokens": 96,
+            "completion_tokens_details": {
+              "reasoning_tokens": 41
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=162 reasoning_tokens=80",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 83,
+            "prompt_tokens": 65,
+            "total_tokens": 148,
+            "completion_tokens_details": {
+              "reasoning_tokens": 80
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 145,
+            "prompt_tokens": 371,
+            "total_tokens": 516,
+            "completion_tokens_details": {
+              "reasoning_tokens": 126
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.0-pro",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seed-2.1-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-doubao-seed-2.1-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 51,
+            "total_tokens": 83,
+            "completion_tokens_details": {
+              "reasoning_tokens": 31
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=91 reasoning_tokens=69",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 72,
+            "prompt_tokens": 62,
+            "total_tokens": 134,
+            "completion_tokens_details": {
+              "reasoning_tokens": 69
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 50,
+            "prompt_tokens": 456,
+            "total_tokens": 506,
+            "completion_tokens_details": {
+              "reasoning_tokens": 31
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-pro",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seed-2.1-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-doubao-seed-2.1-turbo",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 19,
+            "prompt_tokens": 51,
+            "total_tokens": 70,
+            "completion_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-turbo",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=58 reasoning_tokens=48",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 51,
+            "prompt_tokens": 62,
+            "total_tokens": 113,
+            "completion_tokens_details": {
+              "reasoning_tokens": 48
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-turbo",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 58,
+            "prompt_tokens": 368,
+            "total_tokens": 426,
+            "completion_tokens_details": {
+              "reasoning_tokens": 40
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-doubao-seed-2.1-turbo",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seedream-4.0",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-doubao-seedream-4.0",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0/0217921",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 16384,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 16384,
+            "output_tokens_details": null,
+            "generated_images": 1
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "doubao-seedream-4.5",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-doubao-seedream-4.5",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0-pro/1d5",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 16384,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 16384,
+            "output_tokens_details": null,
+            "input_images": 0,
+            "generated_images": 1
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-4.1v-thinking-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-4.1v-thinking-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=19",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 37,
+            "prompt_tokens": 11,
+            "total_tokens": 48
+          },
+          "model": "novai-glm-4.1v-thinking-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=363 reasoning_tokens=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 129,
+            "prompt_tokens": 21,
+            "total_tokens": 150
+          },
+          "model": "novai-glm-4.1v-thinking-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "finish=length n_tool_calls=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 128,
+            "prompt_tokens": 26,
+            "total_tokens": 154
+          },
+          "model": "novai-glm-4.1v-thinking-flash",
+          "finish_reason": "length"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-4.6v",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-4.6v",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 11,
+            "total_tokens": 52,
+            "completion_tokens_details": {
+              "reasoning_tokens": 34
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4
+            }
+          },
+          "model": "novai-glm-4.6v",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=216 reasoning_tokens=87",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 95,
+            "prompt_tokens": 21,
+            "total_tokens": 116,
+            "completion_tokens_details": {
+              "reasoning_tokens": 87
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 4
+            }
+          },
+          "model": "novai-glm-4.6v",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 62,
+            "prompt_tokens": 146,
+            "total_tokens": 208,
+            "completion_tokens_details": {
+              "reasoning_tokens": 39
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 43
+            }
+          },
+          "model": "novai-glm-4.6v",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-4.6v-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-4.6v-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\\n\\nLiteLLM",
+        "status": 429
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\\n\\nLiteLLM",
+        "status": 429
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 118,
+            "prompt_tokens": 146,
+            "total_tokens": 264,
+            "completion_tokens_details": {
+              "reasoning_tokens": 78
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-4.6v-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-4.7-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-4.7-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\\n\\nLiteLLM",
+        "status": 429
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=887 reasoning_tokens=331",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 335,
+            "prompt_tokens": 20,
+            "total_tokens": 355,
+            "completion_tokens_details": {
+              "reasoning_tokens": 331
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 2
+            }
+          },
+          "model": "novai-glm-4.7-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\\n\\nLiteLLM",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 17,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=416 reasoning_tokens=169",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 172,
+            "prompt_tokens": 27,
+            "total_tokens": 199,
+            "completion_tokens_details": {
+              "reasoning_tokens": 169
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 22,
+            "prompt_tokens": 142,
+            "total_tokens": 164,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5-turbo",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=length len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 17,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 62
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5-turbo",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=43 reasoning_tokens=26",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 27,
+            "total_tokens": 56,
+            "completion_tokens_details": {
+              "reasoning_tokens": 26
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5-turbo",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 144,
+            "total_tokens": 173,
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5-turbo",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5.1",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5.1",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 10,
+            "total_tokens": 74,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.1",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=331 reasoning_tokens=132",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 135,
+            "prompt_tokens": 20,
+            "total_tokens": 155,
+            "completion_tokens_details": {
+              "reasoning_tokens": 132
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.1",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 21,
+            "prompt_tokens": 137,
+            "total_tokens": 158,
+            "completion_tokens_details": {
+              "reasoning_tokens": 17
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.1",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5.2",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5.2",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 17,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 63
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.2",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=356 reasoning_tokens=138",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 141,
+            "prompt_tokens": 27,
+            "total_tokens": 168,
+            "completion_tokens_details": {
+              "reasoning_tokens": 138
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.2",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 142,
+            "total_tokens": 175,
+            "completion_tokens_details": {
+              "reasoning_tokens": 32
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.2",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5.3",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5.3",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 57,
+            "prompt_tokens": 17,
+            "total_tokens": 74,
+            "completion_tokens_details": {
+              "reasoning_tokens": 54
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=119 reasoning_tokens=45",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 49,
+            "prompt_tokens": 27,
+            "total_tokens": 76,
+            "completion_tokens_details": {
+              "reasoning_tokens": 45
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 56,
+            "prompt_tokens": 144,
+            "total_tokens": 200,
+            "completion_tokens_details": {
+              "reasoning_tokens": 51
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5.3-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5.3-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 17,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flash",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=139 reasoning_tokens=59",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 63,
+            "prompt_tokens": 27,
+            "total_tokens": 90,
+            "completion_tokens_details": {
+              "reasoning_tokens": 59
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 69,
+            "prompt_tokens": 144,
+            "total_tokens": 213,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5.3-flashx",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5.3-flashx",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 17,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flashx",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=65 reasoning_tokens=36",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 40,
+            "prompt_tokens": 27,
+            "total_tokens": 67,
+            "completion_tokens_details": {
+              "reasoning_tokens": 36
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flashx",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 27,
+            "prompt_tokens": 144,
+            "total_tokens": 171,
+            "completion_tokens_details": {
+              "reasoning_tokens": 22
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5.3-flashx",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "glm-5v-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-glm-5v-turbo",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 30,
+            "prompt_tokens": 10,
+            "total_tokens": 40,
+            "completion_tokens_details": {
+              "reasoning_tokens": 27
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 2
+            }
+          },
+          "model": "novai-glm-5v-turbo",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=416 reasoning_tokens=151",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 155,
+            "prompt_tokens": 20,
+            "total_tokens": 175,
+            "completion_tokens_details": {
+              "reasoning_tokens": 151
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-glm-5v-turbo",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 88,
+            "prompt_tokens": 141,
+            "total_tokens": 229,
+            "completion_tokens_details": {
+              "reasoning_tokens": 73
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 42
+            }
+          },
+          "model": "novai-glm-5v-turbo",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hunyuan-role",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hunyuan-role",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 8,
+            "total_tokens": 10,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-role",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 17,
+            "total_tokens": 19,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-role",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Tencent Hunyuan (混元)] The request is invalid: Invalid r",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hunyuan-t1-vision",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hunyuan-t1-vision",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 20,
+            "total_tokens": 22,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-t1-vision",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 4,
+            "prompt_tokens": 32,
+            "total_tokens": 36,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-t1-vision",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 73,
+            "prompt_tokens": 679,
+            "total_tokens": 752,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-t1-vision",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hunyuan-turbos-vision-video",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hunyuan-turbos-vision-video",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 20,
+            "total_tokens": 22,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-turbos-vision-video",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 4,
+            "prompt_tokens": 32,
+            "total_tokens": 36,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-turbos-vision-video",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 79,
+            "prompt_tokens": 679,
+            "total_tokens": 758,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hunyuan-turbos-vision-video",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-asr-3.0-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-asr-hy-asr-3.0-preview",
+    "modality": "asr",
+    "probes": {
+      "asr": {
+        "ok": false,
+        "evidence": "requer arquivo de áudio (não sondado)",
+        "status": null
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-image-v3",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-hy-image-v3",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 20000,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-mt2-lite",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy-mt2-lite",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 8,
+            "total_tokens": 10,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-lite",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 17,
+            "total_tokens": 19,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-lite",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Tencent Hunyuan (混元)] The request is invalid: invoke mo",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-mt2-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy-mt2-plus",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 7,
+            "total_tokens": 9,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 4,
+            "prompt_tokens": 19,
+            "total_tokens": 23,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Tencent Hunyuan (混元)] The request is invalid: Invalid r",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-mt2-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy-mt2-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 20,
+            "total_tokens": 22,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 3,
+            "prompt_tokens": 26,
+            "total_tokens": 29,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "finish=stop n_tool_calls=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 183,
+            "total_tokens": 184,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-mt2-pro",
+          "finish_reason": "stop"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-role",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy-role",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 8,
+            "total_tokens": 10,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-role",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 17,
+            "total_tokens": 19,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-role",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Tencent Hunyuan (混元)] The request is invalid: invoke mo",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy-vision-2.0-instruct",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy-vision-2.0-instruct",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 10,
+            "prompt_tokens": 9,
+            "total_tokens": 19,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-vision-2.0-instruct",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 10,
+            "prompt_tokens": 18,
+            "total_tokens": 28,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-vision-2.0-instruct",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "finish=length n_tool_calls=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 128,
+            "prompt_tokens": 12,
+            "total_tokens": 140,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy-vision-2.0-instruct",
+          "finish_reason": "length"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy3",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy3",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 21,
+            "prompt_tokens": 17,
+            "total_tokens": 38,
+            "completion_tokens_details": {
+              "reasoning_tokens": 18
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy3",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=220 reasoning_tokens=106",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 109,
+            "prompt_tokens": 26,
+            "total_tokens": 135,
+            "completion_tokens_details": {
+              "reasoning_tokens": 106
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy3",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 76,
+            "prompt_tokens": 180,
+            "total_tokens": 256,
+            "completion_tokens_details": {
+              "reasoning_tokens": 65
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy3",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy3-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy3-preview",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 20,
+            "total_tokens": 22,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy3-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=150 reasoning_tokens=49",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 52,
+            "prompt_tokens": 26,
+            "total_tokens": 78,
+            "completion_tokens_details": {
+              "reasoning_tokens": 49
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy3-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 10,
+            "prompt_tokens": 183,
+            "total_tokens": 193,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 64
+            }
+          },
+          "model": "novai-hy3-preview",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "hy4-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-hy4-preview",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 26,
+            "total_tokens": 67,
+            "completion_tokens_details": {
+              "reasoning_tokens": 38
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy4-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=221 reasoning_tokens=80",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 83,
+            "prompt_tokens": 35,
+            "total_tokens": 118,
+            "completion_tokens_details": {
+              "reasoning_tokens": 80
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy4-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 34,
+            "prompt_tokens": 171,
+            "total_tokens": 205,
+            "completion_tokens_details": {
+              "reasoning_tokens": 27
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-hy4-preview",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k2.5",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k2.5",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 12,
+            "total_tokens": 76,
+            "completion_tokens_details": {
+              "reasoning_tokens": 63
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.5",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=403 reasoning_tokens=160",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 163,
+            "prompt_tokens": 22,
+            "total_tokens": 185,
+            "completion_tokens_details": {
+              "reasoning_tokens": 160
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.5",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 50,
+            "prompt_tokens": 46,
+            "total_tokens": 96,
+            "completion_tokens_details": {
+              "reasoning_tokens": 38
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.5",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k2.6",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k2.6",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 31,
+            "prompt_tokens": 12,
+            "total_tokens": 43,
+            "completion_tokens_details": {
+              "reasoning_tokens": 28
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.6",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=459 reasoning_tokens=155",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 158,
+            "prompt_tokens": 22,
+            "total_tokens": 180,
+            "completion_tokens_details": {
+              "reasoning_tokens": 155
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 22
+            }
+          },
+          "model": "novai-kimi-k2.6",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 77,
+            "prompt_tokens": 46,
+            "total_tokens": 123,
+            "completion_tokens_details": {
+              "reasoning_tokens": 65
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.6",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k2.7-code",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k2.7-code",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 31,
+            "prompt_tokens": 12,
+            "total_tokens": 43,
+            "completion_tokens_details": {
+              "reasoning_tokens": 28
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=66 reasoning_tokens=21",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 24,
+            "prompt_tokens": 22,
+            "total_tokens": 46,
+            "completion_tokens_details": {
+              "reasoning_tokens": 21
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 46,
+            "total_tokens": 78,
+            "completion_tokens_details": {
+              "reasoning_tokens": 20
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k2.7-code-highspeed",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k2.7-code-highspeed",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 37,
+            "prompt_tokens": 12,
+            "total_tokens": 49,
+            "completion_tokens_details": {
+              "reasoning_tokens": 34
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code-highspeed",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=188 reasoning_tokens=61",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 22,
+            "total_tokens": 86,
+            "completion_tokens_details": {
+              "reasoning_tokens": 61
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code-highspeed",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 35,
+            "prompt_tokens": 46,
+            "total_tokens": 81,
+            "completion_tokens_details": {
+              "reasoning_tokens": 23
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.7-code-highspeed",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k2.8-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k2.8-preview",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 90,
+            "total_tokens": 154,
+            "completion_tokens_details": {
+              "reasoning_tokens": 61
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.8-preview",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=189 reasoning_tokens=65",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 81,
+            "prompt_tokens": 100,
+            "total_tokens": 181,
+            "completion_tokens_details": {
+              "reasoning_tokens": 65
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.8-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 103,
+            "prompt_tokens": 158,
+            "total_tokens": 261,
+            "completion_tokens_details": {
+              "reasoning_tokens": 59
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k2.8-preview",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kimi-k3",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-kimi-k3",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "content vazio (finish=length)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 64,
+            "prompt_tokens": 90,
+            "total_tokens": 154,
+            "completion_tokens_details": {
+              "reasoning_tokens": 64
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k3",
+          "finish_reason": "length"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=37 reasoning_tokens=25",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 36,
+            "prompt_tokens": 100,
+            "total_tokens": 136,
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 64,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k3",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 88,
+            "prompt_tokens": 158,
+            "total_tokens": 246,
+            "completion_tokens_details": {
+              "reasoning_tokens": 55
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "cache_creation_tokens": 0,
+              "cache_creation_input_tokens": 0
+            }
+          },
+          "model": "novai-kimi-k3",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kinfra-text-embedding-0.6b",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-kinfra-text-embedding-0.6b",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": true,
+        "evidence": "dim=1024",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 0,
+            "prompt_tokens": 4,
+            "total_tokens": 4,
+            "completion_tokens_details": null,
+            "prompt_tokens_details": null
+          },
+          "model": "novai-embed-kinfra-text-embedding-0.6b",
+          "embedding_dim": 1024
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kinfra-text-embedding-4b",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-kinfra-text-embedding-4b",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": true,
+        "evidence": "dim=2560",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 0,
+            "prompt_tokens": 4,
+            "total_tokens": 4,
+            "completion_tokens_details": null,
+            "prompt_tokens_details": null
+          },
+          "model": "novai-embed-kinfra-text-embedding-4b",
+          "embedding_dim": 2560
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kinfra-vl-embedding-2b",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-kinfra-vl-embedding-2b",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': {'message': '[Tencent (Kinfr",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "kinfra-vl-embedding-8b",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-kinfra-vl-embedding-8b",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': {'message': '[Tencent (Kinfr",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "mimo-v2.5-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-mimo-v2.5-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 17,
+            "prompt_tokens": 256,
+            "total_tokens": 273,
+            "completion_tokens_details": {
+              "reasoning_tokens": 14
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.5-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=76 reasoning_tokens=48",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 53,
+            "prompt_tokens": 268,
+            "total_tokens": 321,
+            "completion_tokens_details": {
+              "reasoning_tokens": 48
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.5-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 452,
+            "total_tokens": 485,
+            "completion_tokens_details": {
+              "reasoning_tokens": 20
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 256
+            }
+          },
+          "model": "novai-mimo-v2.5-pro",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "mimo-v2.6-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-mimo-v2.6-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 14,
+            "prompt_tokens": 12,
+            "total_tokens": 26,
+            "completion_tokens_details": {
+              "reasoning_tokens": 11
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=3 reasoning_tokens=4",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 9,
+            "prompt_tokens": 24,
+            "total_tokens": 33,
+            "completion_tokens_details": {
+              "reasoning_tokens": 4
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 21,
+            "prompt_tokens": 74,
+            "total_tokens": 95,
+            "completion_tokens_details": {
+              "reasoning_tokens": 10
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "mimo-v2.6-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-mimo-v2.6-pro",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 15,
+            "prompt_tokens": 12,
+            "total_tokens": 27,
+            "completion_tokens_details": {
+              "reasoning_tokens": 12
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=43 reasoning_tokens=36",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 41,
+            "prompt_tokens": 24,
+            "total_tokens": 65,
+            "completion_tokens_details": {
+              "reasoning_tokens": 36
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-pro",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 22,
+            "prompt_tokens": 74,
+            "total_tokens": 96,
+            "completion_tokens_details": {
+              "reasoning_tokens": 11
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-mimo-v2.6-pro",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-m2.5",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-minimax-m2.5",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 46,
+            "total_tokens": 79,
+            "completion_tokens_details": {
+              "reasoning_tokens": 31
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.5",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=168 reasoning_tokens=65",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 67,
+            "prompt_tokens": 54,
+            "total_tokens": 121,
+            "completion_tokens_details": {
+              "reasoning_tokens": 65
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.5",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 179,
+            "total_tokens": 211,
+            "completion_tokens_details": {
+              "reasoning_tokens": 19
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.5",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-m2.7",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-minimax-m2.7",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 25,
+            "prompt_tokens": 46,
+            "total_tokens": 71,
+            "completion_tokens_details": {
+              "reasoning_tokens": 23
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.7",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=310 reasoning_tokens=99",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 101,
+            "prompt_tokens": 54,
+            "total_tokens": 155,
+            "completion_tokens_details": {
+              "reasoning_tokens": 99
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.7",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 32,
+            "prompt_tokens": 179,
+            "total_tokens": 211,
+            "completion_tokens_details": {
+              "reasoning_tokens": 19
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-minimax-m2.7",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-m3",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-minimax-m3",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 181,
+            "total_tokens": 210,
+            "completion_tokens_details": {
+              "reasoning_tokens": 25
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 128
+            }
+          },
+          "model": "novai-minimax-m3",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [MiniMax] The request is invalid: the request was reject",
+        "status": 400
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 48,
+            "prompt_tokens": 392,
+            "total_tokens": 440,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 203
+            }
+          },
+          "model": "novai-minimax-m3",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-music-v2.6",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-music-v2.6",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=86821 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-music-v3.0",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-music-v3.0",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=101554 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-02-hd",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-02-hd",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=16116 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-02-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-02-turbo",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=16116 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-2.6-hd",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-2.6-hd",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=16116 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-2.6-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-2.6-turbo",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=15540 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-2.8-hd",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-2.8-hd",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=16116 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-speech-2.8-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-minimax-speech-2.8-turbo",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": true,
+        "evidence": "bytes=15540 header=b'ID3\\x04\\x00\\x00\\x00\\x00\\x08jTX'",
+        "status": 200
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "minimax-text-01",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-minimax-text-01",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 559,
+            "total_tokens": 560,
+            "total_characters": 0
+          },
+          "model": "novai-minimax-text-01",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 567,
+            "total_tokens": 568,
+            "total_characters": 0
+          },
+          "model": "novai-minimax-text-01",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 10,
+            "prompt_tokens": 599,
+            "total_tokens": 609,
+            "total_characters": 0
+          },
+          "model": "novai-minimax-text-01",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-image",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-qwen-image",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-image-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-qwen-image-plus",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-mt-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen-mt-plus",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 13,
+            "total_tokens": 14
+          },
+          "model": "novai-qwen-mt-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 3,
+            "prompt_tokens": 25,
+            "total_tokens": 28
+          },
+          "model": "novai-qwen-mt-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Alibaba Cloud] <400> InternalError.Algo.InvalidParamete",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-omni-turbo",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen-omni-turbo",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba (通义千问)] Model not exist.\\n\\nLiteLL",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen-plus",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 13,
+            "total_tokens": 14
+          },
+          "model": "novai-qwen-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 3,
+            "prompt_tokens": 25,
+            "total_tokens": 28
+          },
+          "model": "novai-qwen-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 14,
+            "prompt_tokens": 134,
+            "total_tokens": 148
+          },
+          "model": "novai-qwen-plus",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-tts",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-qwen-tts",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-tts-latest",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-qwen-tts-latest",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-vl-max",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen-vl-max",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen-vl-ocr",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen-vl-ocr",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 13,
+            "total_tokens": 15,
+            "completion_tokens_details": {
+              "text_tokens": 2
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 13
+            }
+          },
+          "model": "novai-qwen-vl-ocr",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 4,
+            "prompt_tokens": 25,
+            "total_tokens": 29,
+            "completion_tokens_details": {
+              "text_tokens": 4
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 25
+            }
+          },
+          "model": "novai-qwen-vl-ocr",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "finish=stop n_tool_calls=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 20,
+            "prompt_tokens": 214,
+            "total_tokens": 234,
+            "completion_tokens_details": {
+              "text_tokens": 20
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 214
+            }
+          },
+          "model": "novai-qwen-vl-ocr",
+          "finish_reason": "stop"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-coder-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-coder-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 13,
+            "total_tokens": 14,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3-coder-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 3,
+            "prompt_tokens": 25,
+            "total_tokens": 28,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3-coder-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 11,
+            "prompt_tokens": 251,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3-coder-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-coder-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-coder-plus",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-max",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-max",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-omni-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-omni-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 1,
+            "prompt_tokens": 13,
+            "total_tokens": 14,
+            "completion_tokens_details": {
+              "text_tokens": 1
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 13
+            }
+          },
+          "model": "novai-qwen3-omni-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "sem reasoning (esperado ON)",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 3,
+            "prompt_tokens": 25,
+            "total_tokens": 28,
+            "completion_tokens_details": {
+              "text_tokens": 3
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 25
+            }
+          },
+          "model": "novai-qwen3-omni-flash",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 14,
+            "prompt_tokens": 134,
+            "total_tokens": 148,
+            "completion_tokens_details": {
+              "text_tokens": 14
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 134
+            }
+          },
+          "model": "novai-qwen3-omni-flash",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-tts-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-tts-qwen3-tts-flash",
+    "modality": "tts",
+    "probes": {
+      "tts": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Alibaba Cloud] Invalid voice specified, the requested v",
+        "status": 400
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-vl-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-vl-flash",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3-vl-plus",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3-vl-plus",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 13,
+            "total_tokens": 15,
+            "completion_tokens_details": {
+              "text_tokens": 2
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 13
+            }
+          },
+          "model": "novai-qwen3-vl-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=1312 reasoning_tokens=501",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 507,
+            "prompt_tokens": 27,
+            "total_tokens": 534,
+            "completion_tokens_details": {
+              "reasoning_tokens": 501,
+              "text_tokens": 6
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 27
+            }
+          },
+          "model": "novai-qwen3-vl-plus",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 12,
+            "prompt_tokens": 241,
+            "total_tokens": 253,
+            "completion_tokens_details": {
+              "text_tokens": 12
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 241
+            }
+          },
+          "model": "novai-qwen3-vl-plus",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3.5-ocr",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3.5-ocr",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 2,
+            "prompt_tokens": 17,
+            "total_tokens": 19,
+            "completion_tokens_details": {
+              "text_tokens": 2
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 17
+            }
+          },
+          "model": "novai-qwen3.5-ocr",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 400: {\"error\":{\"message\":\"litellm.BadRequestError: OpenAIException - [Alibaba Cloud] <400> InternalError.Algo.InvalidParamete",
+        "status": 400
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "finish=stop n_tool_calls=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 21,
+            "prompt_tokens": 226,
+            "total_tokens": 247,
+            "completion_tokens_details": {
+              "text_tokens": 21
+            },
+            "prompt_tokens_details": {
+              "text_tokens": 226
+            }
+          },
+          "model": "novai-qwen3.5-ocr",
+          "finish_reason": "stop"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3.6-max-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3.6-max-preview",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": false,
+        "evidence": "HTTP 404: {\"error\":{\"message\":\"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\\n\\nLiteLLM",
+        "status": 404
+      },
+      "thinking": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      },
+      "tools": {
+        "ok": false,
+        "evidence": "HTTP 429: {\"error\":{\"message\":\"No deployments available for selected model, Try again in 5 seconds. All deployments for selected m",
+        "status": 429
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3.7-max",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3.7-max",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 104,
+            "prompt_tokens": 15,
+            "total_tokens": 119,
+            "completion_tokens_details": {
+              "reasoning_tokens": 100
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3.7-max",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=817 reasoning_tokens=290",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 296,
+            "prompt_tokens": 27,
+            "total_tokens": 323,
+            "completion_tokens_details": {
+              "reasoning_tokens": 290
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3.7-max",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 29,
+            "prompt_tokens": 257,
+            "total_tokens": 286,
+            "completion_tokens_details": {
+              "reasoning_tokens": 13
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-qwen3.7-max",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3.7-text-embedding",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-qwen3.7-text-embedding",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": true,
+        "evidence": "dim=1024",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 0,
+            "prompt_tokens": 19,
+            "total_tokens": 19,
+            "completion_tokens_details": null,
+            "prompt_tokens_details": null
+          },
+          "model": "novai-embed-qwen3.7-text-embedding",
+          "embedding_dim": 1024
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "qwen3.8-max",
+    "owned_by": "openai",
+    "pricing": null,
+    "type": null,
+    "group": "novai-qwen3.8-max",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 39,
+            "prompt_tokens": 66,
+            "total_tokens": 105,
+            "completion_tokens_details": {
+              "reasoning_tokens": 35,
+              "text_tokens": 39
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 66
+            }
+          },
+          "model": "novai-qwen3.8-max",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=171 reasoning_tokens=73",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 79,
+            "prompt_tokens": 78,
+            "total_tokens": 157,
+            "completion_tokens_details": {
+              "reasoning_tokens": 73,
+              "text_tokens": 79
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 78
+            }
+          },
+          "model": "novai-qwen3.8-max",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 27,
+            "prompt_tokens": 304,
+            "total_tokens": 331,
+            "completion_tokens_details": {
+              "reasoning_tokens": 11,
+              "text_tokens": 27
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "text_tokens": 304
+            }
+          },
+          "model": "novai-qwen3.8-max",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "seedream-image-v5.0-lite",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-seedream-image-v5.0-lite",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 22000,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "seedream-image-v5.0-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-seedream-image-v5.0-pro",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 60000,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "step-5-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-step-5-preview",
+    "modality": "chat",
+    "probes": {
+      "chat": {
+        "ok": true,
+        "evidence": "finish=stop len(content)=2",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 33,
+            "prompt_tokens": 16,
+            "total_tokens": 49,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-step-5-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "thinking": {
+        "ok": true,
+        "evidence": "reasoning_chars=247 reasoning_tokens=0",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 94,
+            "prompt_tokens": 25,
+            "total_tokens": 119,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-step-5-preview",
+          "finish_reason": "stop"
+        }
+      },
+      "tools": {
+        "ok": true,
+        "evidence": "tool=noop args_json_ok",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 25,
+            "prompt_tokens": 212,
+            "total_tokens": 237,
+            "completion_tokens_details": {
+              "reasoning_tokens": 0
+            },
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            }
+          },
+          "model": "novai-step-5-preview",
+          "finish_reason": "tool_calls"
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "text-embedding-v4",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-embed-text-embedding-v4",
+    "modality": "embedding",
+    "probes": {
+      "embedding": {
+        "ok": true,
+        "evidence": "dim=1024",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "completion_tokens": 0,
+            "prompt_tokens": 4,
+            "total_tokens": 4,
+            "completion_tokens_details": null,
+            "prompt_tokens_details": null
+          },
+          "model": "novai-embed-text-embedding-v4",
+          "embedding_dim": 1024
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "vidu-image-q2",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-vidu-image-q2",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 25000,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wan2.2-t2i-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-wan2.2-t2i-flash",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": false,
+        "evidence": "erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)",
+        "status": null
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wan2.5-t2i-preview",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-wan2.5-t2i-preview",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": false,
+        "evidence": "erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)",
+        "status": null
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wand-asr-v1",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-asr-wand-asr-v1",
+    "modality": "asr",
+    "probes": {
+      "asr": {
+        "ok": false,
+        "evidence": "requer arquivo de áudio (não sondado)",
+        "status": null
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wand-vega-image-flash",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-wand-vega-image-flash",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/19",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 67500,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wand-vega-image-lite",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-wand-vega-image-lite",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/63",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 13500,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  },
+  {
+    "id": "wand-vega-image-pro",
+    "owned_by": null,
+    "pricing": null,
+    "type": null,
+    "group": "novai-image-wand-vega-image-pro",
+    "modality": "image",
+    "probes": {
+      "image": {
+        "ok": true,
+        "evidence": "url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/88",
+        "status": 200,
+        "observed": {
+          "usage": {
+            "total_tokens": 95000,
+            "input_tokens": 0,
+            "input_tokens_details": {
+              "image_tokens": 0,
+              "text_tokens": 0
+            },
+            "output_tokens": 0,
+            "output_tokens_details": null
+          }
+        }
+      }
+    },
+    "observed": {},
+    "errors": []
+  }
+]

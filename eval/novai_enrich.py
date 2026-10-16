@@ -452,6 +452,37 @@ def enrich(getter, poster, *, pages: dict[str, str] | None = None,
     return out
 
 
+# ---------------------------------------------------------------------------
+# Redação de URLs pré-assinadas (S106 — reports/ agora é público)
+# ---------------------------------------------------------------------------
+
+# Uma URL pré-assinada carrega credencial temporária na query (AccessKeyId/
+# Signature, expiração ~7 dias). Como ``reports/`` passou a ser versionado
+# (S106), qualquer stdout de teste de imagem que ecoe uma dessas URLs subiria
+# ao remoto com credencial válida. Redigimos a query inteira, preservando só
+# host+path (evidência suficiente para o relatório).
+_SIGNED_URL_RE = re.compile(
+    r'(https?://[^\s"\'\\,]+?)\?'
+    r'(?=[^\s"\'\\,]*'
+    r'(?:Signature=|signature=|UCloudPublicKey|OSSAccessKeyId|X-Amz-Signature'
+    r'|X-Amz-Credential|SignedHeaders|Credential=|AccessKeyId=|AKID[A-Za-z0-9]{6,}'
+    r'|q-sign-algorithm|q-ak=|q-signature|security-token|pre-signed|presigned'
+    r'|token=|Token=))'
+    r'[^\s"\'\\,]*'
+)
+_REDACTED = "?__REDACTED_SIGNED_URL__"
+
+
+def redact_signed_urls(text: str) -> tuple[str, int]:
+    """Substitui a query de toda URL pré-assinada por ``__REDACTED_SIGNED_URL__``.
+
+    Devolve ``(texto_redigido, n_redigidas)``. Aplicado à serialização JSON
+    antes de gravar ``--out``: garante que nenhum artefato público de ``reports/``
+    embarque credencial temporária (S106).
+    """
+    return _SIGNED_URL_RE.subn(lambda m: m.group(1) + _REDACTED, text)
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--out", default=OUT_DEFAULT)
@@ -489,16 +520,17 @@ def main(argv: list[str] | None = None) -> int:
                     api_key=cfg.get("api_key"), sleep=args.sleep,
                     progress=_prog, page_getter=page_getter)
     Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(
-        json.dumps([asdict(x) for x in models], ensure_ascii=False, indent=2),
-        encoding="utf-8",
-    )
+    payload = json.dumps([asdict(x) for x in models], ensure_ascii=False, indent=2)
+    payload, n_red = redact_signed_urls(payload)  # S106: sem credencial em reports/ público
+    Path(args.out).write_text(payload, encoding="utf-8")
     n_page = sum(1 for m in models if m.has_page)
     n_ld = sum(1 for m in models if m.ld_price)
     n_code = sum(len(m.code_commands) for m in models)
     n_tested = sum(len(m.code_tests) for m in models)
     print(f"modelos={len(models)} com_pagina={n_page} com_jsonld_preco={n_ld} "
           f"comandos={n_code} testados={n_tested}")
+    if n_red:
+        print(f"redigidas: {n_red} URL(s) pré-assinada(s) (S106)")
     print(f"salvo: {args.out}")
     return 0
 

@@ -1,0 +1,15 @@
+checks=14 pass=9 fail=5 skip=0
+  ❌ [image] novai-image-qwen-image :: image — HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [image] novai-image-qwen-image-plus :: image — HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+  ❌ [image] novai-image-wan2.5-t2i-preview :: image — erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)
+  ✅ [image] novai-image-wan2.2-t2i-flash :: image — url=https://dashscope-5859.oss-cn-wulanchabu-acdr-1.aliyuncs.com/1d/e1/20261016/6514
+  ✅ [image] novai-image-doubao-seedream-4.5 :: image — url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0-pro/2ee
+  ❌ [image] novai-image-seedream-image-v5.0-pro :: image — HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ByteDance (Seedream)] The parameter `size` specified in
+  ✅ [image] novai-image-doubao-seedream-4.0 :: image — url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0/0217921
+  ❌ [image] novai-image-seedream-image-v5.0-lite :: image — HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ByteDance (Seedream)] The parameter `size` specified in
+  ✅ [image] novai-image-hy-image-v3 :: image — url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14
+  ✅ [image] novai-image-vidu-image-q2 :: image — url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14
+  ✅ [image] novai-image-wand-vega-image-pro :: image — url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/af
+  ✅ [image] novai-image-wand-vega-image-flash :: image — url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/50
+  ✅ [image] novai-image-wand-vega-image-lite :: image — url=http://data-shanghai-1378942524.cos.ap-shanghai.myqcloud.com/output/wand-vega/71
+  ✅ [image] novai-image-cogview-3-flash :: image — url=https://maas-watermark-prod-new.cn-wlcb.ufileos.com/202610160803255a07a13dcee84d

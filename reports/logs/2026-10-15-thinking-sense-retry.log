@@ -1,0 +1,16 @@
+novai-qwen3.6-max-preview :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+novai-qwen3-max :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+novai-qwen3-coder-plus :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+novai-qwen-vl-max :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+novai-qwen3-vl-flash :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba Cloud] Model not exist.\n\nLiteLLM
+novai-qwen-omni-turbo :: fail :: sonda falhou: HTTP 404: {"error":{"message":"litellm.NotFoundError: NotFoundError: OpenAIException - [Alibaba (通义千问)] Model not exist.\n\nLiteLL
+novai-kimi-k2.8-preview :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+novai-kimi-k2.7-code :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+novai-kimi-k2.7-code-highspeed :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+novai-kimi-k2.6 :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+novai-kimi-k2.5 :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [Moonshot (Kimi)] The request is invalid: the request wa
+novai-glm-5.3 :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] 该模型始终思考，不支持关闭思考；请使用 low、high 或 max。\n\nLite
+novai-glm-5.3-flash :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] 该模型始终思考，不支持关闭思考；请使用 low、high 或 max。\n\nLite
+novai-glm-5-turbo :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] The request is invalid: the request was rej
+novai-glm-4.6v-flash :: fail :: sonda falhou: HTTP 429: {"error":{"message":"litellm.RateLimitError: RateLimitError: OpenAIException - [ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试\n\nLiteLLM
+novai-glm-5.3-flashx :: fail :: sonda falhou: HTTP 400: {"error":{"message":"litellm.BadRequestError: OpenAIException - [ZhiPu (智谱)] The request is invalid: the request was rej
