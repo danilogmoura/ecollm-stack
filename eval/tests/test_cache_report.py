@@ -342,6 +342,23 @@ def test_price_for_free_nao_gera_economia_fantasma():
     assert m.savings == 0.0
 
 
+def test_price_for_catalogo_novai_s102():
+    # S102: catálogo NovAI completo precificado a partir do marketplace
+    # (docs/novai-model-marketplace.html). Trava alguns valores representativos
+    # por lab para detectar regressão silenciosa da tabela.
+    assert cr.price_for("novai-kimi-k3") == {"input": 2.90, "output": 14.50}
+    assert cr.price_for("novai-glm-5.3") == {"input": 1.25, "output": 4.00}
+    assert cr.price_for("novai-deepseek-v4.1-flash") == {"input": 0.308, "output": 1.231}
+    assert cr.price_for("novai-qwen3.8-max") == {"input": 1.84, "output": 5.52}
+    assert cr.price_for("novai-minimax-m3") == {"input": 0.30, "output": 1.20}
+    assert cr.price_for("novai-hy3") == {"input": 0.18, "output": 0.72}
+    assert cr.price_for("novai-mimo-v2.6-flash") == {"input": 0.10, "output": 0.28}
+    assert cr.price_for("novai-doubao-seed-2.0-lite") == {"input": 0.075, "output": 0.45}
+    # alias -fast herda o preço do modelo real (mesmo upstream)
+    assert cr.price_for("novai-kimi-k3-fast") == cr.price_for("novai-kimi-k3")
+    assert cr.price_for("novai-glm-5.3-flash-fast") == cr.price_for("novai-glm-5.3-flash")
+
+
 def test_build_report_all_models_rotulo_e_linhas():
     def source(_sql):
         return [
@@ -371,8 +388,9 @@ def test_build_report_models_rotulo():
 
 def test_preco_desconhecido_nao_gera_economia_negativa():
     # Grupo sem preço conhecido: spend real > 0 mas projeção omitida ⇒ savings >= 0
-    # (nunca negativo por artefato de fallback).
-    rows = [_row(mg="novai-kimi-k2.5", pt=1000, ct=100, cached=0, spend=0.0001)]
+    # (nunca negativo por artefato de fallback). Usa um grupo que NÃO está em
+    # PRICE_PER_MTOKEN (o catálogo NovAI agora é quase todo precificado — S102).
+    rows = [_row(mg="novai-modelo-inexistente-xyz", pt=1000, ct=100, cached=0, spend=0.0001)]
     m = cr.compute_metrics(rows)
     assert m.cost_no_cache == 0.0
     assert m.savings == 0.0
@@ -383,7 +401,7 @@ def test_preco_desconhecido_nao_gera_economia_negativa():
 def test_preco_desconhecido_nao_quebra_com_conhecido():
     # Mistura conhecido + desconhecido: só o conhecido entra na projeção.
     rows = [_row(mg="qwen3.8-flash", pt=1000, ct=0, cached=0, spend=0.0),
-            _row(mg="novai-kimi-k2.5", pt=1000, ct=0, cached=0, spend=0.0)]
+            _row(mg="novai-modelo-inexistente-xyz", pt=1000, ct=0, cached=0, spend=0.0)]
     m = cr.compute_metrics(rows)
     assert abs(m.cost_no_cache - (1000 * 0.15 / 1e6)) < 1e-12
 

@@ -27,10 +27,16 @@ Uso:
     .venv/bin/python -m eval.cache_report --days 7        # últimos 7 dias
     .venv/bin/python -m eval.cache_report --out reports/c6-cache-report.md
     .venv/bin/python -m eval.cache_report --model qwen3.8-flash
+    .venv/bin/python -m eval.cache_report --all --days 7   # todos os model_group
 
 Ressalva S30: o endpoint real é Token Plan (Créditos), então o ``$`` aqui é
 CUSTO-EQUIVALENTE PAYG (preços de C2). A métrica canônica de economia é em TOKENS
 (% prompt-tok em hit); a ordem de grandeza do $ vale também em créditos.
+
+S102: ``PRICE_PER_MTOKEN`` cobre o catálogo NovAI de chat LLMs (fonte única =
+``docs/novai-model-marketplace.html``), então ``--all`` projeta o ``$`` "sem cache"
+também para os grupos ``novai-*``. Grupos sem preço (embed/image/tts/asr, ou id
+desconhecido) continuam OMITIDOS da projeção — nunca inventamos preço.
 """
 
 from __future__ import annotations
@@ -65,6 +71,73 @@ PRICE_PER_MTOKEN = {
     "novai-glm-4.1v-flash": {"input": 0.0, "output": 0.0},
     "novai-glm-4.6v-flash": {"input": 0.0, "output": 0.0},
     "novai-glm-4.1v-thinking-flash": {"input": 0.0, "output": 0.0},
+    # -----------------------------------------------------------------------
+    # S102 — Catálogo NovAI COMPLETO (chat LLMs), preço por 1M tokens (USD).
+    # Fonte ÚNICA: tabela oficial do marketplace versionada no repo
+    # (``docs/novai-model-marketplace.html``, coluna "Chat LLMs", 1º par
+    # ``$input / $output`` = preço NovAI; o 2º par é referência OpenRouter).
+    # Mesma fonte travada na S96 p/ as rotas ``novai-deepseek-*``. Sem isto, o
+    # relatório cross-model (``--all``) mostrava ``$0,0000`` p/ todo grupo NovAI
+    # (``price_for`` → None ⇒ projeção omitida). Aliases ``-fast`` herdam o preço
+    # (``price_for`` remove o sufixo). Modelos FREE ficam explícitos em 0.0.
+    # -----------------------------------------------------------------------
+    "novai-qwen3.8-max": {"input": 1.84, "output": 5.52},
+    "novai-qwen3.7-max": {"input": 1.16, "output": 3.48},
+    "novai-qwen3.6-max-preview": {"input": 1.03, "output": 6.16},
+    "novai-qwen3-max": {"input": 0.57, "output": 2.65},
+    "novai-qwen3-coder-plus": {"input": 0.65, "output": 3.25},
+    "novai-qwen-vl-max": {"input": 0.80, "output": 3.20},
+    "novai-qwen3-vl-plus": {"input": 0.21, "output": 0.63},
+    "novai-qwen3.5-ocr": {"input": 0.70, "output": 0.70},
+    "novai-qwen-vl-ocr": {"input": 0.70, "output": 0.70},
+    "novai-qwen-mt-plus": {"input": 0.25, "output": 0.75},
+    "novai-qwen-plus": {"input": 0.185, "output": 0.53},
+    "novai-qwen3-coder-flash": {"input": 0.15, "output": 0.75},
+    "novai-qwen3-vl-flash": {"input": 0.08, "output": 0.24},
+    "novai-qwen3-omni-flash": {"input": 0.15, "output": 0.60},
+    "novai-qwen-omni-turbo": {"input": 0.30, "output": 0.60},
+    "novai-doubao-seed-2.1-pro": {"input": 0.40, "output": 2.00},
+    "novai-doubao-seed-2.0-code": {"input": 0.448, "output": 2.24},
+    "novai-doubao-seed-2.1-turbo": {"input": 0.15, "output": 0.90},
+    "novai-doubao-seed-2.0-lite": {"input": 0.075, "output": 0.45},
+    "novai-deepseek-v4.1-flash": {"input": 0.308, "output": 1.231},
+    "novai-deepseek-v4-pro": {"input": 0.57, "output": 1.15},
+    "novai-deepseek-v4-flash": {"input": 0.08, "output": 0.17},
+    "novai-deepseek-v4-flash-vision": {"input": 0.308, "output": 1.231},
+    "novai-minimax-m3": {"input": 0.30, "output": 1.20},
+    "novai-minimax-m2.7": {"input": 0.30, "output": 1.20},
+    "novai-minimax-m2.5": {"input": 0.27, "output": 1.08},
+    "novai-minimax-text-01": {"input": 0.14, "output": 1.10},
+    "novai-kimi-k3": {"input": 2.90, "output": 14.50},
+    "novai-kimi-k2.8-preview": {"input": 0.93, "output": 3.89},
+    "novai-kimi-k2.7-code": {"input": 0.67, "output": 3.40},
+    "novai-kimi-k2.7-code-highspeed": {"input": 2.07, "output": 8.61},
+    "novai-kimi-k2.6": {"input": 0.95, "output": 4.00},
+    "novai-kimi-k2.5": {"input": 0.60, "output": 3.00},
+    "novai-step-5-preview": {"input": 0.40, "output": 1.20},
+    "novai-hy4-preview": {"input": 0.834, "output": 2.501},
+    "novai-hy3": {"input": 0.18, "output": 0.72},
+    "novai-hunyuan-t1-vision": {"input": 0.55, "output": 1.64},
+    "novai-hy-vision-2.0-instruct": {"input": 1.154, "output": 2.692},
+    "novai-hunyuan-turbos-vision-video": {"input": 0.462, "output": 1.385},
+    "novai-hy-mt2-pro": {"input": 0.29, "output": 0.87},
+    "novai-hy-mt2-plus": {"input": 0.072, "output": 0.287},
+    "novai-hunyuan-role": {"input": 0.47, "output": 1.86},
+    "novai-hy-role": {"input": 0.369, "output": 1.477},
+    "novai-hy3-preview": {"input": 0.127, "output": 0.423},
+    "novai-hy-mt2-lite": {"input": 0.043, "output": 0.172},
+    "novai-mimo-v2.5-pro": {"input": 0.427, "output": 0.855},
+    "novai-mimo-v2.6-pro": {"input": 0.43, "output": 0.87},
+    "novai-mimo-v2.6-flash": {"input": 0.10, "output": 0.28},
+    "novai-glm-5.3": {"input": 1.25, "output": 4.00},
+    "novai-glm-5.2": {"input": 1.19, "output": 3.74},
+    "novai-glm-5.1": {"input": 1.05, "output": 3.96},
+    "novai-glm-5": {"input": 0.60, "output": 1.92},
+    "novai-glm-5v-turbo": {"input": 1.08, "output": 3.69},
+    "novai-glm-4.6v": {"input": 0.30, "output": 0.90},
+    "novai-glm-5.3-flash": {"input": 0.08, "output": 0.28},
+    "novai-glm-5-turbo": {"input": 1.08, "output": 3.69},
+    "novai-glm-5.3-flashx": {"input": 0.12, "output": 0.40},
 }
 DEFAULT_INPUT_PRICE = PRICE_PER_MTOKEN["qwen3.8-flash"]["input"]  # fallback conservador
 
