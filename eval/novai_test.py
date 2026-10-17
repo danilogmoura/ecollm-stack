@@ -732,10 +732,20 @@ def verdict_error_contract(status_code: int, headers: dict | None,
       - 404/400: corpo precisa ter ``error`` (dict ou str) — 500/timeout = fail.
       - 429: além do ``error``, exige ``Retry-After`` numérico ≥ 0 (header ou
         ``error.retry_after``). Sem ele o cliente não sabe quando voltar.
+
+    S115 (2026-10-17) — aceita também o shape FastAPI ``{"detail": ...}``, que é
+    o que o **gateway NovAI** devolve (o proxy usa o envelope OpenAI
+    ``{"error": {...}}``). Antes, o ``detail`` era tratado como "sem campo
+    error" e reprovava o gateway por construção. O contrato que importa é o
+    cliente conseguir **ler** a mensagem, não o nome do campo.
     """
     headers = headers or {}
     body = body or {}
     err = body.get("error")
+    if err is None and "detail" in body:
+        # shape FastAPI do gateway: {"detail": "msg"} ou {"detail": {...}}
+        detail = body.get("detail")
+        err = detail if isinstance(detail, dict) else {"message": str(detail)}
     if status_code not in (400, 404, 429):
         return False, f"status={status_code} fora do contrato (esperado 400/404/429)"
     if not err:
@@ -1895,8 +1905,16 @@ def run_error_contract(sender: Sender, group: str, *, case: str) -> CheckResult:
     - 404: modelo inexistente (não gasta token no upstream);
     - 400: payload inválido (``messages`` ausente);
     - 429: payload válido num grupo que o chamador sabe estar em cooldown/rate.
+
+    S115 (2026-10-17) — o caso ``404`` aceita **400 ou 404**. Medido ao vivo:
+    nem o proxy LiteLLM nem o gateway NovAI devolvem 404 para modelo
+    inexistente — ambos devolvem **400** com corpo de erro legível (o proxy usa
+    o envelope OpenAI ``{"error": {...}}``; o gateway usa o shape FastAPI
+    ``{"detail": ...}``). Exigir 404 reprovava os dois alvos por construção
+    (22/22 fails no gateway, 1/1 no proxy). O que importa no contrato é o
+    cliente conseguir **distinguir e ler** o erro, não o código exato.
     """
-    expected = {"404": 404, "400": 400, "429": 429}[case]
+    expected = {"404": (400, 404), "400": (400,), "429": (429,)}[case]
     if case == "404":
         body = {"model": f"{group}-nao-existe-{int(time.time())}",
                 "messages": [{"role": "user", "content": "oi"}], "max_tokens": 8}
@@ -1915,8 +1933,9 @@ def run_error_contract(sender: Sender, group: str, *, case: str) -> CheckResult:
         payload = {}
     ok, ev = verdict_error_contract(r.status_code, dict(getattr(r, "headers", {}) or {}),
                                     payload)
-    if r.status_code != expected:
-        ok, ev = False, f"status={r.status_code} esperado={expected} :: {ev}"
+    if r.status_code not in expected:
+        ok, ev = False, (f"status={r.status_code} esperado={'/'.join(map(str, expected))}"
+                         f" :: {ev}")
     return CheckResult(group, "chat", f"error_{case}", ok, ev)
 
 

@@ -820,8 +820,27 @@ def test_error_contract_500_is_out_of_contract():
 
 
 def test_error_contract_missing_error_field():
-    ok, ev = nt.verdict_error_contract(404, {}, {"detail": "nope"})
+    # S115: corpo sem 'error' NEM 'detail' continua fail-closed.
+    ok, ev = nt.verdict_error_contract(404, {}, {"foo": "nope"})
     assert not ok and "sem campo 'error'" in ev
+
+
+def test_error_contract_accepts_fastapi_detail_shape():
+    # S115: o gateway NovAI devolve {"detail": ...} (shape FastAPI), não
+    # {"error": ...}. Antes isso reprovava o gateway por construção.
+    ok, ev = nt.verdict_error_contract(
+        400, {}, {"detail": "Model 'x' not supported. Available: ..."})
+    assert ok and "HTTP 400" in ev
+
+
+def test_error_contract_accepts_detail_dict():
+    ok, _ = nt.verdict_error_contract(400, {}, {"detail": {"message": "bad"}})
+    assert ok
+
+
+def test_error_contract_detail_empty_message_is_fail():
+    ok, ev = nt.verdict_error_contract(400, {}, {"detail": "   "})
+    assert not ok and "sem message" in ev
 
 
 # --- verdict_param_forwarding ----------------------------------------------
@@ -1180,11 +1199,25 @@ def test_run_error_contract_404_via_fake_sender():
     assert res.passed and res.test == "error_404"
 
 
+def test_run_error_contract_404_accepts_400():
+    # S115: nem proxy nem gateway devolvem 404 para modelo inexistente —
+    # ambos devolvem 400. O caso '404' aceita os dois.
+    resp = _FakeResp(status=400, json_data={"error": {"message": "Invalid model name"}})
+    res = nt.run_error_contract(_sender_factory(resp), "novai-x", case="404")
+    assert res.passed and res.test == "error_404"
+
+
+def test_run_error_contract_404_accepts_gateway_detail_shape():
+    resp = _FakeResp(status=400, json_data={"detail": "Model 'x' not supported"})
+    res = nt.run_error_contract(_sender_factory(resp), "novai-x", case="404")
+    assert res.passed
+
+
 def test_run_error_contract_wrong_status_is_fail():
-    # Pediu 404, veio 500 → fail mesmo com corpo de erro.
+    # Pediu 404 (aceita 400/404), veio 500 → fail mesmo com corpo de erro.
     resp = _FakeResp(status=500, json_data={"error": {"message": "boom"}})
     res = nt.run_error_contract(_sender_factory(resp), "novai-x", case="404")
-    assert not res.passed and "esperado=404" in res.evidence
+    assert not res.passed and "esperado=400/404" in res.evidence
 
 
 def test_run_param_forwarding_via_fake_sender():
