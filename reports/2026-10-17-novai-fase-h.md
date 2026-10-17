@@ -4,7 +4,7 @@
 - Harness: `eval/novai_test.py` (`--family embedding --pgvector --target both --live`)
 - Alvos: **gateway** `aiapi-pro.com/v1` + **proxy** LiteLLM `:4000/v1`
 - Logs brutos: `reports/logs/2026-10-17-novai-embedding.jsonl` (60 linhas, redigido)
-- Testes offline: **157 passed** em `eval/tests/test_novai_test.py`; suíte completa **753 passed**
+- Testes offline: **157 passed** em `eval/tests/test_novai_test.py`; suíte completa **756 passed**
 
 ## O que a Fase H cobre
 
@@ -144,7 +144,7 @@ alcançáveis por `ingest/search.py`.
 
 | item | resultado |
 | --- | --- |
-| `RAG_PROFILE=qwen37 .venv/bin/python -m pytest` | **753 passed** |
+| `RAG_PROFILE=qwen37 .venv/bin/python -m pytest` | **756 passed** |
 | `eval.recall --gate` | **r@8 0,933 ≥ 0,900** (MRR 0,714) |
 | jsonl sem segredo | **0 hits** |
 | Invariante 7 | preservado (nenhum `novai-*` em rag-chat/fallbacks/embeddings) |
