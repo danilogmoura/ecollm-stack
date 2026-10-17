@@ -727,6 +727,136 @@ def test_run_concurrency_via_fake_sender():
     assert res.passed and res.test == "concurrency" and "n=3 ok=3" in res.evidence
 
 
+# --- Fase I: contexto longo (needle em N posições) -------------------------
+
+def test_build_needle_context_places_needle_at_start():
+    ctx = nt.build_needle_context("AGULHA", filler_tokens=100, position=0.0)
+    # position=0 ⇒ corpo vazio antes; a string começa com "\nAGULHA\n".
+    assert ctx.lstrip().startswith("AGULHA")
+
+
+def test_build_needle_context_places_needle_at_end():
+    ctx = nt.build_needle_context("AGULHA", filler_tokens=100, position=1.0)
+    assert ctx.rstrip().endswith("AGULHA")
+
+
+def test_build_needle_context_middle_is_not_at_edges():
+    ctx = nt.build_needle_context("AGULHA", filler_tokens=100, position=0.5)
+    assert not ctx.startswith("AGULHA") and not ctx.rstrip().endswith("AGULHA")
+    assert "AGULHA" in ctx
+
+
+def test_build_needle_context_rejects_bad_position():
+    import pytest
+    with pytest.raises(ValueError):
+        nt.build_needle_context("AGULHA", filler_tokens=10, position=1.5)
+
+
+def test_build_needle_context_scales_with_filler_tokens():
+    small = nt.build_needle_context("AGULHA", filler_tokens=100)
+    big = nt.build_needle_context("AGULHA", filler_tokens=1000)
+    assert len(big) > len(small)
+
+
+def test_verdict_needle_position_prefixes_evidence():
+    ok, ev = nt.verdict_needle_position("bla AGULHA-7F3A", "AGULHA-7F3A",
+                                        position=0.5)
+    assert ok and ev.startswith("pos=0.5 :: ")
+
+
+def test_verdict_needle_position_missing_fails():
+    ok, ev = nt.verdict_needle_position("nada", "AGULHA-7F3A", position=1.0)
+    assert not ok and ev.startswith("pos=1 :: ")
+
+
+def test_run_needle_positions_returns_one_result_per_position():
+    resp = _FakeResp(json_data={"choices": [{"message": {"content": "AGULHA-7F3A"}}]})
+    res = nt.run_needle_positions(_sender_factory(resp), "novai-x",
+                                  filler_tokens=50, positions=(0.0, 0.5, 1.0))
+    assert [r.test for r in res] == ["needle@0", "needle@0.5", "needle@1"]
+    assert all(r.passed for r in res)
+
+
+def test_run_needle_positions_http_error_does_not_abort_others():
+    resp = _FakeResp(status=500, text="boom")
+    res = nt.run_needle_positions(_sender_factory(resp), "novai-x",
+                                  filler_tokens=50, positions=(0.0, 1.0))
+    assert len(res) == 2 and not any(r.passed for r in res)
+
+
+# --- Fase I: stress --------------------------------------------------------
+
+def test_summarize_stress_percentiles_and_throughput():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": v}
+                             for v in (100, 200, 300, 400)])
+    assert s["n"] == 4 and s["ok"] == 4
+    assert s["p50_ms"] == 200 and s["p95_ms"] == 400 and s["p99_ms"] == 400
+    assert s["error_rate"] == 0.0 and s["throughput_rps"] > 0
+
+
+def test_summarize_stress_flags_degradation():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": v}
+                             for v in (10, 10, 10, 500)])
+    assert s["degraded"] is True
+
+
+def test_summarize_stress_no_degradation_when_flat():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": 100}] * 4)
+    assert s["degraded"] is False
+
+
+def test_summarize_stress_counts_errors():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": 10},
+                             {"status_code": 429, "latency_ms": 10}])
+    assert s["errors"] == {"429": 1} and s["error_rate"] == 0.5
+
+
+def test_verdict_stress_all_ok_passes():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": 10}] * 4)
+    ok, ev = nt.verdict_stress(s)
+    assert ok and "n=4" in ev
+
+
+def test_verdict_stress_empty_is_fail():
+    ok, ev = nt.verdict_stress({"n": 0, "ok": 0, "error_rate": 0.0,
+                                "degraded": False})
+    assert not ok and "nenhuma chamada" in ev
+
+
+def test_verdict_stress_error_rate_above_threshold_fails():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": 10},
+                             {"status_code": 500, "latency_ms": 10}])
+    ok, _ = nt.verdict_stress(s, max_error_rate=0.0)
+    assert not ok
+
+
+def test_verdict_stress_degraded_can_be_rejected():
+    s = nt.summarize_stress([{"status_code": 200, "latency_ms": v}
+                             for v in (10, 10, 10, 500)])
+    ok, ev = nt.verdict_stress(s, allow_degraded=False)
+    assert not ok and "cauda longa" in ev
+
+
+def test_run_stress_via_fake_sender():
+    resp = _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+    res = nt.run_stress(_sender_factory(resp), "novai-x", n=4, workers=2)
+    assert res.passed and res.test == "stress" and "n=4" in res.evidence
+
+
+# --- Fase I: A7 (content vazio) -------------------------------------------
+
+def test_param_forwarding_empty_content_fails():
+    ok, ev = nt.verdict_param_forwarding({"temperature": 0.0},
+                                         _chat_resp(content=""))
+    assert not ok and "A7" in ev
+
+
+def test_param_forwarding_whitespace_content_fails():
+    ok, ev = nt.verdict_param_forwarding({"temperature": 0.0},
+                                         _chat_resp(content="   \n "))
+    assert not ok and "A7" in ev
+
+
 # --- orquestradores novos com sender fake ----------------------------------
 
 def test_run_json_strict_via_fake_sender():

@@ -655,6 +655,10 @@ def verdict_param_forwarding(sent: dict, resp: dict) -> tuple[bool, str]:
 
     Só julga o que é OBSERVÁVEL na resposta (não inventa eco que o gateway não
     devolve):
+      - ``content``: precisa ser NÃO-VAZIO. Sem isso o teste passa **vacuamente**
+        (achado A7 da Fase F: o gateway devolvia ``content=""`` com
+        ``finish_reason=length``, todo o ``max_tokens`` consumido pelo reasoning,
+        e o ``stop`` nunca era exercitado — o veredito antigo dava pass);
       - ``stop``: o texto NÃO pode conter a sequência de parada;
       - ``max_tokens``: ``usage.completion_tokens`` ≤ ``max_tokens``;
       - ``temperature``/``top_p``: sem evidência no corpo ⇒ não julga (registra).
@@ -665,6 +669,12 @@ def verdict_param_forwarding(sent: dict, resp: dict) -> tuple[bool, str]:
         content = (resp["choices"][0]["message"]["content"] or "")
     except (KeyError, IndexError, TypeError):
         return False, f"sem choices[0].message.content: {str(resp)[:120]}"
+    # A7 (Fase I): content vazio = teste vacuamente aprovado. Fail-closed.
+    if not content.strip():
+        fr = (resp["choices"][0].get("finish_reason")
+              if isinstance(resp.get("choices"), list) and resp["choices"] else None)
+        return False, (f"content vazio (finish_reason={fr!r}) — stop/max_tokens "
+                       f"não exercitados (A7)")
     stop = sent.get("stop")
     if stop:
         stops = [stop] if isinstance(stop, str) else list(stop)
@@ -703,6 +713,101 @@ def verdict_needle(assembled: str, needle: str, *, max_chars: int | None = None
     if pos < 0:
         return False, f"agulha {needle!r} ausente (len={len(assembled)})"
     return True, f"agulha em pos={pos} len={len(assembled)}"
+
+
+# ---------------------------------------------------------------------------
+# S103 / Fase I — contexto longo + stress (T19 estendido, T20 estendido)
+# ---------------------------------------------------------------------------
+
+# Posições relativas da agulha no contexto (fração do preenchimento). A Fase F
+# só testava o MEIO; a Fase I varre início/meio/fim para pegar o "lost in the
+# middle" (modelos recuperam bem nas pontas e mal no centro).
+NEEDLE_POSITIONS = (0.0, 0.5, 1.0)
+
+
+def build_needle_context(needle: str, *, filler_tokens: int,
+                         position: float = 0.5,
+                         filler: str = "O rato roeu a roupa do rei de Roma. "
+                         ) -> str:
+    """Monta um contexto longo com a agulha numa posição relativa (PURA).
+
+    ``position`` ∈ [0,1]: 0 = início, 0.5 = meio, 1 = fim. ``filler_tokens`` é
+    aproximado (1 "token" ≈ 10 chars do preenchimento, mesma convenção do
+    ``run_needle`` da Fase F). Determinístico: mesma entrada ⇒ mesma string.
+    """
+    if not 0.0 <= position <= 1.0:
+        raise ValueError(f"position fora de [0,1]: {position}")
+    reps = max(1, filler_tokens // 10)
+    body = filler * reps
+    cut = int(len(body) * position)
+    return f"{body[:cut]}\n{needle}\n{body[cut:]}"
+
+
+def verdict_needle_position(assembled: str, needle: str, *,
+                            position: float) -> tuple[bool, str]:
+    """Veredito de needle com a POSIÇÃO esperada na evidência (PURA).
+
+    Igual a ``verdict_needle`` mas registra a posição relativa pedida, para o
+    relatório mostrar a curva início/meio/fim. Fail-closed: agulha ausente ou
+    vazia = fail.
+    """
+    ok, ev = verdict_needle(assembled, needle)
+    return ok, f"pos={position:g} :: {ev}"
+
+
+def summarize_stress(results: list[dict]) -> dict:
+    """Agrega um stress de N chamadas: sucesso, p50/p95/p99, erros, throughput.
+
+    ``results`` = lista de ``{status_code, latency_ms, error?}``. PURA. Diferente
+    de ``summarize_concurrency`` (N=4, só p50/p95), aqui interessa a CAUDA: p99,
+    taxa de erro e se houve degradação (p95 ≫ p50).
+    """
+    n = len(results)
+    ok = [r for r in results if r.get("status_code") == 200]
+    lat = sorted(float(r.get("latency_ms") or 0.0) for r in ok)
+
+    def _pct(p: float) -> float | None:
+        if not lat:
+            return None
+        idx = min(len(lat) - 1, max(0, math.ceil(p * len(lat)) - 1))
+        return lat[idx]
+
+    errs: dict[str, int] = {}
+    for r in results:
+        if r.get("status_code") != 200:
+            key = str(r.get("status_code"))
+            errs[key] = errs.get(key, 0) + 1
+    total_ms = sum(float(r.get("latency_ms") or 0.0) for r in results)
+    p50, p95 = _pct(0.50), _pct(0.95)
+    # Degradação = p95 mais que o dobro do p50 (cauda longa sob carga).
+    degraded = bool(p50 and p95 and p95 > 2 * p50)
+    return {"n": n, "ok": len(ok), "p50_ms": p50, "p95_ms": p95,
+            "p99_ms": _pct(0.99), "errors": errs,
+            "error_rate": (n - len(ok)) / n if n else 0.0,
+            "throughput_rps": (n / (total_ms / 1000.0)) if total_ms else None,
+            "degraded": degraded}
+
+
+def verdict_stress(summary: dict, *, max_error_rate: float = 0.0,
+                   allow_degraded: bool = True) -> tuple[bool, str]:
+    """Stress: taxa de erro dentro do limite e cauda registrada (PURA).
+
+    ``max_error_rate=0.0`` (default) exige 100% de sucesso — stress é para provar
+    que o grupo aguenta, não para tolerar falha. ``allow_degraded=False`` também
+    reprova quando p95 > 2×p50 (cauda longa).
+    """
+    n, ok = summary.get("n", 0), summary.get("ok", 0)
+    er = summary.get("error_rate", 0.0)
+    ev = (f"n={n} ok={ok} err={er:.0%} p50={summary.get('p50_ms')} "
+          f"p95={summary.get('p95_ms')} p99={summary.get('p99_ms')} "
+          f"rps={summary.get('throughput_rps')} errors={summary.get('errors')}")
+    if n == 0:
+        return False, "nenhuma chamada executada"
+    if er > max_error_rate:
+        return False, ev
+    if not allow_degraded and summary.get("degraded"):
+        return False, f"cauda longa (p95 > 2×p50) :: {ev}"
+    return True, ev
 
 
 def summarize_concurrency(results: list[dict]) -> dict:
@@ -1424,12 +1529,19 @@ def run_error_contract(sender: Sender, group: str, *, case: str) -> CheckResult:
 
 
 def run_param_forwarding(sender: Sender, group: str) -> CheckResult:
-    """T18 — param forwarding: ``stop`` + ``max_tokens`` observáveis na resposta."""
+    """T18 — param forwarding: ``stop`` + ``max_tokens`` observáveis na resposta.
+
+    S103 / Fase I: ``max_tokens`` subiu de 24 para 256. Com 24 o gateway gastava
+    TODO o orçamento em reasoning e devolvia ``content=""`` com
+    ``finish_reason=length`` — o ``stop`` nunca era exercitado e o teste passava
+    vacuamente (achado A7). 256 dá folga para o reasoning terminar e o texto
+    aparecer, que é o que o veredito agora exige.
+    """
     body = {
         "model": group,
         "messages": [{"role": "user",
                       "content": "Escreva a sequência: um dois tres quatro cinco seis"}],
-        "max_tokens": 24,
+        "max_tokens": 256,
         "stop": ["quatro"],
         "temperature": 0.0,
     }
@@ -1496,6 +1608,93 @@ def run_concurrency(sender: Sender, group: str, *, n: int = 4) -> CheckResult:
     summary = summarize_concurrency(results)
     ok, ev = verdict_concurrency(summary)
     return CheckResult(group, "chat", "concurrency", ok, ev)
+
+
+def run_needle_positions(sender: Sender, group: str, *, filler_tokens: int = 2000,
+                         positions: tuple[float, ...] = NEEDLE_POSITIONS
+                         ) -> list[CheckResult]:
+    """T19 estendido (Fase I) — needle em início/meio/fim do contexto.
+
+    A Fase F só testava o MEIO. Aqui a mesma agulha é colocada em cada posição
+    relativa de ``positions`` e cada uma vira um ``CheckResult`` próprio
+    (``needle@0``, ``needle@0.5``, ``needle@1``), para o relatório mostrar a
+    curva "lost in the middle". Um fail não aborta os outros.
+    """
+    needle = "AGULHA-7F3A"
+    out: list[CheckResult] = []
+    for pos in positions:
+        test = f"needle@{pos:g}"
+        context = build_needle_context(needle, filler_tokens=filler_tokens,
+                                       position=pos)
+        body = {
+            "model": group,
+            "messages": [{"role": "user",
+                          "content": f"{context}\n\nQual é o código único no texto "
+                                     f"acima? Responda só o código."}],
+            # Fase I / classe H: 64 tokens era pouco — o modelo de reasoning
+            # gastava o orçamento pensando e o ``content`` saía truncado
+            # (``finish_reason=length``, ex.: "AGULHA-7"), reprovando o check
+            # por orçamento e não por perda de contexto. 256 dá folga ao
+            # reasoning e ainda cabe a resposta de 11 chars.
+            "max_tokens": 256,
+        }
+        try:
+            r = sender("/chat/completions", json_body=body)
+        except requests.RequestException as exc:
+            out.append(CheckResult(group, "chat", test, False, f"erro rede: {exc}"))
+            continue
+        if r.status_code != 200:
+            out.append(CheckResult(group, "chat", test, False,
+                                   f"HTTP {r.status_code}: {r.text[:120]}"))
+            continue
+        try:
+            content = r.json()["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError, ValueError):
+            out.append(CheckResult(group, "chat", test, False,
+                                   "resposta sem content"))
+            continue
+        # Fase I / classe H: o gateway às vezes devolve ``content=""`` com o
+        # texto em ``reasoning_content`` (o modelo "pensou" a resposta e não
+        # emitiu o canal final). Sem este fallback o check reprova por um
+        # artefato do upstream, não por perda de contexto. Só cai no reasoning
+        # quando o content está VAZIO — content preenchido nunca é substituído.
+        if not content.strip():
+            try:
+                content = r.json()["choices"][0]["message"].get(
+                    "reasoning_content") or ""
+            except (KeyError, IndexError, TypeError, ValueError):
+                content = ""
+        ok, ev = verdict_needle_position(content, needle, position=pos)
+        out.append(CheckResult(group, "chat", test, ok, ev))
+    return out
+
+
+def run_stress(sender: Sender, group: str, *, n: int = 12, workers: int = 6,
+               max_error_rate: float = 0.0) -> CheckResult:
+    """T20 estendido (Fase I) — stress: ``n`` chamadas com ``workers`` paralelos.
+
+    Diferente de ``run_concurrency`` (N=4, prova que aguenta concorrência
+    básica), aqui interessa a CAUDA sob carga sustentada: p99, taxa de erro e
+    degradação (p95 > 2×p50). ``max_tokens`` baixo para não gastar.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    body = {"model": group, "messages": [{"role": "user", "content": "Diga: OK"}],
+            "max_tokens": 16}
+
+    def _one(_i: int) -> dict:
+        t0 = time.monotonic()
+        try:
+            r = sender("/chat/completions", json_body=body)
+            return {"status_code": r.status_code, "latency_ms": _elapsed_ms(t0)}
+        except requests.RequestException as exc:
+            return {"status_code": 0, "latency_ms": _elapsed_ms(t0), "error": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=max(1, workers)) as pool:
+        results = list(pool.map(_one, range(n)))
+    summary = summarize_stress(results)
+    ok, ev = verdict_stress(summary, max_error_rate=max_error_rate)
+    return CheckResult(group, "chat", "stress", ok, ev)
 
 
 
@@ -1612,7 +1811,8 @@ def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = Fals
 
 def run_contract_suite(sender: Sender, group: str, *, target: str = "proxy",
                        concurrency: int = 4, model: str | None = None,
-                       sink: dict | None = None) -> list[CheckResult]:
+                       sink: dict | None = None, stress: bool = False,
+                       needle_positions: bool = False) -> list[CheckResult]:
     """S103 — bateria de CONTRATO num grupo de chat (T13–T20).
 
     Roda os testes novos em sequência: TTFT, JSON estrito, param forwarding,
@@ -1626,25 +1826,39 @@ def run_contract_suite(sender: Sender, group: str, *, target: str = "proxy",
     fornecido, a captura é anexada **imediatamente após cada check** — o sink é
     limpo a cada chamada, então ler depois do batch inteiro gravaria o request
     do ÚLTIMO check em todos os registros (bug S103/Fase F).
+
+    ``stress`` (Fase I) acrescenta o stress de N=12 com 6 workers.
+    ``needle_positions`` (Fase I) troca o needle único do meio pela varredura
+    início/meio/fim.
     """
     m = model or group
     steps = [
         lambda: run_ttft(sender, m),
         lambda: run_json_strict(sender, m),
         lambda: run_param_forwarding(sender, m),
-        lambda: run_needle(sender, m),
-        lambda: run_concurrency(sender, m, n=concurrency),
+    ]
+    if needle_positions:
+        steps.append(lambda: run_needle_positions(sender, m))
+    else:
+        steps.append(lambda: run_needle(sender, m))
+    steps.append(lambda: run_concurrency(sender, m, n=concurrency))
+    if stress:
+        steps.append(lambda: run_stress(sender, m))
+    steps.extend([
         lambda: run_error_contract(sender, m, case="404"),
         lambda: run_error_contract(sender, m, case="400"),
-    ]
+    ])
     out: list[CheckResult] = []
     for step in steps:
         r = step()
-        r.group = group  # relatório fala do grupo, não do upstream
-        r.target = target
-        if sink is not None:
-            attach_capture(r, sink)
-        out.append(r)
+        # Fase I: alguns steps devolvem LISTA (needle em N posições).
+        batch = r if isinstance(r, list) else [r]
+        for item in batch:
+            item.group = group  # relatório fala do grupo, não do upstream
+            item.target = target
+            if sink is not None:
+                attach_capture(item, sink)
+            out.append(item)
     return out
 
 
@@ -1709,6 +1923,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--pgvector", action="store_true",
                     help="Fase H (T23): além do embed, faz round-trip INSERT/SELECT "
                          "em chunks_novai_<slug> (tabela ISOLADA, invariante 7)")
+    ap.add_argument("--context", action="store_true",
+                    help="Fase I: contexto longo (needle em início/meio/fim) + stress "
+                         "de concorrência (N=12, 6 workers) na bateria de contrato")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -1790,7 +2007,9 @@ def main(argv: list[str] | None = None) -> int:
                 # a captura é anexada DENTRO da suíte, check a check
                 results.extend(run_contract_suite(sender, r["group"],
                                                   target=target, model=model,
-                                                  sink=sink))
+                                                  sink=sink,
+                                                  stress=args.context,
+                                                  needle_positions=args.context))
 
     _print_and_export(results, args.live, args.out, write_matrix=True)
     if args.live:
