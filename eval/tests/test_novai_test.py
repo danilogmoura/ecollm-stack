@@ -8,6 +8,7 @@ fake injetável. Nada aqui toca :4000 nem gasta saldo.
 from __future__ import annotations
 
 import base64
+import json
 
 import pytest
 
@@ -1532,3 +1533,174 @@ def test_run_one_without_pgvector_keeps_single_check():
     resp = _FakeResp(json_data={"data": [{"embedding": [0.1, 0.1]}]})
     out = nt.run_one(row, _sender_factory(resp), True, target="proxy")
     assert [r.test for r in out] == ["embed"]
+
+
+# --- S103 / Fase K: agentes E2E (T25 Copilot BYOK, T26 Roo Code) -----------
+
+def _sse(*chunks, done=True):
+    """Monta um corpo SSE canônico a partir de dicts de chunk."""
+    body = "".join(f"data: {json.dumps(c)}\n\n" for c in chunks)
+    return body + ("data: [DONE]\n\n" if done else "")
+
+
+def _delta(content=None, tool_calls=None):
+    d = {}
+    if content is not None:
+        d["content"] = content
+    if tool_calls is not None:
+        d["tool_calls"] = tool_calls
+    return {"choices": [{"delta": d}]}
+
+
+def test_build_agent_body_copilot_shape():
+    body = nt.build_agent_body("m", client="copilot")
+    assert body["model"] == "m"
+    assert body["stream"] is True
+    assert body["tool_choice"] == "auto"
+    assert [t["function"]["name"] for t in body["tools"]] == ["read_file",
+                                                              "run_tests"]
+    assert body["messages"][0]["role"] == "system"
+    assert len(body["messages"][0]["content"]) > 1000
+    assert "temperature" not in body
+
+
+def test_build_agent_body_roo_adds_temperature_zero():
+    body = nt.build_agent_body("m", client="roo")
+    assert body["temperature"] == 0
+    assert body["stream"] is True and body["tool_choice"] == "auto"
+
+
+def test_build_agent_body_rejects_unknown_client():
+    with pytest.raises(ValueError, match="cliente desconhecido"):
+        nt.build_agent_body("m", client="cursor")
+
+
+def test_build_agent_body_can_disable_stream_and_tools():
+    body = nt.build_agent_body("m", stream=False, tools=False)
+    assert "stream" not in body and "tools" not in body
+    assert "tool_choice" not in body
+
+
+def test_parse_sse_chunks_ignores_comments_and_done():
+    text = (": keep-alive\n\n"
+            'data: {"choices":[{"delta":{"content":"a"}}]}\n\n'
+            "event: ping\n\n"
+            "data: not-json\n\n"
+            "data: [DONE]\n\n")
+    chunks = nt.parse_sse_chunks(text)
+    assert len(chunks) == 1
+    assert nt._chunk_text(chunks[0]) == "a"
+
+
+def test_parse_sse_chunks_empty_body():
+    assert nt.parse_sse_chunks("") == []
+
+
+def test_verdict_agent_response_ok_with_text_and_tools():
+    text = _sse(_delta(content="Vou ler o arquivo."),
+                _delta(tool_calls=[{"index": 0, "id": "c1",
+                                    "function": {"name": "read_file",
+                                                 "arguments": "{}"}}]))
+    ok, ev = nt.verdict_agent_response(text, client="copilot")
+    assert ok and "chunks=2" in ev and "tools=1" in ev and "read_file" in ev
+
+
+def test_verdict_agent_response_ok_text_only_when_tools_not_expected():
+    text = _sse(_delta(content="O projeto indexa código."))
+    ok, ev = nt.verdict_agent_response(text, client="roo", expect_tools=False)
+    assert ok and "tools=0" in ev
+
+
+def test_verdict_agent_response_fails_without_tool_calls():
+    text = _sse(_delta(content="O projeto indexa código."))
+    ok, ev = nt.verdict_agent_response(text, client="copilot")
+    assert not ok and "sem tool_calls" in ev
+
+
+def test_verdict_agent_response_fails_on_empty_response():
+    text = _sse(_delta(content=""))
+    ok, ev = nt.verdict_agent_response(text, client="copilot",
+                                       expect_tools=False)
+    assert not ok and "resposta vazia" in ev
+
+
+def test_verdict_agent_response_fails_without_sse():
+    ok, ev = nt.verdict_agent_response('{"choices":[]}', client="copilot")
+    assert not ok and "sem chunks SSE" in ev
+
+
+def test_verdict_agent_response_fails_on_punctuation_only():
+    text = _sse(_delta(content="... !!!"))
+    ok, ev = nt.verdict_agent_response(text, client="roo", expect_tools=False)
+    assert not ok and "alfanumérico" in ev
+
+
+def test_verdict_agent_response_accepts_message_shape():
+    """Alguns proxies devolvem ``message`` em vez de ``delta`` no stream."""
+    text = _sse({"choices": [{"message": {"content": "ok",
+                                          "tool_calls": [
+                                              {"function": {"name": "run_tests"}}]}}]})
+    ok, ev = nt.verdict_agent_response(text, client="copilot")
+    assert ok and "run_tests" in ev
+
+
+def test_run_agent_ok():
+    text = _sse(_delta(content="Lendo."),
+                _delta(tool_calls=[{"function": {"name": "read_file"}}]))
+    res = nt.run_agent(_sender_factory(_FakeResp(text=text)), "m",
+                       client="copilot")
+    assert res.passed and res.test == "agent-copilot" and res.modality == "agent"
+
+
+def test_run_agent_http_error_is_fail():
+    res = nt.run_agent(_sender_factory(_FakeResp(status=429, text="cooldown")),
+                       "m", client="roo")
+    assert not res.passed and "HTTP 429" in res.evidence
+
+
+def test_run_agent_sends_stream_and_tools():
+    seen = {}
+
+    def _send(path, **kw):
+        seen.update(kw)
+        return _FakeResp(text=_sse(_delta(content="ok"),
+                                   _delta(tool_calls=[{"function":
+                                                        {"name": "read_file"}}])))
+
+    nt.run_agent(_send, "m", client="roo")
+    assert seen["stream"] is True
+    assert seen["json_body"]["temperature"] == 0
+    assert seen["json_body"]["tools"]
+
+
+def test_merge_tool_calls_consolidates_fragments_by_index():
+    """K1: o stream manda o nome no 1º fragmento e só arguments depois."""
+    chunks = nt.parse_sse_chunks(_sse(
+        _delta(tool_calls=[{"index": 0, "id": "c1",
+                            "function": {"name": "read_file", "arguments": ""}}]),
+        _delta(tool_calls=[{"index": 0, "function": {"arguments": '{"path"'}}]),
+        _delta(tool_calls=[{"index": 0, "function": {"arguments": ': "a.md"}'}}]),
+    ))
+    calls = nt.merge_tool_calls(chunks)
+    assert len(calls) == 1
+    assert calls[0]["name"] == "read_file"
+    assert calls[0]["arguments"] == '{"path": "a.md"}'
+
+
+def test_merge_tool_calls_keeps_parallel_calls_separate():
+    chunks = nt.parse_sse_chunks(_sse(
+        _delta(tool_calls=[{"index": 0, "function": {"name": "read_file"}},
+                           {"index": 1, "function": {"name": "run_tests"}}]),
+    ))
+    calls = nt.merge_tool_calls(chunks)
+    assert [c["name"] for c in calls] == ["read_file", "run_tests"]
+
+
+def test_verdict_agent_response_counts_consolidated_calls():
+    text = _sse(
+        _delta(tool_calls=[{"index": 0, "function": {"name": "read_file"}}]),
+        _delta(tool_calls=[{"index": 0, "function": {"arguments": "{}"}}]),
+        _delta(tool_calls=[{"index": 0, "function": {"arguments": ""}}]),
+    )
+    ok, ev = nt.verdict_agent_response(text, client="copilot")
+    assert ok and "tools=1" in ev and "read_file" in ev

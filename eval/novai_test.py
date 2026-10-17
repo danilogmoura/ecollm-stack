@@ -56,6 +56,48 @@ MATRIX_EXTRA_COLUMNS = ("target", "test_id", "latency_ms", "notes")
 GATEWAY_BASE_URL = "https://aiapi-pro.com/v1"
 TARGETS = ("gateway", "proxy")
 
+# S103 / Fase K (T25/T26) — agentes E2E. O agente NÃO é simulado: o harness
+# reproduz o request que o cliente (Copilot BYOK / Roo Code) manda de fato —
+# system prompt grande + histórico + tools + stream — e valida a resposta.
+# O que se prova aqui é o CONTRATO que o agente consome; o clique na extensão
+# é manual e fica registrado no relatório da fase.
+AGENT_CLIENTS = ("copilot", "roo")
+AGENT_DEFAULT_MODEL = "novai-deepseek-v4-flash"
+# System prompt realista (~1,5k tokens): agentes mandam instruções longas em
+# TODA request, e é isso que estressa o caminho de entrada do proxy.
+AGENT_SYSTEM_PROMPT = (
+    "Você é um agente de código rodando dentro de uma IDE. Regras: "
+    "1) leia o arquivo antes de editar; 2) prefira edições pequenas e "
+    "cirúrgicas; 3) nunca invente APIs; 4) rode os testes depois de mudar "
+    "código; 5) responda em português. "
+) * 12
+AGENT_TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Lê um arquivo do workspace",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string"}},
+                "required": ["path"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_tests",
+            "description": "Roda a suíte de testes",
+            "parameters": {
+                "type": "object",
+                "properties": {"target": {"type": "string"}},
+                "required": [],
+            },
+        },
+    },
+]
+
 
 def proxy_config() -> dict:
     """Base URL + master key do proxy, lidas do ambiente (.env no repo root)."""
@@ -2019,6 +2061,176 @@ def run_contract_suite(sender: Sender, group: str, *, target: str = "proxy",
     return out
 
 
+# ---------------------------------------------------------------------------
+# S103 / Fase K — agentes E2E (T25 Copilot BYOK, T26 Roo Code)
+# ---------------------------------------------------------------------------
+
+
+def build_agent_body(model: str, *, client: str = "copilot",
+                     stream: bool = True, tools: bool = True,
+                     max_tokens: int = 256) -> dict:
+    """Monta o corpo que o cliente de agente manda de fato.
+
+    Diferenças medidas entre os clientes (o que o harness precisa reproduzir):
+      - ``copilot``: system prompt longo + ``tools`` + ``stream:true`` +
+        ``tool_choice:"auto"``; não manda ``temperature``.
+      - ``roo``: system prompt longo + ``tools`` + ``stream:true`` +
+        ``temperature:0`` (determinístico) e ``max_tokens`` explícito.
+
+    Puro: nenhuma chamada de rede, testável offline.
+    """
+    if client not in AGENT_CLIENTS:
+        raise ValueError(f"cliente desconhecido: {client!r} (use copilot|roo)")
+    body: dict = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": AGENT_SYSTEM_PROMPT},
+            {"role": "user", "content": "Leia o arquivo README.md e diga em "
+                                        "uma frase o que o projeto faz."},
+        ],
+        "max_tokens": max_tokens,
+    }
+    if stream:
+        body["stream"] = True
+    if tools:
+        body["tools"] = AGENT_TOOLS
+        body["tool_choice"] = "auto"
+    if client == "roo":
+        body["temperature"] = 0
+    return body
+
+
+def parse_sse_chunks(text: str) -> list[dict]:
+    """Extrai os objetos JSON de um corpo SSE (``data: {...}``), ignorando ``[DONE]``.
+
+    Puro. Linhas que não são ``data:`` (comentários ``:``, ``event:``) são
+    ignoradas; JSON inválido também (o veredito reporta a contagem).
+    """
+    out: list[dict] = []
+    for line in (text or "").splitlines():
+        line = line.strip()
+        if not line.startswith("data:"):
+            continue
+        payload = line[len("data:"):].strip()
+        if not payload or payload == "[DONE]":
+            continue
+        try:
+            obj = json.loads(payload)
+        except (ValueError, TypeError):
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+def _chunk_text(chunk: dict) -> str:
+    """Texto de um chunk de chat (``delta.content`` ou ``message.content``)."""
+    choices = chunk.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return ""
+    first = choices[0]
+    if not isinstance(first, dict):
+        return ""
+    for key in ("delta", "message"):
+        part = first.get(key)
+        if isinstance(part, dict):
+            content = part.get("content")
+            if isinstance(content, str) and content:
+                return content
+    return ""
+
+
+def _chunk_tool_calls(chunk: dict) -> list[dict]:
+    """``tool_calls`` de um chunk (delta ou message), sempre lista."""
+    choices = chunk.get("choices")
+    if not isinstance(choices, list) or not choices:
+        return []
+    first = choices[0]
+    if not isinstance(first, dict):
+        return []
+    for key in ("delta", "message"):
+        part = first.get(key)
+        if isinstance(part, dict):
+            calls = part.get("tool_calls")
+            if isinstance(calls, list):
+                return [c for c in calls if isinstance(c, dict)]
+    return []
+
+
+def merge_tool_calls(chunks: list[dict]) -> list[dict]:
+    """Consolida os ``tool_calls`` fragmentados do stream por ``index``.
+
+    O stream manda o cabeçalho (``id``/``name``) no PRIMEIRO fragmento e depois
+    só pedaços de ``arguments`` — sem ``name``. Contar fragmentos crus infla o
+    número (11 fragmentos = 1 chamada) e perde o nome nos seguintes. Puro.
+    """
+    merged: dict[int, dict] = {}
+    for chunk in chunks:
+        for call in _chunk_tool_calls(chunk):
+            idx = call.get("index")
+            if not isinstance(idx, int):
+                idx = len(merged)
+            slot = merged.setdefault(idx, {"name": "", "arguments": ""})
+            fn = call.get("function")
+            if isinstance(fn, dict):
+                if fn.get("name"):
+                    slot["name"] = fn["name"]
+                if isinstance(fn.get("arguments"), str):
+                    slot["arguments"] += fn["arguments"]
+    return [merged[k] for k in sorted(merged)]
+
+
+def verdict_agent_response(text: str, *, client: str,
+                           expect_tools: bool = True) -> tuple[bool, str]:
+    """Veredito do agente E2E: resposta coerente + stream + tools.
+
+    Fail-closed. Reprova quando:
+      - o corpo não tem nenhum chunk SSE válido (``data:`` ausente/quebrado);
+      - não há texto **nem** ``tool_calls`` (resposta vazia = agente travado);
+      - ``expect_tools`` e o modelo não devolveu ``tool_calls`` (o cliente
+        ficaria sem ação — é o modo de falha real do agente);
+      - o texto é só pontuação/whitespace.
+
+    Evidência sempre traz ``chunks=N``, ``chars=N`` e ``tools=N`` (chamadas
+    CONSOLIDADAS por ``index``, não fragmentos) para o jsonl.
+    """
+    chunks = parse_sse_chunks(text)
+    if not chunks:
+        return False, "sem chunks SSE válidos (data: ausente ou JSON quebrado)"
+    content = "".join(_chunk_text(c) for c in chunks)
+    calls = merge_tool_calls(chunks)
+    names = sorted({c["name"] for c in calls if c.get("name")})
+    ev = f"chunks={len(chunks)} chars={len(content)} tools={len(calls)}"
+    if names:
+        ev += f" ({','.join(names)})"
+    if not content.strip() and not calls:
+        return False, f"resposta vazia — sem texto e sem tool_calls :: {ev}"
+    if expect_tools and not calls:
+        return False, f"sem tool_calls (agente sem ação) :: {ev}"
+    if content.strip() and not any(ch.isalnum() for ch in content):
+        return False, f"texto sem conteúdo alfanumérico :: {ev}"
+    return True, ev
+
+
+def run_agent(sender: Sender, model: str, *, client: str = "copilot",
+              expect_tools: bool = True) -> CheckResult:
+    """T25/T26 — reproduz o request do agente e valida a resposta.
+
+    ``sender`` é o transport injetável (mesmo padrão do resto do harness); o
+    teste offline passa um fake e não toca a rede.
+    """
+    body = build_agent_body(model, client=client)
+    resp = sender("chat/completions", json_body=body, stream=True)
+    status = getattr(resp, "status_code", 0)
+    text = getattr(resp, "text", "") or ""
+    if status != 200:
+        return CheckResult(model, "agent", f"agent-{client}", False,
+                           f"HTTP {status} :: {text[:200]}")
+    ok, ev = verdict_agent_response(text, client=client,
+                                    expect_tools=expect_tools)
+    return CheckResult(model, "agent", f"agent-{client}", ok, ev)
+
+
 def update_matrix(results: list[CheckResult]) -> None:
     """Escreve status/evidência na planilha-mãe (por grupo+test).
 
@@ -2088,6 +2300,11 @@ def main(argv: list[str] | None = None) -> int:
                          "polling limitado até estado terminal + URL do artefato")
     ap.add_argument("--3d", dest="three_d", metavar="MODEL",
                     help="Fase J (T24): idem para 3D (rota /three_d/generations)")
+    ap.add_argument("--agent", metavar="MODEL",
+                    help="Fase K (T25/T26): reproduz o request de um agente "
+                         "(system longo + tools + stream) e valida a resposta")
+    ap.add_argument("--client", default="both", choices=list(AGENT_CLIENTS) + ["both"],
+                    help="Fase K: qual cliente de agente reproduzir (copilot|roo|both)")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -2098,7 +2315,7 @@ def main(argv: list[str] | None = None) -> int:
     sel = select(rows, args.family, args.only_id)
     # Sem seletor nenhum (--family/--id/--all) => nada roda (evita disparo acidental).
     if not (args.family or args.only_id or args.all or args.media
-            or args.video or args.three_d):
+            or args.video or args.three_d or args.agent):
         sel = []
     elif args.all:
         sel = rows
@@ -2160,6 +2377,30 @@ def main(argv: list[str] | None = None) -> int:
                                  max_polls=60, interval_s=10.0)
         _print_and_export([res], True, args.out, write_matrix=False)
         return 0 if res.passed else 1
+
+    # ---- S103 / Fase K: agentes E2E (T25 Copilot BYOK, T26 Roo Code). ----
+    if args.agent:
+        if not args.live:
+            print("modo dry (use --live)", file=sys.stderr)
+            return 2
+        clients = list(AGENT_CLIENTS) if args.client == "both" else [args.client]
+        cfg = proxy_config()
+        sink: dict = {}
+        sender = make_capturing_sender(cfg, sink)
+        a_results: list[CheckResult] = []
+        for client in clients:
+            t0 = time.monotonic()
+            res = run_agent(sender, args.agent, client=client)
+            res.target = "proxy"
+            res.latency_ms = _elapsed_ms(t0)
+            attach_capture(res, sink)
+            a_results.append(res)
+        _print_and_export(a_results, True, args.out, write_matrix=False)
+        from eval.novai_log import log_results
+        p = log_results(a_results, family="agent")
+        if p:
+            print(f"# log: {p}")
+        return 0 if all(r.passed for r in a_results) else 1
 
     if not sel:
         print("nada selecionado (use --family/--id/--all)", file=sys.stderr)
