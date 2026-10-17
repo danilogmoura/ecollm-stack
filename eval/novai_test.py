@@ -39,6 +39,7 @@ import requests
 from ingest.embed import load_dotenv
 
 from . import novai_inventory as inv
+from .novai_enrich import redact_signed_urls
 
 # ---------------------------------------------------------------------------
 # Config do proxy (lê .env, mesmo padrão de ingest/embed.py)
@@ -499,6 +500,36 @@ def verdict_asr(resp: dict) -> tuple[bool, str]:
     return False, f"sem text: {str(resp)[:120]}"
 
 
+# S103 / Fase G (T22) — vision/OCR. Cores aceitas por fixture (PT + EN + zh).
+VISION_COLORS = {
+    "red": ("vermelh", "red", "红"),
+    "blue": ("azul", "blue", "蓝"),
+}
+
+
+def verdict_vision(resp: dict, expected_color: str) -> tuple[bool, str]:
+    """T22 — vision/OCR: a resposta descreve a cor esperada da imagem.
+
+    Puro. Aceita PT/EN/zh (``VISION_COLORS``) porque o upstream é chinês e pode
+    responder em qualquer um dos três. ``expected_color`` é a chave
+    (``"red"``/``"blue"``). Devolve fail se o conteúdo estiver vazio ou se
+    nenhum sinônimo da cor aparecer — evidência traz o texto para auditoria.
+    """
+    try:
+        content = resp["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError):
+        return False, f"sem choices[0].message.content: {str(resp)[:120]}"
+    text = content.strip()
+    if not text:
+        return False, "content vazio"
+    needles = VISION_COLORS.get(expected_color, (expected_color,))
+    low = text.lower()
+    hit = next((n for n in needles if n in low), None)
+    if hit is None:
+        return False, f"cor '{expected_color}' ausente: {text[:80]!r}"
+    return True, f"cor={expected_color} match={hit!r} len={len(text)}"
+
+
 def verdict_passthrough(resp: dict) -> tuple[bool, str]:
     """video/3d passthrough: task id + status aceito (queued/processing/completed)."""
     tid = resp.get("id") or resp.get("task_id") or resp.get("request_id")
@@ -754,6 +785,11 @@ def make_capturing_sender(cfg: dict, sink: dict) -> Sender:
                           files=files, stream=stream, timeout=120)
         sink["headers"] = dict(getattr(r, "headers", {}) or {})
         text = getattr(r, "text", "") or ""
+        # S103 / Fase G: respostas de imagem trazem URL PRÉ-ASSINADA (OSS/COS)
+        # com AccessKeyId/SecretId de terceiros na query. Sem redigir, o jsonl
+        # versionado em ``reports/`` sobe credencial e o GitHub Push Protection
+        # bloqueia o push (GH013). Reusa a redação do S106.
+        text, _ = redact_signed_urls(text)
         sink["body_raw"] = text[:BODY_RAW_LIMIT]
         sink["sse_framing"] = detect_sse_framing(text) if stream else ""
         return r
@@ -932,7 +968,12 @@ def run_embedding(sender: Sender, group: str) -> CheckResult:
 
 
 def run_image(sender: Sender, group: str) -> CheckResult:
-    body = {"model": group, "prompt": "um gato azul", "size": "512x512", "n": 1}
+    # S103 / Fase G: ``1024x1024`` é o menor tamanho aceito por TODOS os
+    # provedores de imagem do gateway. Com ``512x512`` os modelos Seedream
+    # devolvem 400 ("image area must be ..."), o que mascarava o teste como
+    # falha de modelo quando era só parâmetro inválido.
+    body = {"model": group, "prompt": "um gato azul", "size": "1024x1024",
+            "n": 1}
     try:
         r = sender("/images/generations", json_body=body)
     except requests.RequestException as exc:
@@ -959,17 +1000,20 @@ def run_tts(sender: Sender, group: str) -> CheckResult:
 
 
 def run_asr(sender: Sender, group: str) -> CheckResult:
-    # amostra mínima WAV mono 8-bit? usa mp3 vazio não — envia wav gerado na mão seria
-    # pesado; para smoke usamos um arquivo de áudio pequeno se existir, senão skip.
-    sample = Path("eval/fixtures/hello.wav")
+    # S103 / Fase G: fixture de FALA (espeak-ng, "Hello world. This is a test of
+    # speech recognition."). O antigo ``hello.wav`` era um TOM PURO de 440 Hz —
+    # o ASR devolvia ``text: ""`` corretamente e o teste acusava o modelo por um
+    # bug NOSSO (fixture inadequada). ``speech.wav`` tem formantes (razão
+    # tom/total ≈ 0,02), então ``text`` vazio agora é falha real do upstream.
+    sample = Path("eval/fixtures/speech.wav")
     if not sample.exists():
         return CheckResult(group, "asr", "asr", False,
-                           "fixture ausente (eval/fixtures/hello.wav)", skipped=True)
+                           "fixture ausente (eval/fixtures/speech.wav)", skipped=True)
     try:
         with sample.open("rb") as fh:
             r = sender("/audio/transcriptions",
                        data={"model": group},
-                       files={"file": ("hello.wav", fh, "audio/wav")})
+                       files={"file": ("speech.wav", fh, "audio/wav")})
     except requests.RequestException as exc:
         return CheckResult(group, "asr", "asr", False, f"erro rede: {exc}")
     if r.status_code != 200:
@@ -977,6 +1021,50 @@ def run_asr(sender: Sender, group: str) -> CheckResult:
                            f"HTTP {r.status_code}: {r.text[:120]}")
     ok, ev = verdict_asr(r.json())
     return CheckResult(group, "asr", "asr", ok, ev)
+
+
+# S103 / Fase G (T22) — fixture de vision: PNG sólido de cor conhecida.
+VISION_FIXTURE = Path("eval/fixtures/red.png")
+VISION_EXPECTED_COLOR = "red"
+
+
+def run_vision(sender: Sender, group: str, *,
+               fixture: Path | None = None,
+               expected_color: str = VISION_EXPECTED_COLOR) -> CheckResult:
+    """T22 — vision/OCR: manda a imagem em base64 e pergunta a cor.
+
+    Usa ``/chat/completions`` com ``content`` multimodal (``image_url`` data-URI),
+    que é o formato OpenAI que o LiteLLM repassa. Fixture ausente ⇒ skip (não
+    fail): o teste não pode acusar o modelo por falta de arquivo local.
+    """
+    path = fixture or VISION_FIXTURE
+    if not path.exists():
+        return CheckResult(group, "chat", "vision", False,
+                           f"fixture ausente ({path})", skipped=True)
+    b64 = base64.b64encode(path.read_bytes()).decode()
+    body = {
+        "model": group,
+        "messages": [{
+            "role": "user",
+            "content": [
+                {"type": "text",
+                 "text": "Qual é a cor predominante desta imagem? "
+                         "Responda em uma palavra."},
+                {"type": "image_url",
+                 "image_url": {"url": f"data:image/png;base64,{b64}"}},
+            ],
+        }],
+        "max_tokens": 64,
+    }
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", "vision", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "chat", "vision", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    ok, ev = verdict_vision(r.json(), expected_color)
+    return CheckResult(group, "chat", "vision", ok, ev)
 
 
 def run_passthrough(cfg: dict, kind: str) -> CheckResult:
@@ -1205,6 +1293,32 @@ def select(rows: list[dict], family: str | None, only_id: str | None) -> list[di
     return rows
 
 
+# S103 / Fase G — representantes de mídia (1 por endpoint, escolhidos por
+# evidência da matriz: os que já responderam 200 no smoke da Fase A). Vision
+# usa um grupo de chat multimodal (rota /chat/completions, não /images).
+MEDIA_REPRESENTATIVES = {
+    "vision": "novai-qwen3-vl-plus",
+    # S103 / Fase G: era ``novai-image-wan2.2-t2i-flash``, mas o upstream
+    # ``wan2.2-t2i-flash`` derruba a conexão (RemoteDisconnected) de forma
+    # determinística (N=3) enquanto ``wan2.5-t2i-preview`` responde 200 no
+    # mesmo instante. Achado documentado no relatório; o representante usa um
+    # modelo que exercita o endpoint de verdade.
+    "image": "novai-image-wand-vega-image-flash",
+    "tts": "novai-tts-minimax-speech-2.8-hd",
+    "asr": "novai-asr-hy-asr-3.0-preview",
+}
+
+
+def select_media(rows: list[dict]) -> list[dict]:
+    """Seleciona 1 grupo por endpoint de mídia (ordem fixa de ``MEDIA_REPRESENTATIVES``).
+
+    Grupo ausente do inventário é simplesmente omitido (o relatório mostra o que
+    rodou). Ordem determinística = ordem do dict, para preservar prompt-cache.
+    """
+    by_group = {r["group"]: r for r in rows}
+    return [by_group[g] for g in MEDIA_REPRESENTATIVES.values() if g in by_group]
+
+
 # ---------------------------------------------------------------------------
 # Runner + relatório
 # ---------------------------------------------------------------------------
@@ -1230,6 +1344,9 @@ def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = Fals
         out = [run_tts(sender, model)]
     elif mod == "asr":
         out = [run_asr(sender, model)]
+    elif mod == "vision":
+        # S103 / Fase G (T22): grupo de chat multimodal, rota /chat/completions.
+        out = [run_vision(sender, model)]
     else:
         # chat: texto + thinking conforme ON/OFF. Com --stream, roda também o SSE.
         thinking = "disabled" if mod == "chat-fast" else "on"
@@ -1335,6 +1452,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--contract", action="store_true",
                     help="chat: roda a bateria de contrato T13–T20 (TTFT, JSON "
                          "estrito, param forwarding, needle, concorrência, erros)")
+    ap.add_argument("--media", action="store_true",
+                    help="Fase G: roda 1 representante por endpoint de mídia "
+                         "(vision T22, image, tts, asr)")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -1344,10 +1464,18 @@ def main(argv: list[str] | None = None) -> int:
     rows = load_groups()
     sel = select(rows, args.family, args.only_id)
     # Sem seletor nenhum (--family/--id/--all) => nada roda (evita disparo acidental).
-    if not (args.family or args.only_id or args.all):
+    if not (args.family or args.only_id or args.all or args.media):
         sel = []
     elif args.all:
         sel = rows
+    elif args.media:
+        # S103 / Fase G: 1 representante por endpoint de mídia. O grupo de vision
+        # é de chat, mas roda com modalidade "vision" (ver run_one).
+        sel = []
+        for r in select_media(rows):
+            if r["group"] == MEDIA_REPRESENTATIVES["vision"]:
+                r = {**r, "modality": "vision"}
+            sel.append(r)
 
     # ---- Sonda de thinking (--thinking): para cada par base/-fast mede reasoning
     # nos dois modos e classifica se a dualidade realmente faz sentido. ----

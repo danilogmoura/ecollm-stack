@@ -244,6 +244,101 @@ def test_verdict_asr_ok():
     assert ok and "text_len=6" in ev
 
 
+# --- vision (T22 / Fase G) ------------------------------------------------
+
+def test_verdict_vision_pt():
+    resp = {"choices": [{"message": {"content": "A cor é vermelha."}}]}
+    ok, ev = nt.verdict_vision(resp, "red")
+    assert ok and "cor=red" in ev
+
+
+def test_verdict_vision_en():
+    resp = {"choices": [{"message": {"content": "The image is BLUE."}}]}
+    ok, ev = nt.verdict_vision(resp, "blue")
+    assert ok and "cor=blue" in ev
+
+
+def test_verdict_vision_zh():
+    resp = {"choices": [{"message": {"content": "红色"}}]}
+    ok, _ = nt.verdict_vision(resp, "red")
+    assert ok
+
+
+def test_verdict_vision_wrong_color_is_fail():
+    resp = {"choices": [{"message": {"content": "azul"}}]}
+    ok, ev = nt.verdict_vision(resp, "red")
+    assert not ok and "ausente" in ev
+
+
+def test_verdict_vision_empty_content_is_fail():
+    resp = {"choices": [{"message": {"content": ""}}]}
+    ok, ev = nt.verdict_vision(resp, "red")
+    assert not ok and "vazio" in ev
+
+
+def test_verdict_vision_no_choices_is_fail():
+    ok, ev = nt.verdict_vision({"error": "x"}, "red")
+    assert not ok and "sem choices" in ev
+
+
+def test_run_vision_pass_via_fake_sender():
+    resp = _FakeResp(json_data={
+        "choices": [{"message": {"content": "vermelho"}}],
+    })
+    res = nt.run_vision(_sender_factory(resp), "novai-qwen3-vl-plus")
+    assert res.passed and res.test == "vision" and res.modality == "chat"
+
+
+def test_run_vision_missing_fixture_is_skipped(tmp_path):
+    res = nt.run_vision(_sender_factory(_FakeResp()), "novai-x",
+                        fixture=tmp_path / "nope.png")
+    assert res.skipped and res.status() == "skipped"
+
+
+def test_run_vision_http_error_is_fail():
+    resp = _FakeResp(status=404, text="model not exist")
+    res = nt.run_vision(_sender_factory(resp), "novai-x")
+    assert not res.passed and "HTTP 404" in res.evidence
+
+
+def test_run_vision_sends_data_uri():
+    seen = {}
+
+    def _send(path, **kw):
+        seen["path"] = path
+        seen["body"] = kw.get("json_body")
+        return _FakeResp(json_data={"choices": [{"message": {"content": "red"}}]})
+
+    nt.run_vision(_send, "novai-x")
+    assert seen["path"] == "/chat/completions"
+    parts = seen["body"]["messages"][0]["content"]
+    assert parts[1]["image_url"]["url"].startswith("data:image/png;base64,")
+
+
+# --- seleção de mídia (Fase G) --------------------------------------------
+
+def test_select_media_picks_one_per_endpoint():
+    rows = [
+        {"group": "novai-qwen3-vl-plus", "modality": "chat", "upstream_id": "q"},
+        {"group": "novai-image-wand-vega-image-flash", "modality": "image",
+         "upstream_id": "w"},
+        {"group": "novai-tts-minimax-speech-2.8-hd", "modality": "tts",
+         "upstream_id": "m"},
+        {"group": "novai-asr-hy-asr-3.0-preview", "modality": "asr",
+         "upstream_id": "h"},
+        {"group": "novai-image-outro", "modality": "image", "upstream_id": "o"},
+    ]
+    sel = nt.select_media(rows)
+    assert [r["group"] for r in sel] == list(nt.MEDIA_REPRESENTATIVES.values())
+
+
+def test_select_media_omits_missing_groups():
+    rows = [{"group": "novai-image-wand-vega-image-flash", "modality": "image",
+             "upstream_id": "w"}]
+    sel = nt.select_media(rows)
+    assert len(sel) == 1 and sel[0]["modality"] == "image"
+
+
 def test_verdict_passthrough_queued():
     ok, ev = nt.verdict_passthrough({"id": "cgt-123", "status": "queued"})
     assert ok and "status=queued" in ev
@@ -877,6 +972,28 @@ def test_body_raw_limit_truncates(monkeypatch):
     nt.make_capturing_sender({"base_url": "http://x", "api_key": "k"},
                              sink)("/chat/completions", json_body={})
     assert len(sink["body_raw"]) == nt.BODY_RAW_LIMIT
+
+
+def test_body_raw_redacts_presigned_url(monkeypatch):
+    """S103 / Fase G: URL pré-assinada de imagem não pode ir para o jsonl.
+
+    O GitHub Push Protection bloqueia o push (GH013) quando o log versionado
+    carrega ``OSSAccessKeyId``/``q-ak=AKID...``. O ``body_raw`` é redigido no
+    próprio sender, antes de chegar ao log.
+    """
+    class _R:
+        status_code = 200
+        text = ('{"data":[{"url":"https://b.oss.com/i.png?OSSAccessKeyId=LTAI5t'
+                '&Signature=abc"}]}')
+        headers = {}
+
+    monkeypatch.setattr(nt.requests, "post", lambda url, **kw: _R())
+    sink = {}
+    nt.make_capturing_sender({"base_url": "http://x", "api_key": "k"},
+                             sink)("/images/generations", json_body={})
+    assert "OSSAccessKeyId" not in sink["body_raw"]
+    assert "Signature=" not in sink["body_raw"]
+    assert "https://b.oss.com/i.png" in sink["body_raw"]  # host+path preservados
 
 
 # ---------------------------------------------------------------------------
