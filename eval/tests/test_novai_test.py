@@ -186,6 +186,9 @@ def test_run_chat_stream_live_uses_strong_verdict():
     assert res.passed and res.test == "chat.stream"
 
 
+# --- embeddings ------------------------------------------------------------
+
+def test_verdict_embeddings_ok():
     resp = {"data": [{"embedding": [0.1, 0.2, 0.3]}]}
     ok, ev = nt.verdict_embeddings(resp, expected_dim=3)
     assert ok and "dim=3" in ev
