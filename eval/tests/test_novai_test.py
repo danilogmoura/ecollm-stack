@@ -1044,29 +1044,243 @@ def test_run_contract_suite_uses_model_override():
 
 
 def test_run_contract_suite_captures_each_check_separately():
-    """Regressão S103/Fase F: cada check grava SEU request, não o do último.
+        """Regressão S103/Fase F: cada check grava SEU request, não o do último.
 
-    O sink do ``make_capturing_sender`` é limpo a cada chamada; se a captura for
-    anexada só depois do batch inteiro, todos os registros ficam com o request
-    do último check (``error_400``) — evidência contaminada no jsonl.
-    """
-    sink: dict = {}
+        O sink do ``make_capturing_sender`` é limpo a cada chamada; se a captura for
+        anexada só depois do batch inteiro, todos os registros ficam com o request
+        do último check (``error_400``) — evidência contaminada no jsonl.
+        """
+        sink: dict = {}
 
-    def sender(path, *, json_body=None, data=None, files=None, stream=False):
-        sink.clear()
-        sink["request"] = {"method": "POST", "url": "http://x/v1" + path,
-                           "body": json_body}
-        sink["headers"] = {}
-        sink["body_raw"] = "{}"
-        sink["sse_framing"] = ""
-        return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+        def sender(path, *, json_body=None, data=None, files=None, stream=False):
+            sink.clear()
+            sink["request"] = {"method": "POST", "url": "http://x/v1" + path,
+                               "body": json_body}
+            sink["headers"] = {}
+            sink["body_raw"] = "{}"
+            sink["sse_framing"] = ""
+            return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
 
-    out = nt.run_contract_suite(sender, "novai-x", target="proxy", sink=sink)
-    by_test = {r.test: r for r in out}
-    # cada check carrega o corpo que ELE enviou
-    assert by_test["param_forwarding"].request["body"].get("stop") == ["quatro"]
-    assert "messages" in by_test["needle"].request["body"]
-    assert "messages" not in by_test["error_400"].request["body"]
-    # e nenhum ficou com o corpo do último check
-    assert by_test["ttft"].request["body"].get("stream") is True
-    assert by_test["json_strict"].request["body"].get("response_format")
+        out = nt.run_contract_suite(sender, "novai-x", target="proxy", sink=sink)
+        by_test = {r.test: r for r in out}
+        # cada check carrega o corpo que ELE enviou
+        assert by_test["param_forwarding"].request["body"].get("stop") == ["quatro"]
+        assert "messages" in by_test["needle"].request["body"]
+        assert "messages" not in by_test["error_400"].request["body"]
+        # e nenhum ficou com o corpo do último check
+        assert by_test["ttft"].request["body"].get("stream") is True
+        assert by_test["json_strict"].request["body"].get("response_format")
+
+
+# --- S103 / Fase H (T23): embeddings + pgvector isolado ---------------------
+
+class _FakeCursor:
+    """Cursor fake: registra o SQL executado e devolve uma linha pré-definida."""
+
+    def __init__(self, row=None, fail_on: str | None = None):
+        self.row = row
+        self.fail_on = fail_on
+        self.executed: list[tuple[str, tuple]] = []
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def execute(self, sql, params=()):
+        if self.fail_on and self.fail_on in sql:
+            raise RuntimeError("boom")
+        self.executed.append((sql, params))
+
+    def fetchone(self):
+        return self.row
+
+
+class _FakeConn:
+    def __init__(self, cursor):
+        self._cursor = cursor
+        self.committed = False
+        self.closed = False
+
+    def cursor(self):
+        return self._cursor
+
+    def commit(self):
+        self.committed = True
+
+    def close(self):
+        self.closed = True
+
+
+def test_embedding_input_text_model_is_plain_string():
+    assert nt.embedding_input("text-embedding-v4") == ["texto de teste"]
+
+
+def test_embedding_input_vl_model_is_multimodal():
+    """Regressão H1: VL do gateway rejeita lista de strings (400 Tencent)."""
+    out = nt.embedding_input("kinfra-vl-embedding-8b")
+    assert out == [{"type": "text", "text": "texto de teste"}]
+
+
+def test_run_embedding_vl_sends_multimodal_payload():
+    seen = {}
+
+    def sender(path, *, json_body=None, **kw):
+        seen.update(json_body)
+        return _FakeResp(json_data={"data": [{"embedding": [0.1] * 2048}]})
+
+    res = nt.run_embedding(sender, "kinfra-vl-embedding-2b")
+    assert res.passed and "dim=2048" in res.evidence
+    assert seen["input"] == [{"type": "text", "text": "texto de teste"}]
+
+
+def test_pgvector_table_for_strips_prefix_and_sanitizes():
+    assert nt.pgvector_table_for("novai-embed-text-embedding-v4") == \
+        "chunks_novai_text_embedding_v4"
+    assert nt.pgvector_table_for("novai-embed-qwen3.7-text-embedding") == \
+        "chunks_novai_qwen3_7_text_embedding"
+
+
+def test_pgvector_table_for_never_collides_with_rag_tables():
+    for group in ("novai-embed-text-embedding-v4", "novai-embed-kinfra-vl-embedding-8b"):
+        t = nt.pgvector_table_for(group)
+        assert t.startswith("chunks_novai_")
+        assert t not in ("chunks", "chunks_qwen37", "chunks_bgem3")
+
+
+def test_pgvector_ddl_uses_halfvec_and_hnsw():
+    ddl = nt.pgvector_ddl("chunks_novai_x", 1024)
+    assert "halfvec(1024)" in ddl
+    assert "halfvec_cosine_ops" in ddl
+    assert "CREATE TABLE IF NOT EXISTS chunks_novai_x" in ddl
+
+
+def test_pgvector_ddl_rejects_foreign_table():
+    with pytest.raises(ValueError):
+        nt.pgvector_ddl("chunks_qwen37", 1024)
+
+
+def test_pgvector_column_type_halfvec_up_to_4000():
+    assert nt.pgvector_column_type(1024) == "halfvec"
+    assert nt.pgvector_column_type(4000) == "halfvec"
+
+
+def test_pgvector_column_type_vector_above_4000():
+    """H2: kinfra-vl-embedding-8b tem 4096 dims — acima do teto do halfvec."""
+    assert nt.pgvector_column_type(4096) == "vector"
+
+
+def test_pgvector_ddl_4096_uses_vector_without_hnsw():
+    ddl = nt.pgvector_ddl("chunks_novai_x", 4096)
+    assert "vector(4096)" in ddl
+    assert "halfvec" not in ddl
+    assert "hnsw" not in ddl
+
+
+def test_pgvector_ddl_rejects_invalid_dim():
+    with pytest.raises(ValueError):
+        nt.pgvector_ddl("chunks_novai_x", 0)
+
+
+def test_verdict_pgvector_roundtrip_ok():
+    v = [0.1, 0.2, 0.3]
+    ok, ev = nt.verdict_pgvector_roundtrip(v, v, 0.0, expected_dim=3)
+    assert ok and "dim=3" in ev and "distância=0" in ev
+
+
+def test_verdict_pgvector_roundtrip_fp16_noise_is_ok():
+    """halfvec é fp16: distância do vetor consigo mesmo não é exatamente 0."""
+    v = [0.1, 0.2, 0.3]
+    ok, _ = nt.verdict_pgvector_roundtrip(v, v, 4.2e-4, expected_dim=3)
+    assert ok
+
+
+def test_verdict_pgvector_roundtrip_wrong_dim_fails():
+    ok, ev = nt.verdict_pgvector_roundtrip([0.1] * 4, [0.1] * 4, 0.0, expected_dim=3)
+    assert not ok and "esperado=3" in ev
+
+
+def test_verdict_pgvector_roundtrip_truncated_readback_fails():
+    ok, ev = nt.verdict_pgvector_roundtrip([0.1] * 4, [0.1] * 3, 0.0)
+    assert not ok and "lido=3" in ev
+
+
+def test_verdict_pgvector_roundtrip_high_distance_fails():
+    v = [0.1, 0.2, 0.3]
+    ok, ev = nt.verdict_pgvector_roundtrip(v, v, 0.42)
+    assert not ok and "distância=0.42" in ev
+
+
+def test_verdict_pgvector_roundtrip_missing_distance_fails():
+    v = [0.1, 0.2, 0.3]
+    ok, ev = nt.verdict_pgvector_roundtrip(v, v, None)
+    assert not ok and "sem distância" in ev
+
+
+def test_verdict_pgvector_roundtrip_empty_vectors_fail():
+    assert not nt.verdict_pgvector_roundtrip([], [], 0.0)[0]
+    assert not nt.verdict_pgvector_roundtrip([0.1], [], 0.0)[0]
+
+
+def test_parse_pgvector_text_roundtrip():
+    assert nt._parse_pgvector_text("[1,2.5,-3]") == [1.0, 2.5, -3.0]
+    assert nt._parse_pgvector_text("") == []
+    assert nt._parse_pgvector_text("lixo") == []
+
+
+def test_run_embedding_pgvector_pass_with_fake_conn():
+    vec = [0.1] * 8
+    cur = _FakeCursor(row=("[0.1,0.1,0.1,0.1,0.1,0.1,0.1,0.1]", 0.0))
+    conn = _FakeConn(cur)
+    resp = _FakeResp(json_data={"data": [{"embedding": vec}]})
+
+    res = nt.run_embedding_pgvector(_sender_factory(resp), "novai-embed-x",
+                                    connect=lambda: conn)
+    assert res.passed and res.test == "embed.pgvector"
+    assert "tabela=chunks_novai_x" in res.notes
+    assert conn.committed and conn.closed
+    sqls = " ".join(s for s, _ in cur.executed)
+    assert "CREATE TABLE IF NOT EXISTS chunks_novai_x" in sqls
+    assert "INSERT INTO chunks_novai_x" in sqls
+    assert "ORDER BY embedding <=>" in sqls
+
+
+def test_run_embedding_pgvector_http_error_is_fail():
+    resp = _FakeResp(status=400, text="bad input")
+    res = nt.run_embedding_pgvector(_sender_factory(resp), "novai-embed-x",
+                                    connect=lambda: _FakeConn(_FakeCursor()))
+    assert not res.passed and "HTTP 400" in res.evidence
+
+
+def test_run_embedding_pgvector_db_error_is_fail_not_raise():
+    """Achado é DADO: banco fora ⇒ fail com causa, nunca exceção."""
+    cur = _FakeCursor(fail_on="INSERT")
+    resp = _FakeResp(json_data={"data": [{"embedding": [0.1] * 4}]})
+    res = nt.run_embedding_pgvector(_sender_factory(resp), "novai-embed-x",
+                                    connect=lambda: _FakeConn(cur))
+    assert not res.passed and "pgvector: RuntimeError" in res.evidence
+
+
+def test_run_embedding_pgvector_dim_mismatch_is_fail():
+    resp = _FakeResp(json_data={"data": [{"embedding": [0.1] * 4}]})
+    res = nt.run_embedding_pgvector(_sender_factory(resp), "novai-embed-x",
+                                    dim=8, connect=lambda: _FakeConn(_FakeCursor()))
+    assert not res.passed and "dim=4 esperado=8" in res.evidence
+
+
+def test_run_one_pgvector_adds_roundtrip_check():
+    row = {"group": "novai-embed-x", "modality": "embedding", "upstream_id": "x"}
+    cur = _FakeCursor(row=("[0.1,0.1]", 0.0))
+    resp = _FakeResp(json_data={"data": [{"embedding": [0.1, 0.1]}]})
+    out = nt.run_one(row, _sender_factory(resp), True, target="proxy",
+                     pgvector=True, connect=lambda: _FakeConn(cur))
+    assert [r.test for r in out] == ["embed", "embed.pgvector"]
+    assert all(r.group == "novai-embed-x" for r in out)
+
+
+def test_run_one_without_pgvector_keeps_single_check():
+    row = {"group": "novai-embed-x", "modality": "embedding", "upstream_id": "x"}
+    resp = _FakeResp(json_data={"data": [{"embedding": [0.1, 0.1]}]})
+    out = nt.run_one(row, _sender_factory(resp), True, target="proxy")
+    assert [r.test for r in out] == ["embed"]

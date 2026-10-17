@@ -121,12 +121,12 @@ novai-glm-4.1v-thinking-flash,chat,glm-4.1v-thinking-flash,untested,,,,,
 novai-glm-4.1v-thinking-flash-fast,chat-fast,glm-4.1v-thinking-flash,untested,,,,,
 novai-glm-5.3-flashx,chat,glm-5.3-flashx,untested,,,,,
 novai-glm-5.3-flashx-fast,chat-fast,glm-5.3-flashx,untested,,,,,
-novai-embed-qwen3.7-text-embedding,embedding,qwen3.7-text-embedding,pass,embed: dim=1024,,,,
-novai-embed-text-embedding-v4,embedding,text-embedding-v4,pass,embed: dim=1024,,,,
-novai-embed-kinfra-text-embedding-4b,embedding,kinfra-text-embedding-4b,pass,embed: dim=2560,,,,
-novai-embed-kinfra-vl-embedding-8b,embedding,kinfra-vl-embedding-8b,fail,"embed: HTTP 400: {""error"":{""message"":""litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': {'message': '[Tencent (Kinfr",,,,
-novai-embed-kinfra-text-embedding-0.6b,embedding,kinfra-text-embedding-0.6b,pass,embed: dim=1024,,,,
-novai-embed-kinfra-vl-embedding-2b,embedding,kinfra-vl-embedding-2b,fail,"embed: HTTP 400: {""error"":{""message"":""litellm.BadRequestError: OpenAIException - Error code: 400 - {'error': {'message': '[Tencent (Kinfr",,,,
+novai-embed-qwen3.7-text-embedding,embedding,qwen3.7-text-embedding,pass,embed.pgvector: dim=1024 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,62.6,tabela=chunks_novai_qwen3_7_text_embedding tipo=halfvec
+novai-embed-text-embedding-v4,embedding,text-embedding-v4,pass,embed.pgvector: dim=1024 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,62.4,tabela=chunks_novai_text_embedding_v4 tipo=halfvec
+novai-embed-kinfra-text-embedding-4b,embedding,kinfra-text-embedding-4b,pass,embed.pgvector: dim=2560 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,78.2,tabela=chunks_novai_kinfra_text_embedding_4b tipo=halfvec
+novai-embed-kinfra-vl-embedding-8b,embedding,kinfra-vl-embedding-8b,pass,embed.pgvector: dim=4096 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,86.4,tabela=chunks_novai_kinfra_vl_embedding_8b tipo=vector
+novai-embed-kinfra-text-embedding-0.6b,embedding,kinfra-text-embedding-0.6b,pass,embed.pgvector: dim=1024 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,61.8,tabela=chunks_novai_kinfra_text_embedding_0_6b tipo=halfvec
+novai-embed-kinfra-vl-embedding-2b,embedding,kinfra-vl-embedding-2b,pass,embed.pgvector: dim=2048 :: distância=0 ≤ tol=0.001,proxy,embed.pgvector,66.1,tabela=chunks_novai_kinfra_vl_embedding_2b tipo=halfvec
 novai-image-qwen-image,image,qwen-image,fail,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,1569.2,
 novai-image-qwen-image-plus,image,qwen-image-plus,fail,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,879.1,
 novai-image-wan2.5-t2i-preview,image,wan2.5-t2i-preview,pass,image: url=https://dashscope-f4de.oss-accelerate.aliyuncs.com/1d/a1/20261017/d1217197/c234d,gateway,image,13410.0,

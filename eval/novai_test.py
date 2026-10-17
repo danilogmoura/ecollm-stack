@@ -954,8 +954,28 @@ def pair_chat_models(rows: list[dict]) -> list[tuple[str, str]]:
     return pairs
 
 
+# S103 / Fase H (T23): modelos VL (vision-language) do gateway NÃO aceitam
+# ``input`` como lista de strings — o upstream Tencent (Kinfra) devolve
+# ``400 "The request parameter input is invalid or missing"``. Eles exigem o
+# formato multimodal ``[{"type":"text","text":...}]``. Detectado por sufixo do
+# ``upstream_id`` (``*-vl-embedding-*``), que é o mesmo nome no gateway e no proxy.
+VL_EMBEDDING_MARKER = "-vl-embedding-"
+
+
+def embedding_input(model: str, text: str = "texto de teste") -> list:
+    """Payload de ``input`` correto para o modelo (string puro vs multimodal).
+
+    Puro e determinístico: só olha o nome do modelo. Modelos VL recebem
+    ``[{"type":"text","text":...}]``; os demais recebem ``[text]`` (formato
+    OpenAI clássico, aceito por todos os text-embedding do gateway).
+    """
+    if VL_EMBEDDING_MARKER in model:
+        return [{"type": "text", "text": text}]
+    return [text]
+
+
 def run_embedding(sender: Sender, group: str) -> CheckResult:
-    body = {"model": group, "input": ["texto de teste"]}
+    body = {"model": group, "input": embedding_input(group)}
     try:
         r = sender("/embeddings", json_body=body)
     except requests.RequestException as exc:
@@ -965,6 +985,229 @@ def run_embedding(sender: Sender, group: str) -> CheckResult:
                            f"HTTP {r.status_code}: {r.text[:120]}")
     ok, ev = verdict_embeddings(r.json())
     return CheckResult(group, "embedding", "embed", ok, ev)
+
+
+# ---------------------------------------------------------------------------
+# S103 / Fase H (T23) — embeddings + pgvector ISOLADO (chunks_novai_<slug>)
+#
+# INVARIANTE 7: esta sonda NÃO é o índice do RAG. A tabela ``chunks_novai_<slug>``
+# é criada aqui, fora do registry ``ingest/profiles.py``, e nunca é lida por
+# ``ingest/search.py``. Testar ≠ adotar.
+# ---------------------------------------------------------------------------
+
+# Tolerância do round-trip. ``halfvec`` é fp16 (11 bits de mantissa): o vetor
+# lido de volta não é bit-idêntico ao enviado, então a distância consigo mesmo
+# não é exatamente 0. 1e-3 é ~2 ordens de grandeza acima do erro fp16 esperado
+# (~1e-4) e ~3 ordens abaixo de qualquer distância entre vetores distintos.
+PGVECTOR_RT_TOLERANCE = 1e-3
+
+# Teto do pgvector para ``halfvec`` (4000 dims). Acima disso o INSERT falha.
+PGVECTOR_HALFVEC_MAX_DIM = 4000
+
+# Nome da tabela de sonda: prefixo fixo + slug do grupo (sem ``novai-embed-``).
+PGVECTOR_TABLE_PREFIX = "chunks_novai_"
+
+
+def pgvector_column_type(dim: int) -> str:
+    """Tipo da coluna para ``dim``: ``halfvec`` até 4000, ``vector`` acima.
+
+    ``halfvec`` é o default (fp16, aceita HNSW até 4000 dims — BUG-001). Acima
+    disso só ``vector`` (float4) comporta o vetor; o índice HNSW fica de fora
+    (teto de 2000 dims em float4), mas a sonda T23 não precisa de índice — ela
+    faz ``ORDER BY embedding <=> $1 LIMIT 1`` numa tabela de 1 linha.
+    """
+    if not isinstance(dim, int) or dim <= 0:
+        raise ValueError(f"dim inválida: {dim!r}")
+    return "halfvec" if dim <= PGVECTOR_HALFVEC_MAX_DIM else "vector"
+
+
+def pgvector_table_for(group: str) -> str:
+    """Nome da tabela de sonda para um grupo (``chunks_novai_<slug>``).
+
+    O slug é derivado do grupo removendo ``novai-embed-`` e trocando qualquer
+    caractere fora de ``[a-z0-9_]`` por ``_``. Puro — testável offline. O
+    resultado SEMPRE começa com ``chunks_novai_``, então nunca colide com
+    ``chunks``/``chunks_qwen37``/``chunks_bgem3`` (invariante 7).
+    """
+    slug = group
+    if slug.startswith("novai-embed-"):
+        slug = slug[len("novai-embed-"):]
+    slug = "".join(c if (c.isalnum() and c.isascii()) or c == "_" else "_"
+                   for c in slug.lower())
+    slug = slug.strip("_") or "probe"
+    return f"{PGVECTOR_TABLE_PREFIX}{slug}"
+
+
+def pgvector_ddl(table: str, dim: int) -> str:
+    """DDL mínimo da tabela de sonda (idempotente, ``halfvec(dim)`` + HNSW).
+
+    Espelha a FORMA de ``ingest/store.py::_PROFILE_DDL_TEMPLATE`` (halfvec +
+    ``halfvec_cosine_ops``), mas SEM ``tsv``/``gen``/``repo``: a sonda só precisa
+    de ``id``, ``content`` e ``embedding``. ``table`` deve vir de
+    ``pgvector_table_for`` (nunca de input cru).
+
+    Acima de 4000 dims a coluna vira ``vector`` e o índice HNSW é omitido (o
+    pgvector não indexa float4 acima de 2000 dims); a busca por distância
+    continua exata por seq scan numa tabela de 1 linha.
+    """
+    if not table.startswith(PGVECTOR_TABLE_PREFIX):
+        raise ValueError(f"tabela de sonda deve começar com {PGVECTOR_TABLE_PREFIX!r}")
+    col = pgvector_column_type(dim)
+    ddl = f"""
+CREATE TABLE IF NOT EXISTS {table} (
+    id         bigserial PRIMARY KEY,
+    content    text NOT NULL,
+    embedding  {col}({dim}) NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+);
+"""
+    if col == "halfvec":
+        ddl += f"""
+CREATE INDEX IF NOT EXISTS {table}_embedding_hnsw
+    ON {table} USING hnsw (embedding halfvec_cosine_ops)
+    WITH (m = 16, ef_construction = 64);
+"""
+    return ddl
+
+
+def verdict_pgvector_roundtrip(origin: list[float], readback: list[float],
+                               distance: float | None, *,
+                               expected_dim: int | None = None,
+                               tolerance: float = PGVECTOR_RT_TOLERANCE
+                               ) -> tuple[bool, str]:
+    """T23 — veredito PURO do round-trip embed → INSERT → SELECT por distância.
+
+    Aceite (matriz §10): **dim bate** E **a busca por distância retorna o próprio
+    vetor** (distância ≈ 0). ``halfvec`` é fp16, então a comparação usa
+    ``tolerance`` explícita (nunca ``== 0``).
+
+    ``distance`` é o valor de ``embedding <=> $1`` devolvido pelo Postgres
+    (cosine distance, 0 = idêntico). ``None`` ⇒ não houve leitura ⇒ fail.
+    """
+    if not isinstance(origin, list) or not origin:
+        return False, "vetor de origem vazio/inválido"
+    if not isinstance(readback, list) or not readback:
+        return False, "vetor lido do banco vazio/inválido"
+    dim = len(origin)
+    if expected_dim is not None and dim != expected_dim:
+        return False, f"dim origem={dim} esperado={expected_dim}"
+    if len(readback) != dim:
+        return False, f"dim origem={dim} lido={len(readback)} (round-trip truncou)"
+    if distance is None:
+        return False, f"dim={dim} :: sem distância (SELECT não retornou linha)"
+    try:
+        d = float(distance)
+    except (TypeError, ValueError):
+        return False, f"dim={dim} :: distância não numérica: {distance!r}"
+    if d != d:  # NaN
+        return False, f"dim={dim} :: distância NaN"
+    if d > tolerance:
+        return False, f"dim={dim} :: distância={d:.6g} > tol={tolerance:g}"
+    return True, f"dim={dim} :: distância={d:.6g} ≤ tol={tolerance:g}"
+
+
+def _pg_connect(db_url: str | None = None):
+    """Abre conexão psycopg no rag-db (``RAG_DB_URL`` do .env por default)."""
+    import psycopg
+
+    from ingest.store import db_url_from_env
+
+    return psycopg.connect(db_url or db_url_from_env())
+
+
+def run_embedding_pgvector(sender: Sender, group: str, *, dim: int | None = None,
+                           table: str | None = None,
+                           connect: Callable[[], object] | None = None
+                           ) -> CheckResult:
+    """T23 — embed + INSERT/SELECT em ``chunks_novai_<slug>`` (tabela ISOLADA).
+
+    Fluxo: ``POST /embeddings`` → ``CREATE TABLE IF NOT EXISTS`` (idempotente) →
+    ``INSERT`` do vetor como ``halfvec`` → ``SELECT ... ORDER BY embedding <=> $1
+    LIMIT 1`` → ``verdict_pgvector_roundtrip``.
+
+    ``connect`` é injetável (testes offline usam uma conexão fake); por default
+    abre ``psycopg`` no ``RAG_DB_URL``. ``dim`` omitido ⇒ usa a dim observada no
+    próprio vetor (a tabela é criada com ela). Erro de banco ⇒ fail com a causa
+    (achado é DADO, nunca aborta o run).
+    """
+    from ingest.embed import vector_to_halfvec_text
+
+    tbl = table or pgvector_table_for(group)
+    body = {"model": group, "input": embedding_input(group)}
+    try:
+        r = sender("/embeddings", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    try:
+        vec = r.json()["data"][0]["embedding"]
+    except (KeyError, IndexError, ValueError):
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"sem data[].embedding: {r.text[:120]}")
+    if not isinstance(vec, list) or not vec:
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           "embedding vazio")
+    observed_dim = len(vec)
+    target_dim = dim or observed_dim
+    if observed_dim != target_dim:
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"dim={observed_dim} esperado={target_dim}")
+
+    literal = vector_to_halfvec_text(vec)
+    col = pgvector_column_type(target_dim)
+    try:
+        conn = (connect or _pg_connect)()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(pgvector_ddl(tbl, target_dim))
+                cur.execute(f"DELETE FROM {tbl}")  # sonda idempotente
+                cur.execute(
+                    f"INSERT INTO {tbl} (content, embedding) "
+                    f"VALUES (%s, %s::{col}({target_dim}))",
+                    ("texto de teste", literal),
+                )
+                cur.execute(
+                    f"SELECT embedding::text, embedding <=> %s::{col}({target_dim}) "
+                    f"FROM {tbl} ORDER BY embedding <=> %s::{col}({target_dim}) "
+                    f"LIMIT 1",
+                    (literal, literal),
+                )
+                row = cur.fetchone()
+            conn.commit()
+        finally:
+            conn.close()
+    except Exception as exc:  # noqa: BLE001 — banco fora ⇒ fail com causa
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"pgvector: {type(exc).__name__}: {str(exc)[:120]}",
+                           notes=f"tabela={tbl}")
+
+    if not row:
+        return CheckResult(group, "embedding", "embed.pgvector", False,
+                           f"dim={observed_dim} :: SELECT vazio", notes=f"tabela={tbl}")
+    readback_text, distance = row[0], row[1]
+    readback = _parse_pgvector_text(readback_text)
+    ok, ev = verdict_pgvector_roundtrip(vec, readback, distance,
+                                        expected_dim=target_dim)
+    return CheckResult(group, "embedding", "embed.pgvector", ok, ev,
+                       notes=f"tabela={tbl} tipo={col}")
+
+
+def _parse_pgvector_text(text: str) -> list[float]:
+    """Converte ``"[1,2,3]"`` (saída de ``halfvec::text``) em lista de floats."""
+    if not isinstance(text, str):
+        return []
+    s = text.strip()
+    if s.startswith("[") and s.endswith("]"):
+        s = s[1:-1]
+    if not s:
+        return []
+    try:
+        return [float(x) for x in s.split(",")]
+    except ValueError:
+        return []
 
 
 def run_image(sender: Sender, group: str) -> CheckResult:
@@ -1325,7 +1568,8 @@ def select_media(rows: list[dict]) -> list[dict]:
 
 
 def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = False,
-            target: str = "proxy") -> list[CheckResult]:
+            target: str = "proxy", pgvector: bool = False,
+            connect: Callable[[], object] | None = None) -> list[CheckResult]:
     mod = row["modality"]
     grp = row["group"]
     # S103 / Fase F: o gateway NovAI NÃO conhece o nome do grupo LiteLLM
@@ -1338,6 +1582,13 @@ def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = Fals
     assert sender is not None
     if mod == "embedding":
         out = [run_embedding(sender, model)]
+        # S103 / Fase H (T23): round-trip pgvector em tabela ISOLADA. A tabela é
+        # derivada do GRUPO (não do upstream), para gateway e proxy caírem na
+        # mesma `chunks_novai_<slug>` e o round-trip ser comparável.
+        if pgvector:
+            out.append(run_embedding_pgvector(sender, model,
+                                              table=pgvector_table_for(grp),
+                                              connect=connect))
     elif mod == "image":
         out = [run_image(sender, model)]
     elif mod == "tts":
@@ -1455,6 +1706,9 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--media", action="store_true",
                     help="Fase G: roda 1 representante por endpoint de mídia "
                          "(vision T22, image, tts, asr)")
+    ap.add_argument("--pgvector", action="store_true",
+                    help="Fase H (T23): além do embed, faz round-trip INSERT/SELECT "
+                         "em chunks_novai_<slug> (tabela ISOLADA, invariante 7)")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -1524,7 +1778,7 @@ def main(argv: list[str] | None = None) -> int:
                 time.sleep(args.sleep)
             t0 = time.monotonic()
             batch = run_one(r, sender, args.live, stream=args.stream,
-                            target=target)
+                            target=target, pgvector=args.pgvector)
             for res in batch:
                 if args.live and res.latency_ms is None:
                     res.latency_ms = _elapsed_ms(t0)
