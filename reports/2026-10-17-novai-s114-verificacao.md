@@ -105,6 +105,7 @@ print('fallbacks:', fb)
 ```
 
 **Esperado:**
+
 ```
 rag-chat: ['rag-chat']
 fallbacks: [{'rag-chat': ['qwen3:4b-instruct-2507']}]
@@ -143,6 +144,7 @@ print(dict(collections.Counter(r['status'] for r in rows)))
 ```
 
 **Esperado:**
+
 ```
 linhas: 157
 {'pass': 101, 'skipped': 26, 'removed': 16, 'fail': 14}
