@@ -1128,7 +1128,16 @@ def run_chat(sender: Sender, group: str, *, stream=False, tools=False,
         }]
         body["tool_choice"] = "auto"
     if thinking == "disabled":
-        body["extra_body"] = {"thinking": {"type": "disabled"}}
+        # S116: Kimi/ZhiPu REJEITAM ``thinking:{type:disabled}`` com 400 — não
+        # existe modo "off" nesses upstreams. Mandar ``disabled`` derruba a
+        # requisição antes de qualquer veredito. Para eles pedimos o menor
+        # esforço suportado (``reasoning_effort: low``), que é o que o próprio
+        # ``litellm/config.yaml`` já usa nas rotas ``-fast``. O veredito
+        # ``verdict_thinking_off`` então mede o reasoning real e classifica.
+        if thinking_off_supported(group):
+            body["extra_body"] = {"thinking": {"type": "disabled"}}
+        else:
+            body["extra_body"] = {"reasoning_effort": "low"}
 
     label = "chat.stream" if stream else "chat.tools" if tools else "chat"
     try:
@@ -1188,7 +1197,12 @@ def _chat_raw(sender: Sender, group: str, *, thinking_off: bool) -> tuple[dict |
         "max_tokens": 512,
     }
     if thinking_off:
-        body["extra_body"] = {"thinking": {"type": "disabled"}}
+        # S116: mesma regra de ``run_chat`` — Kimi/ZhiPu não aceitam
+        # ``thinking:{type:disabled}``; pedimos ``reasoning_effort: low``.
+        if thinking_off_supported(group):
+            body["extra_body"] = {"thinking": {"type": "disabled"}}
+        else:
+            body["extra_body"] = {"reasoning_effort": "low"}
     try:
         r = sender("/chat/completions", json_body=body)
     except requests.RequestException as exc:

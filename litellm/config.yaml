@@ -874,8 +874,7 @@ model_list:
       input_cost_per_token: 9.3e-07
       output_cost_per_token: 3.89e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 256000
   - model_name: novai-kimi-k2.7-code
@@ -895,8 +894,7 @@ model_list:
       input_cost_per_token: 6.7e-07
       output_cost_per_token: 3.4e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 256000
   - model_name: novai-kimi-k2.7-code-highspeed
@@ -916,8 +914,7 @@ model_list:
       input_cost_per_token: 2.07e-06
       output_cost_per_token: 8.61e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 256000
   - model_name: novai-kimi-k2.6
@@ -937,8 +934,7 @@ model_list:
       input_cost_per_token: 9.5e-07
       output_cost_per_token: 4e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 256000
   - model_name: novai-kimi-k2.5
@@ -958,8 +954,7 @@ model_list:
       input_cost_per_token: 6e-07
       output_cost_per_token: 3e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 256000
   - model_name: novai-step-5-preview
@@ -1282,8 +1277,7 @@ model_list:
       input_cost_per_token: 1.25e-06
       output_cost_per_token: 4e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 1000000
   - model_name: novai-glm-5.2
@@ -1408,8 +1402,7 @@ model_list:
       input_cost_per_token: 8e-08
       output_cost_per_token: 2.8e-07
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 1000000
   - model_name: novai-glm-5-turbo
@@ -1429,8 +1422,7 @@ model_list:
       input_cost_per_token: 1.08e-06
       output_cost_per_token: 3.69e-06
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 128000
   - model_name: novai-glm-4.6v-flash
@@ -1492,8 +1484,7 @@ model_list:
       input_cost_per_token: 1.2e-07
       output_cost_per_token: 4e-07
       extra_body:
-        thinking:
-          type: disabled
+        reasoning_effort: low
     model_info:
       max_input_tokens: 128000
 
