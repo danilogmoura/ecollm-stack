@@ -508,90 +508,15 @@ model_list:
           type: disabled
     model_info:
       max_input_tokens: 128000
-  - model_name: novai-qwen3.6-max-preview
-    litellm_params:
-      model: openai/qwen3.6-max-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.03e-06
-      output_cost_per_token: 6.16e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3.6-max-preview-fast
-    litellm_params:
-      model: openai/qwen3.6-max-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.03e-06
-      output_cost_per_token: 6.16e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3-max
-    litellm_params:
-      model: openai/qwen3-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.7e-07
-      output_cost_per_token: 2.65e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3-max-fast
-    litellm_params:
-      model: openai/qwen3-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.7e-07
-      output_cost_per_token: 2.65e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3-coder-plus
-    litellm_params:
-      model: openai/qwen3-coder-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6.5e-07
-      output_cost_per_token: 3.25e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen3-coder-plus-fast
-    litellm_params:
-      model: openai/qwen3-coder-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6.5e-07
-      output_cost_per_token: 3.25e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen-vl-max
-    litellm_params:
-      model: openai/qwen-vl-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-07
-      output_cost_per_token: 3.2e-06
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen-vl-max-fast
-    litellm_params:
-      model: openai/qwen-vl-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-07
-      output_cost_per_token: 3.2e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
+  # ---- S114 (2026-10-17): 12 grupos REMOVIDOS (classe A da Fase L) ----
+  # novai-qwen3.6-max-preview{,-fast}, novai-qwen3-max{,-fast},
+  # novai-qwen3-coder-plus{,-fast}, novai-qwen-vl-max{,-fast}.
+  # Motivo: o gateway anuncia os ids em GET /v1/models mas o provider Alibaba
+  # Cloud devolve 404 "Model not exist" mesmo chamado DIRETO (sem proxy), com
+  # controle positivo 200 no mesmo instante. Nao ha id alternativo. Um
+  # model_name que sempre da 404 e pior que ausencia: o cliente descobre em
+  # runtime. Evidencia: reports/2026-10-17-novai-fase-l.md §3g.
+  # Para reativar: basta repor os blocos (precos em eval/cache_report.py).
   - model_name: novai-qwen3-vl-plus
     litellm_params:
       model: openai/qwen3-vl-plus
@@ -718,27 +643,8 @@ model_list:
           type: disabled
     model_info:
       max_input_tokens: 256000
-  - model_name: novai-qwen3-vl-flash
-    litellm_params:
-      model: openai/qwen3-vl-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-08
-      output_cost_per_token: 2.4e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen3-vl-flash-fast
-    litellm_params:
-      model: openai/qwen3-vl-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-08
-      output_cost_per_token: 2.4e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
+  # ---- S114 (2026-10-17): novai-qwen3-vl-flash{,-fast} REMOVIDOS (classe A) ----
+  # 404 "[Alibaba Cloud] Model not exist" direto no gateway. Ver §3g da Fase L.
   - model_name: novai-qwen3-omni-flash
     litellm_params:
       model: openai/qwen3-omni-flash
@@ -760,27 +666,8 @@ model_list:
           type: disabled
     model_info:
       max_input_tokens: 32000
-  - model_name: novai-qwen-omni-turbo
-    litellm_params:
-      model: openai/qwen-omni-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 6e-07
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen-omni-turbo-fast
-    litellm_params:
-      model: openai/qwen-omni-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 6e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
+  # ---- S114 (2026-10-17): novai-qwen-omni-turbo{,-fast} REMOVIDOS (classe A) ----
+  # 404 "[Alibaba (通义千问)] Model not exist" direto no gateway. Ver §3g da Fase L.
   - model_name: novai-doubao-seed-2.1-pro
     litellm_params:
       model: openai/doubao-seed-2.1-pro
@@ -1648,19 +1535,9 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       input_cost_per_token: 7.69e-08
 
-  # ---- IMAGE (14 upstreams) — endpoint /v1/images/generations ----
-  - model_name: novai-image-qwen-image
-    litellm_params:
-      model: openai/qwen-image
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-qwen-image-plus
-    litellm_params:
-      model: openai/qwen-image-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
+  # ---- IMAGE (12 upstreams) — endpoint /v1/images/generations ----
+  # S114 (2026-10-17): novai-image-qwen-image e -plus REMOVIDOS (classe A da
+  # Fase L) — 404 "[Alibaba Cloud] Model not exist" direto no gateway.
   - model_name: novai-image-wan2.5-t2i-preview
     litellm_params:
       model: openai/wan2.5-t2i-preview
@@ -1734,19 +1611,9 @@ model_list:
       api_key: os.environ/NOVAI_API_KEY
       mode: image_generation
 
-  # ---- TTS / MUSIC (11 upstreams) — endpoint /v1/audio/speech ----
-  - model_name: novai-tts-qwen-tts-latest
-    litellm_params:
-      model: openai/qwen-tts-latest
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-qwen-tts
-    litellm_params:
-      model: openai/qwen-tts
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
+  # ---- TTS / MUSIC (9 upstreams) — endpoint /v1/audio/speech ----
+  # S114 (2026-10-17): novai-tts-qwen-tts e -latest REMOVIDOS (classe A da
+  # Fase L) — 404 "[Alibaba Cloud] Model not exist" direto no gateway.
   - model_name: novai-tts-qwen3-tts-flash
     litellm_params:
       model: openai/qwen3-tts-flash

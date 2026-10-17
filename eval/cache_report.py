@@ -83,19 +83,17 @@ PRICE_PER_MTOKEN = {
     # -----------------------------------------------------------------------
     "novai-qwen3.8-max": {"input": 1.84, "output": 5.52},
     "novai-qwen3.7-max": {"input": 1.16, "output": 3.48},
-    "novai-qwen3.6-max-preview": {"input": 1.03, "output": 6.16},
-    "novai-qwen3-max": {"input": 0.57, "output": 2.65},
-    "novai-qwen3-coder-plus": {"input": 0.65, "output": 3.25},
-    "novai-qwen-vl-max": {"input": 0.80, "output": 3.20},
+    # S114 (2026-10-17): removidos os 6 grupos mortos da classe A da Fase L
+    # (qwen3.6-max-preview, qwen3-max, qwen3-coder-plus, qwen-vl-max,
+    # qwen3-vl-flash, qwen-omni-turbo) — saíram do config.yaml porque o gateway
+    # devolve 404 direto. Preço órfão só poluía a tabela.
     "novai-qwen3-vl-plus": {"input": 0.21, "output": 0.63},
     "novai-qwen3.5-ocr": {"input": 0.70, "output": 0.70},
     "novai-qwen-vl-ocr": {"input": 0.70, "output": 0.70},
     "novai-qwen-mt-plus": {"input": 0.25, "output": 0.75},
     "novai-qwen-plus": {"input": 0.185, "output": 0.53},
     "novai-qwen3-coder-flash": {"input": 0.15, "output": 0.75},
-    "novai-qwen3-vl-flash": {"input": 0.08, "output": 0.24},
     "novai-qwen3-omni-flash": {"input": 0.15, "output": 0.60},
-    "novai-qwen-omni-turbo": {"input": 0.30, "output": 0.60},
     "novai-doubao-seed-2.1-pro": {"input": 0.40, "output": 2.00},
     "novai-doubao-seed-2.0-code": {"input": 0.448, "output": 2.24},
     "novai-doubao-seed-2.1-turbo": {"input": 0.15, "output": 0.90},

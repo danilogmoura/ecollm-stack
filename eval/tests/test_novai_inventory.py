@@ -89,12 +89,13 @@ def test_real_config_counts_locked():
     counts: dict[str, int] = {}
     for r in rows:
         counts[r["modality"]] = counts.get(r["modality"], 0) + 1
-    assert len(rows) == 155
-    assert counts["chat"] == 61
-    assert counts["chat-fast"] == 61
+    # S114: 16 grupos mortos removidos (classe A da Fase L) — 155 -> 139.
+    assert len(rows) == 139
+    assert counts["chat"] == 55
+    assert counts["chat-fast"] == 55
     assert counts["embedding"] == 6
-    assert counts["image"] == 14
-    assert counts["tts"] == 11
+    assert counts["image"] == 12
+    assert counts["tts"] == 9
     assert counts["asr"] == 2
 
 

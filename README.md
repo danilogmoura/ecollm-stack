@@ -37,14 +37,18 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `novai-doubao-seed-2.0-pro` / `-fast` | NovAI (ByteDance, **pago**) | ON / OFF | chat opcional (contexto 256K) |
 | `novai-<slug>` / `-fast` (**S100**) | NovAI — **catálogo completo** (55 upstreams de chat × ON/OFF = 110 grupos) | ON / OFF | qualquer modelo de chat do gateway (Qwen, Doubao, DeepSeek, MiniMax, Kimi, GLM, Hunyuan, MiMo, Step…) |
 
-**Outras modalidades NovAI (S100 — catálogo completo, 121 ids):**
+**Outras modalidades NovAI (S100 — catálogo completo, 139 ids):**
+
+> **S114 (2026-10-17):** 16 grupos removidos do `config.yaml` (classe A da Fase L) —
+> o gateway anuncia os ids em `/v1/models` mas o provider Alibaba Cloud devolve 404
+> mesmo chamado direto. Contagens abaixo já refletem a remoção.
 
 | Família | Padrão de id | Endpoint | Nº |
 | --- | --- | --- | --- |
-| chat | `novai-<slug>` / `-fast` | `/v1/chat/completions` | 61 upstreams |
+| chat | `novai-<slug>` / `-fast` | `/v1/chat/completions` | 55 upstreams |
 | embedding | `novai-embed-<slug>` | `/v1/embeddings` | 6 |
-| image | `novai-image-<slug>` | `/v1/images/generations` | 14 |
-| tts/music | `novai-tts-<slug>` | `/v1/audio/speech` | 11 |
+| image | `novai-image-<slug>` | `/v1/images/generations` | 12 |
+| tts/music | `novai-tts-<slug>` | `/v1/audio/speech` | 9 |
 | asr | `novai-asr-<slug>` | `/v1/audio/transcriptions` | 2 |
 | video | `novai-video-<slug>` | `/novai/video` (**passthrough**) | 9 roteáveis (de 20 no catálogo) |
 | 3d | `novai-3d-<slug>` | `/novai/3d` (**passthrough**) | 7 |
