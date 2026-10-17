@@ -147,12 +147,12 @@ print(dict(collections.Counter(r['status'] for r in rows)))
 
 ```
 linhas: 157
-{'pass': 101, 'skipped': 26, 'removed': 16, 'fail': 14}
+{'pass': 103, 'skipped': 26, 'removed': 16, 'fail': 12}
 ```
 
 ---
 
-## 9. Os 14 fails são todos de upstream
+## 9. Os 12 fails são todos de upstream
 
 ```bash
 .venv/bin/python -c "
@@ -164,13 +164,16 @@ for r in rows:
 "
 ```
 
-**Esperado — 14 linhas, todas de uma destas 3 classes:**
+**Esperado — 12 linhas, todas de uma destas 2 classes:**
 
 | Classe | Qtd | Assinatura na evidência |
 | --- | --- | --- |
 | B — Kimi/ZhiPu sem modo off | 9 | `HTTP 400` + `Moonshot (Kimi)` / `ZhiPu (智谱)` |
 | D — contabilidade de reasoning | 3 | `reasoning_chars=N reasoning_tokens=0` |
-| G — rede / resposta vazia | 2 | `RemoteDisconnected` / `sem text` |
+
+> A classe **G** (rede / resposta vazia) zerou: `novai-image-wan2.2-t2i-flash`
+> e `novai-asr-wand-asr-v1` passaram no re-teste de 2026-10-17 (eram
+> transitórios).
 
 **Se aparecer qualquer outro tipo de falha, é regressão nossa — investigar.**
 
@@ -200,5 +203,5 @@ para os 16 removidos (eles não são mais chamados).
 | Grupos mortos no config | 0 |
 | `pytest` | 833 passed |
 | Invariante 7 | intacto |
-| Matriz | 101 pass / 26 skip / 16 removed / 14 fail |
+| Matriz | 103 pass / 26 skip / 16 removed / 12 fail |
 | Fails acionáveis por nós | **0** |

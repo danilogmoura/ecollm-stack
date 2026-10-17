@@ -130,7 +130,7 @@ novai-embed-kinfra-vl-embedding-2b,embedding,kinfra-vl-embedding-2b,pass,embed.p
 novai-image-qwen-image,image,qwen-image,removed,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,1569.2,S114: grupo removido do config.yaml (404 upstream permanente)
 novai-image-qwen-image-plus,image,qwen-image-plus,removed,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,879.1,S114: grupo removido do config.yaml (404 upstream permanente)
 novai-image-wan2.5-t2i-preview,image,wan2.5-t2i-preview,pass,image: url=https://dashscope-f4de.oss-accelerate.aliyuncs.com/1d/a1/20261017/d1217197/c234d,gateway,image,13410.0,
-novai-image-wan2.2-t2i-flash,image,wan2.2-t2i-flash,fail,"image: erro rede: ('Connection aborted.', RemoteDisconnected('Remote end closed connection without response'))",gateway,image,57792.8,
+novai-image-wan2.2-t2i-flash,image,wan2.2-t2i-flash,pass,"image: HTTP 200, url retornada (re-teste 2026-10-17)",gateway,image,57792.8,S115: fail transitório (rede/resposta vazia) — passou no re-teste
 novai-image-doubao-seedream-4.5,image,doubao-seedream-4.5,pass,image: url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0-pro/86b,gateway,image,30995.9,
 novai-image-seedream-image-v5.0-pro,image,seedream-image-v5.0-pro,pass,image: url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14,gateway,image,27262.7,
 novai-image-doubao-seedream-4.0,image,doubao-seedream-4.0,pass,image: url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0/0217922,gateway,image,12083.1,
@@ -153,6 +153,6 @@ novai-tts-minimax-speech-02-turbo,tts,minimax-speech-02-turbo,pass,tts: bytes=19
 novai-tts-minimax-music-v3.0,tts,minimax-music-v3.0,pass,tts: bytes=272708 header=b'ID3\x04\x00\x00\x00\x00\x08jTX',,,,
 novai-tts-minimax-music-v2.6,tts,minimax-music-v2.6,pass,tts: bytes=19738 header=b'ID3\x04\x00\x00\x00\x00\x08jTX',,,,
 novai-asr-hy-asr-3.0-preview,asr,hy-asr-3.0-preview,pass,asr: text_len=50,proxy,asr,14375.0,
-novai-asr-wand-asr-v1,asr,wand-asr-v1,fail,"asr: sem text: {'text': '', 'usage': None, 'language': 'zh', 'duration': None, 'words': None, 'segments': None}",,,,
+novai-asr-wand-asr-v1,asr,wand-asr-v1,pass,asr: text='Hello world is in effect on speech recognition.' (re-teste 2026-10-17),,,,S115: fail transitório (rede/resposta vazia) — passou no re-teste
 (passthrough) /novai/video,video-passthrough,https://aiapi-pro.com/v1/video/generations,pass,video: id=1409238524-WandVideo-22a4ef00fa31418daed568ee88559b48 status=queued,proxy,video,,
 (passthrough) /novai/3d,3d-passthrough,https://aiapi-pro.com/v1/three_d/generations,pass,3d: id=1503105493077336064 status=queued,proxy,3d,,
