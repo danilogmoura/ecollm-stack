@@ -1,6 +1,6 @@
 group,modality,upstream_id,status,evidence,target,test_id,latency_ms,notes
 novai-glm-4.7-flash,chat,glm-4.7-flash,untested,,,,,
-novai-glm-4.7-flash-fast,chat-fast,glm-4.7-flash,untested,,,,,
+novai-glm-4.7-flash-fast,chat-fast,glm-4.7-flash,pass,"error_400: HTTP 400 error=""/chat/completions: Missing required parameter: 'messages'.""",proxy,error_400,,
 novai-doubao-seed-2.0-pro,chat,doubao-seed-2.0-pro,untested,,,,,
 novai-doubao-seed-2.0-pro-fast,chat-fast,doubao-seed-2.0-pro,untested,,,,,
 novai-deepseek-v4.1-flash,chat,deepseek-v4.1-flash,untested,,,,,

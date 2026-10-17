@@ -1214,48 +1214,69 @@ def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = Fals
             target: str = "proxy") -> list[CheckResult]:
     mod = row["modality"]
     grp = row["group"]
+    # S103 / Fase F: o gateway NovAI NÃO conhece o nome do grupo LiteLLM
+    # (`novai-<slug>[-fast]`); ele só aceita o `upstream_id` (`<slug>`). No proxy
+    # o nome do grupo é o correto. Sem isso, todo teste no gateway dá 400.
+    model = row.get("upstream_id") or grp if target == "gateway" else grp
     if not live:
         return [CheckResult(grp, mod, "smoke", False, "modo dry (use --live)",
                             skipped=True, target=target)]
     assert sender is not None
     if mod == "embedding":
-        out = [run_embedding(sender, grp)]
+        out = [run_embedding(sender, model)]
     elif mod == "image":
-        out = [run_image(sender, grp)]
+        out = [run_image(sender, model)]
     elif mod == "tts":
-        out = [run_tts(sender, grp)]
+        out = [run_tts(sender, model)]
     elif mod == "asr":
-        out = [run_asr(sender, grp)]
+        out = [run_asr(sender, model)]
     else:
         # chat: texto + thinking conforme ON/OFF. Com --stream, roda também o SSE.
         thinking = "disabled" if mod == "chat-fast" else "on"
-        out = [run_chat(sender, grp, thinking=thinking)]
+        out = [run_chat(sender, model, thinking=thinking)]
         if stream and mod.startswith("chat"):
-            out.append(run_chat(sender, grp, stream=True))
+            out.append(run_chat(sender, model, stream=True))
     for r in out:
+        r.group = grp  # o relatório sempre fala do grupo, não do upstream
         r.target = target
     return out
 
 
 def run_contract_suite(sender: Sender, group: str, *, target: str = "proxy",
-                       concurrency: int = 4) -> list[CheckResult]:
+                       concurrency: int = 4, model: str | None = None,
+                       sink: dict | None = None) -> list[CheckResult]:
     """S103 — bateria de CONTRATO num grupo de chat (T13–T20).
 
     Roda os testes novos em sequência: TTFT, JSON estrito, param forwarding,
     needle, concorrência e os 3 contratos de erro. Cada um devolve um
     ``CheckResult`` independente (um fail não aborta os outros — achado é DADO).
+
+    ``model`` é o nome enviado ao upstream (no gateway = ``upstream_id``); se
+    omitido usa ``group`` (correto para o proxy).
+
+    ``sink`` (opcional) é o dicionário do ``make_capturing_sender``. Quando
+    fornecido, a captura é anexada **imediatamente após cada check** — o sink é
+    limpo a cada chamada, então ler depois do batch inteiro gravaria o request
+    do ÚLTIMO check em todos os registros (bug S103/Fase F).
     """
-    out = [
-        run_ttft(sender, group),
-        run_json_strict(sender, group),
-        run_param_forwarding(sender, group),
-        run_needle(sender, group),
-        run_concurrency(sender, group, n=concurrency),
-        run_error_contract(sender, group, case="404"),
-        run_error_contract(sender, group, case="400"),
+    m = model or group
+    steps = [
+        lambda: run_ttft(sender, m),
+        lambda: run_json_strict(sender, m),
+        lambda: run_param_forwarding(sender, m),
+        lambda: run_needle(sender, m),
+        lambda: run_concurrency(sender, m, n=concurrency),
+        lambda: run_error_contract(sender, m, case="404"),
+        lambda: run_error_contract(sender, m, case="400"),
     ]
-    for r in out:
+    out: list[CheckResult] = []
+    for step in steps:
+        r = step()
+        r.group = group  # relatório fala do grupo, não do upstream
         r.target = target
+        if sink is not None:
+            attach_capture(r, sink)
+        out.append(r)
     return out
 
 
@@ -1382,9 +1403,12 @@ def main(argv: list[str] | None = None) -> int:
                 attach_capture(res, sink)
             results.extend(batch)
             if args.contract and args.live and r["modality"].startswith("chat"):
-                for res in run_contract_suite(sender, r["group"], target=target):
-                    attach_capture(res, sink)
-                    results.append(res)
+                model = (r.get("upstream_id") or r["group"]
+                         if target == "gateway" else r["group"])
+                # a captura é anexada DENTRO da suíte, check a check
+                results.extend(run_contract_suite(sender, r["group"],
+                                                  target=target, model=model,
+                                                  sink=sink))
 
     _print_and_export(results, args.live, args.out, write_matrix=True)
     if args.live:

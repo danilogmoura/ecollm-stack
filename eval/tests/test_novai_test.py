@@ -877,3 +877,79 @@ def test_body_raw_limit_truncates(monkeypatch):
     nt.make_capturing_sender({"base_url": "http://x", "api_key": "k"},
                              sink)("/chat/completions", json_body={})
     assert len(sink["body_raw"]) == nt.BODY_RAW_LIMIT
+
+
+# ---------------------------------------------------------------------------
+# S103 / Fase F — nome do modelo por alvo (gateway usa upstream_id)
+# ---------------------------------------------------------------------------
+
+def test_run_one_gateway_sends_upstream_id():
+    """O gateway NovAI não conhece `novai-<slug>`; só o upstream_id."""
+    seen = []
+
+    def sender(path, *, json_body=None, data=None, files=None, stream=False):
+        seen.append(json_body["model"])
+        return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+
+    row = {"group": "novai-glm-4.7-flash-fast", "modality": "chat-fast",
+           "upstream_id": "glm-4.7-flash"}
+    out = nt.run_one(row, sender, True, target="gateway")
+    assert seen == ["glm-4.7-flash"]
+    assert out[0].group == "novai-glm-4.7-flash-fast"  # relatório usa o grupo
+
+
+def test_run_one_proxy_sends_group_name():
+    seen = []
+
+    def sender(path, *, json_body=None, data=None, files=None, stream=False):
+        seen.append(json_body["model"])
+        return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+
+    row = {"group": "novai-glm-4.7-flash-fast", "modality": "chat-fast",
+           "upstream_id": "glm-4.7-flash"}
+    nt.run_one(row, sender, True, target="proxy")
+    assert seen == ["novai-glm-4.7-flash-fast"]
+
+
+def test_run_contract_suite_uses_model_override():
+    seen = []
+
+    def sender(path, *, json_body=None, data=None, files=None, stream=False):
+        seen.append(json_body.get("model"))
+        return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+
+    out = nt.run_contract_suite(sender, "novai-x", target="gateway",
+                                model="glm-4.7-flash")
+    # o caso 404 usa de propósito "<model>-nao-existe-<ts>"; os demais usam o model
+    assert all(m.startswith("glm-4.7-flash") for m in seen if m)
+    assert sum(1 for m in seen if m == "glm-4.7-flash") >= 8
+    assert all(r.group == "novai-x" for r in out)
+
+
+def test_run_contract_suite_captures_each_check_separately():
+    """Regressão S103/Fase F: cada check grava SEU request, não o do último.
+
+    O sink do ``make_capturing_sender`` é limpo a cada chamada; se a captura for
+    anexada só depois do batch inteiro, todos os registros ficam com o request
+    do último check (``error_400``) — evidência contaminada no jsonl.
+    """
+    sink: dict = {}
+
+    def sender(path, *, json_body=None, data=None, files=None, stream=False):
+        sink.clear()
+        sink["request"] = {"method": "POST", "url": "http://x/v1" + path,
+                           "body": json_body}
+        sink["headers"] = {}
+        sink["body_raw"] = "{}"
+        sink["sse_framing"] = ""
+        return _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+
+    out = nt.run_contract_suite(sender, "novai-x", target="proxy", sink=sink)
+    by_test = {r.test: r for r in out}
+    # cada check carrega o corpo que ELE enviou
+    assert by_test["param_forwarding"].request["body"].get("stop") == ["quatro"]
+    assert "messages" in by_test["needle"].request["body"]
+    assert "messages" not in by_test["error_400"].request["body"]
+    # e nenhum ficou com o corpo do último check
+    assert by_test["ttft"].request["body"].get("stream") is True
+    assert by_test["json_strict"].request["body"].get("response_format")
