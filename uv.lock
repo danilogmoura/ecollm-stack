@@ -190,6 +190,7 @@ name = "ecollm-rag"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "jsonschema" },
     { name = "mcp" },
     { name = "psycopg", extra = ["binary"] },
     { name = "pyyaml" },
@@ -215,6 +216,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "jsonschema", specifier = ">=4.26" },
     { name = "mcp", specifier = ">=2.2,<3" },
     { name = "psycopg", extras = ["binary"], specifier = ">=3.2" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },

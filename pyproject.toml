@@ -22,6 +22,7 @@ dependencies = [
     "requests>=2.31",          # embed.py fala com LiteLLM via HTTP
     "psycopg[binary]>=3.2",    # store.py (FASE 2)
     "mcp>=2.2,<3",             # FASE 5: servidor MCP rag_search (stdio), API 2.x
+    "jsonschema>=4.26",        # S117: validação de CONTRATO de API (eval/novai_contract.py)
 ]
 
 [project.optional-dependencies]

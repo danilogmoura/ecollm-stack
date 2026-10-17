@@ -1050,19 +1050,28 @@ def make_capturing_sender(cfg: dict, sink: dict) -> Sender:
     redigidos), ``body_raw`` (truncado em ``BODY_RAW_LIMIT``) e ``sse_framing``
     (``"\\n\\n"`` | ``"\\n"`` | ``""``). O sink é limpo a cada chamada, então o
     orquestrador lê o último valor depois de rodar o check.
+
+    S117: ``method="GET"`` (keyword-only, default POST — retrocompatível com
+    todas as chamadas existentes do S103) para endpoints sem corpo, ex.:
+    ``GET /v1/models``.
     """
     headers = {"Authorization": f"Bearer {cfg['api_key']}"}
 
-    def _send(path: str, *, json_body=None, data=None, files=None, stream=False):
+    def _send(path: str, *, json_body=None, data=None, files=None, stream=False,
+              method: str = "POST"):
         url = f"{cfg['base_url']}/{path.lstrip('/')}"
         sink.clear()
-        sink["request"] = {"method": "POST", "url": url, "body": json_body}
+        sink["request"] = {"method": method, "url": url, "body": json_body}
         # S103 / Fase L (L5): mesmo retry do make_sender, para o jsonl registrar
         # a resposta FINAL (não o 429 transitório).
-        r = _send_with_retry(
-            lambda: requests.post(url, headers=headers, json=json_body,
-                                  data=data, files=files, stream=stream,
-                                  timeout=120))
+        if method.upper() == "GET":
+            r = _send_with_retry(
+                lambda: requests.get(url, headers=headers, timeout=120))
+        else:
+            r = _send_with_retry(
+                lambda: requests.post(url, headers=headers, json=json_body,
+                                      data=data, files=files, stream=stream,
+                                      timeout=120))
         sink["headers"] = dict(getattr(r, "headers", {}) or {})
         text = getattr(r, "text", "") or ""
         # S103 / Fase G: respostas de imagem trazem URL PRÉ-ASSINADA (OSS/COS)

@@ -23,6 +23,7 @@ pyyaml>=6
 requests>=2.31          # embed.py fala com LiteLLM via HTTP
 psycopg[binary]>=3.2    # store.py (FASE 2)
 mcp>=2.2,<3             # FASE 5: servidor MCP rag_search (stdio). Codigo usa API 2.x (MCPServer); inst do venv: mcp==2.2.0
+jsonschema>=4.26        # S117: validacao de CONTRATO de API (eval/novai_contract.py); antes era so transitiva
 
 # --- dev/testes ---
 pytest>=8
