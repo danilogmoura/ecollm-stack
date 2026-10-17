@@ -1921,6 +1921,37 @@ litellm_settings:
     supported_call_types: ["aembedding"]
     ttl: 86400 # respostas de embed válidas p/ re-ingest no mesmo dia
 
+# ===== S112 — ROUTER SETTINGS (cooldown / allowed_fails) =====
+# Incidente 2026-10-16 (reports/2026-10-16-copilot-chat-500-429.md): HTTP 429
+# `all_deployments_in_cooldown` em `deepseek-flash-fast`. Causa medida no código
+# do LiteLLM 1.105.1 (router_utils/cooldown_handlers.py):
+#   - `_is_cooldown_required` devolve True SEMPRE p/ status 429 (linha explícita
+#     `if exception_status == 429: return True`) — 429 do upstream = cooldown.
+#   - `_should_cooldown_deployment` (BASE CASE) só isenta grupo de 1 deployment
+#     quando `allowed_fails`/`allowed_fails_policy` NÃO estão setados. Como o
+#     default global `litellm.allowed_fails = 3` é aplicado em `Router.__init__`
+#     (`self.allowed_fails = allowed_fails if not None else litellm.allowed_fails`),
+#     o caminho "v2" (percentual) é pulado e o contador por minuto manda.
+#   - Grupo com 1 deployment + cooldown ⇒ próxima request não tem alternativa ⇒
+#     429 imediato `all_deployments_in_cooldown`.
+#   - A "safety net" de bypass em `async_get_healthy_deployments` só atua quando
+#     `enable_health_check_routing` E `allowed_fails_policy` estão setados — NÃO
+#     é o nosso caso, então não dá p/ contar com ela.
+#
+# Escolha: subir o limiar de falhas e encurtar o cooldown, mantendo o mecanismo
+# ligado (cooldown protege contra upstream realmente fora). NÃO usamos
+# `disable_cooldowns: true` — isso mascararia 429 real do provedor e faria o
+# agente martelar o upstream em loop.
+#   allowed_fails: 5   → 5 falhas/min antes de cooldown (default era 3)
+#   cooldown_time: 15  → 15s de cooldown (default era 5s; 5s era curto demais
+#                        p/ o upstream se recuperar e gerava rajada de 429)
+#   num_retries: 2 (em litellm_settings) continua valendo: 3 tentativas totais.
+# Invariante 7 preservado: nada de `novai-*` aqui; só política de router.
+router_settings:
+  allowed_fails: 5
+  cooldown_time: 15
+  disable_cooldowns: false
+
 # ===== S100 — PASSTHROUGH (video + 3D) =====
 # LiteLLM NAO tem CallType nativo p/ video nem 3D (CallTypesLiteral: sem 'video'
 # nem '3d'). O provider openai de video chama {api_base}/videos, mas o gateway
