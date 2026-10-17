@@ -107,9 +107,13 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open("w", newline="", encoding="utf-8") as fh:
         w = csv.writer(fh)
-        w.writerow(["group", "modality", "upstream_id", "status", "evidence"])
+        # S103 / P3: colunas novas no FIM — as 5 primeiras ficam idênticas à Fase A,
+        # então qualquer leitor antigo (por índice ou por nome) continua funcionando.
+        w.writerow(["group", "modality", "upstream_id", "status", "evidence",
+                    "target", "test_id", "latency_ms", "notes"])
         for r in all_rows:
-            w.writerow([r["group"], r["modality"], r["upstream_id"], "untested", ""])
+            w.writerow([r["group"], r["modality"], r["upstream_id"], "untested", "",
+                        "", "", "", ""])
 
     # resumo por modalidade
     counts: dict[str, int] = {}

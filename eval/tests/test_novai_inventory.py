@@ -101,3 +101,20 @@ def test_real_config_counts_locked():
 def test_passthrough_entries_are_two():
     mods = {p["modality"] for p in ni.PASSTHROUGH}
     assert mods == {"video-passthrough", "3d-passthrough"}
+
+
+def test_matrix_csv_has_new_columns_after_legacy_prefix(tmp_path):
+    """S103 / P3: as 5 colunas da Fase A ficam no MESMO índice; novas vão no fim."""
+    import csv
+
+    from eval import novai_inventory as ni
+
+    out = tmp_path / "m.csv"
+    assert ni.main(["--out", str(out)]) == 0
+    with out.open(encoding="utf-8") as fh:
+        rows = list(csv.reader(fh))
+    header = rows[0]
+    assert header[:5] == ["group", "modality", "upstream_id", "status", "evidence"]
+    assert header[5:] == ["target", "test_id", "latency_ms", "notes"]
+    assert all(len(r) == len(header) for r in rows[1:])
+    assert all(r[3] == "untested" for r in rows[1:])

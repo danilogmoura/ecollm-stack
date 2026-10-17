@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import base64
 
+import pytest
+
 from eval import novai_test as nt
 
 
@@ -678,3 +680,127 @@ def test_run_ttft_with_iter_lines_measures():
 
     res = nt.run_ttft(_sender_factory(_StreamResp(200)), "novai-x")
     assert res.passed and res.test == "ttft" and "ttft_ms=" in res.evidence
+
+
+# ---------------------------------------------------------------------------
+# S103 / P2 — alvo duplo (gateway × proxy) e classificador de divergência
+# ---------------------------------------------------------------------------
+
+def _cr(target, passed, skipped=False):
+    return nt.CheckResult("g", "chat", "smoke", passed, "ev", skipped=skipped,
+                          target=target)
+
+
+def test_resolve_targets_both():
+    assert nt.resolve_targets("both") == ["gateway", "proxy"]
+
+
+def test_resolve_targets_single():
+    assert nt.resolve_targets("gateway") == ["gateway"]
+    assert nt.resolve_targets("proxy") == ["proxy"]
+
+
+def test_resolve_targets_invalid_raises():
+    with pytest.raises(ValueError):
+        nt.resolve_targets("nope")
+
+
+def test_resolve_targets_returns_canonical_order():
+    assert nt.resolve_targets("both") == list(nt.TARGETS)
+
+
+def test_target_config_gateway_uses_env(monkeypatch):
+    monkeypatch.setenv("NOVAI_API_KEY", "nvai-abc")
+    monkeypatch.delenv("NOVAI_BASE_URL", raising=False)
+    cfg = nt.target_config("gateway")
+    assert cfg["base_url"] == nt.GATEWAY_BASE_URL
+    assert cfg["api_key"] == "nvai-abc"
+
+
+def test_target_config_gateway_base_url_override(monkeypatch):
+    monkeypatch.setenv("NOVAI_BASE_URL", "https://x.test/v1/")
+    cfg = nt.target_config("gateway")
+    assert cfg["base_url"] == "https://x.test/v1"
+
+
+def test_target_config_invalid_raises():
+    with pytest.raises(ValueError):
+        nt.target_config("nope")
+
+
+def test_target_config_proxy_uses_litellm_env(monkeypatch):
+    monkeypatch.setenv("LITELLM_MASTER_KEY", "sk-test")
+    monkeypatch.delenv("LITELLM_BASE_URL", raising=False)
+    cfg = nt.target_config("proxy")
+    assert cfg["api_key"] == "sk-test"
+    assert cfg["base_url"] == nt.DEFAULT_BASE_URL
+
+
+def test_classify_same_pass():
+    cls, ev = nt.classify_divergence(_cr("gateway", True), _cr("proxy", True))
+    assert cls == "same_pass" and "gateway=pass" in ev
+
+
+def test_classify_same_fail():
+    cls, _ = nt.classify_divergence(_cr("gateway", False), _cr("proxy", False))
+    assert cls == "same_fail"
+
+
+def test_classify_gateway_only_is_ours():
+    cls, _ = nt.classify_divergence(_cr("gateway", True), _cr("proxy", False))
+    assert cls == "gateway_only" and nt.divergence_is_ours(cls)
+
+
+def test_classify_proxy_only_is_not_ours():
+    cls, _ = nt.classify_divergence(_cr("gateway", False), _cr("proxy", True))
+    assert cls == "proxy_only" and not nt.divergence_is_ours(cls)
+
+
+def test_classify_missing_is_incomplete():
+    cls, _ = nt.classify_divergence(_cr("gateway", True), None)
+    assert cls == "incomplete"
+
+
+def test_classify_skipped_counts_as_missing():
+    cls, _ = nt.classify_divergence(_cr("gateway", True),
+                                    _cr("proxy", False, skipped=True))
+    assert cls == "incomplete"
+
+
+def test_pair_results_by_test_groups_targets():
+    a = _cr("gateway", True)
+    b = _cr("proxy", False)
+    pairs = nt.pair_results_by_test([a, b])
+    assert list(pairs) == [("g", "smoke")]
+    assert pairs[("g", "smoke")]["gateway"] is a
+    assert pairs[("g", "smoke")]["proxy"] is b
+
+
+def test_classify_all_returns_triples():
+    out = nt.classify_all([_cr("gateway", True), _cr("proxy", False)])
+    assert out == [("g", "smoke", "gateway_only")]
+
+
+def test_check_result_defaults_target_proxy():
+    r = nt.CheckResult("g", "chat", "smoke", True, "ev")
+    assert r.target == "proxy" and r.latency_ms is None and r.notes == ""
+
+
+def test_run_one_dry_marks_target():
+    out = nt.run_one({"modality": "chat", "group": "novai-x"}, None, False,
+                     target="gateway")
+    assert out[0].skipped and out[0].target == "gateway"
+
+
+def test_run_contract_suite_marks_target_and_runs_all():
+    calls = []
+
+    def sender(path, *, json_body=None, data=None, files=None, stream=False):
+        calls.append(path)
+        return _FakeResp(json_data={"choices": [{"message": {"content": "ok"}}]})
+
+    out = nt.run_contract_suite(sender, "novai-x", target="gateway")
+    assert all(r.target == "gateway" for r in out)
+    assert {r.test for r in out} >= {"ttft", "json_strict", "param_forwarding",
+                                     "needle", "concurrency"}
+    assert len(calls) > 0

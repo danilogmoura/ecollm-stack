@@ -46,6 +46,14 @@ from . import novai_inventory as inv
 
 DEFAULT_BASE_URL = "http://localhost:4000/v1"
 MATRIX_CSV = Path("reports/novai-test-matrix.csv")
+# S103 / P3: colunas opcionais da matriz. Se existirem no header, são preenchidas;
+# se não existirem (matriz Fase A), o update_matrix ignora — formato antigo intacto.
+MATRIX_EXTRA_COLUMNS = ("target", "test_id", "latency_ms", "notes")
+
+# S103 / P2 — alvos. O gateway é o upstream DIRETO (isola o LiteLLM); o proxy é
+# o caminho real do agente. Divergência entre os dois classifica o bug.
+GATEWAY_BASE_URL = "https://aiapi-pro.com/v1"
+TARGETS = ("gateway", "proxy")
 
 
 def proxy_config() -> dict:
@@ -55,6 +63,37 @@ def proxy_config() -> dict:
         "base_url": os.environ.get("LITELLM_BASE_URL", DEFAULT_BASE_URL).rstrip("/"),
         "api_key": os.environ.get("LITELLM_MASTER_KEY", ""),
     }
+
+
+def gateway_config() -> dict:
+    """Base URL + chave do gateway NovAI direto (``NOVAI_API_KEY``).
+
+    ``NOVAI_BASE_URL`` é opcional (default = ``https://aiapi-pro.com/v1``, a URL
+    fixa do ``config.yaml``); existe só para apontar a um espelho em testes.
+    """
+    load_dotenv()
+    return {
+        "base_url": os.environ.get("NOVAI_BASE_URL", GATEWAY_BASE_URL).rstrip("/"),
+        "api_key": os.environ.get("NOVAI_API_KEY", ""),
+    }
+
+
+def target_config(target: str) -> dict:
+    """Config do alvo pedido (``gateway`` | ``proxy``)."""
+    if target == "gateway":
+        return gateway_config()
+    if target == "proxy":
+        return proxy_config()
+    raise ValueError(f"alvo desconhecido: {target!r} (use gateway|proxy)")
+
+
+def resolve_targets(target: str) -> list[str]:
+    """Expande ``--target`` em lista de alvos concretos, na ordem canônica."""
+    if target == "both":
+        return list(TARGETS)
+    if target not in TARGETS:
+        raise ValueError(f"--target inválido: {target!r} (gateway|proxy|both)")
+    return [target]
 
 
 # ---------------------------------------------------------------------------
@@ -73,11 +112,84 @@ class CheckResult:
     evidence: str
     skipped: bool = False
     cost_usd: float | None = None
+    # S103 / P2–P3: alvo medido, latência e nota livre (colunas novas da matriz).
+    target: str = "proxy"
+    latency_ms: float | None = None
+    notes: str = ""
 
     def status(self) -> str:
         if self.skipped:
             return "skipped"
         return "pass" if self.passed else "fail"
+
+
+# ---------------------------------------------------------------------------
+# S103 / P2 — classificador de divergência gateway × proxy
+# ---------------------------------------------------------------------------
+
+DIVERGENCE_CLASSES = {
+    "same_pass": "ambos passam ⇒ comportamento do gateway NovAI",
+    "same_fail": "ambos falham ⇒ bug do gateway NovAI (não é o LiteLLM)",
+    "divergent": "um passa e o outro falha ⇒ bug do LiteLLM (nosso)",
+    "gateway_only": "só o gateway passou ⇒ bug do LiteLLM (nosso)",
+    "proxy_only": "só o proxy passou ⇒ bug do gateway NovAI",
+    "incomplete": "faltou um dos alvos ⇒ não classifica",
+}
+
+
+def classify_divergence(gateway: CheckResult | None,
+                        proxy: CheckResult | None) -> tuple[str, str]:
+    """Classifica o par (gateway, proxy) do MESMO teste.
+
+    Regra travada (S103): **divergência ⇒ bug LiteLLM; igualdade ⇒ bug NovAI.**
+    ``skipped`` conta como ausência de evidência (não como pass/fail).
+    """
+    def _state(r: CheckResult | None) -> str:
+        if r is None or r.skipped:
+            return "missing"
+        return "pass" if r.passed else "fail"
+
+    g, p = _state(gateway), _state(proxy)
+    ev = f"gateway={g} proxy={p}"
+    if "missing" in (g, p):
+        return "incomplete", ev
+    if g == p == "pass":
+        return "same_pass", ev
+    if g == p == "fail":
+        return "same_fail", ev
+    if g == "pass":
+        return "gateway_only", ev
+    return "proxy_only", ev
+
+
+def divergence_is_ours(cls: str) -> bool:
+    """True quando a divergência aponta para o NOSSO LiteLLM (bug nosso)."""
+    return cls in ("divergent", "gateway_only")
+
+
+def pair_results_by_test(results: list[CheckResult]) -> dict[tuple[str, str],
+                                                             dict[str, CheckResult]]:
+    """Agrupa resultados por ``(group, test)`` → ``{target: CheckResult}``.
+
+    Ordem determinística (dict de inserção preserva a ordem de entrada) — não
+    reordenar ao citar (invariante de prompt-cache).
+    """
+    out: dict[tuple[str, str], dict[str, CheckResult]] = {}
+    for r in results:
+        out.setdefault((r.group, r.test), {})[r.target] = r
+    return out
+
+
+def classify_all(results: list[CheckResult]) -> list[tuple[str, str, str]]:
+    """Classifica todos os pares de um run ``--target both``.
+
+    Retorna ``[(group, test, classe)]`` na ordem de primeira aparição.
+    """
+    out: list[tuple[str, str, str]] = []
+    for (group, test), by_target in pair_results_by_test(results).items():
+        cls, _ = classify_divergence(by_target.get("gateway"), by_target.get("proxy"))
+        out.append((group, test, cls))
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1037,32 +1149,62 @@ def select(rows: list[dict], family: str | None, only_id: str | None) -> list[di
 # ---------------------------------------------------------------------------
 
 
-def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = False
-            ) -> list[CheckResult]:
+def run_one(row: dict, sender: Sender | None, live: bool, *, stream: bool = False,
+            target: str = "proxy") -> list[CheckResult]:
     mod = row["modality"]
     grp = row["group"]
     if not live:
         return [CheckResult(grp, mod, "smoke", False, "modo dry (use --live)",
-                            skipped=True)]
+                            skipped=True, target=target)]
     assert sender is not None
     if mod == "embedding":
-        return [run_embedding(sender, grp)]
-    if mod == "image":
-        return [run_image(sender, grp)]
-    if mod == "tts":
-        return [run_tts(sender, grp)]
-    if mod == "asr":
-        return [run_asr(sender, grp)]
-    # chat: texto + thinking conforme ON/OFF. Com --stream, roda também o caso SSE.
-    thinking = "disabled" if mod == "chat-fast" else "on"
-    out = [run_chat(sender, grp, thinking=thinking)]
-    if stream and mod.startswith("chat"):
-        out.append(run_chat(sender, grp, stream=True))
+        out = [run_embedding(sender, grp)]
+    elif mod == "image":
+        out = [run_image(sender, grp)]
+    elif mod == "tts":
+        out = [run_tts(sender, grp)]
+    elif mod == "asr":
+        out = [run_asr(sender, grp)]
+    else:
+        # chat: texto + thinking conforme ON/OFF. Com --stream, roda também o SSE.
+        thinking = "disabled" if mod == "chat-fast" else "on"
+        out = [run_chat(sender, grp, thinking=thinking)]
+        if stream and mod.startswith("chat"):
+            out.append(run_chat(sender, grp, stream=True))
+    for r in out:
+        r.target = target
+    return out
+
+
+def run_contract_suite(sender: Sender, group: str, *, target: str = "proxy",
+                       concurrency: int = 4) -> list[CheckResult]:
+    """S103 — bateria de CONTRATO num grupo de chat (T13–T20).
+
+    Roda os testes novos em sequência: TTFT, JSON estrito, param forwarding,
+    needle, concorrência e os 3 contratos de erro. Cada um devolve um
+    ``CheckResult`` independente (um fail não aborta os outros — achado é DADO).
+    """
+    out = [
+        run_ttft(sender, group),
+        run_json_strict(sender, group),
+        run_param_forwarding(sender, group),
+        run_needle(sender, group),
+        run_concurrency(sender, group, n=concurrency),
+        run_error_contract(sender, group, case="404"),
+        run_error_contract(sender, group, case="400"),
+    ]
+    for r in out:
+        r.target = target
     return out
 
 
 def update_matrix(results: list[CheckResult]) -> None:
-    """Escreve status/evidência na planilha-mãe (por grupo+test)."""
+    """Escreve status/evidência na planilha-mãe (por grupo+test).
+
+    S103 / P3: se a matriz já tiver as colunas novas (``target``, ``test_id``,
+    ``latency_ms``, ``notes``), elas também são preenchidas. Matriz no formato
+    Fase A (sem essas colunas) continua funcionando — nada quebra.
+    """
     if not MATRIX_CSV.exists():
         return
     by_group: dict[str, tuple[str, str]] = {}
@@ -1071,9 +1213,24 @@ def update_matrix(results: list[CheckResult]) -> None:
     lines = list(csv.reader(MATRIX_CSV.open(encoding="utf-8")))
     header = lines[0]
     gi, si, ei = header.index("group"), header.index("status"), header.index("evidence")
+    extra = {name: header.index(name) for name in MATRIX_EXTRA_COLUMNS
+             if name in header}
+    last_by_group: dict[str, CheckResult] = {}
+    for r in results:
+        last_by_group[r.group] = r
     for line in lines[1:]:
         if line[gi] in by_group:
             line[si], line[ei] = by_group[line[gi]]
+            r = last_by_group[line[gi]]
+            if "target" in extra:
+                line[extra["target"]] = r.target
+            if "test_id" in extra:
+                line[extra["test_id"]] = r.test
+            if "latency_ms" in extra:
+                line[extra["latency_ms"]] = ("" if r.latency_ms is None
+                                             else f"{r.latency_ms:.1f}")
+            if "notes" in extra:
+                line[extra["notes"]] = r.notes
     with MATRIX_CSV.open("w", newline="", encoding="utf-8") as fh:
         csv.writer(fh).writerows(lines)
 
@@ -1090,6 +1247,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="chat: sonda dual thinking-ON/OFF por modelo e classifica se "
                          "a rota -fast realmente faz sentido (mede reasoning nos 2 modos)")
     ap.add_argument("--list", action="store_true", help="só imprime seleção")
+    ap.add_argument("--target", default="proxy", choices=list(TARGETS) + ["both"],
+                    help="alvo do smoke: gateway (NovAI direto) | proxy (LiteLLM) | "
+                         "both (roda os dois e classifica divergência)")
+    ap.add_argument("--contract", action="store_true",
+                    help="chat: roda a bateria de contrato T13–T20 (TTFT, JSON "
+                         "estrito, param forwarding, needle, concorrência, erros)")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -1134,23 +1297,57 @@ def main(argv: list[str] | None = None) -> int:
         for r in sel:
             print(f"{r['modality']:12s} {r['group']}")
         print(f"# {len(sel)} grupos selecionados")
+        print(f"# alvo(s): {', '.join(resolve_targets(args.target))}")
         return 0
     if not sel:
         print("nada selecionado (use --family/--id/--all)", file=sys.stderr)
         return 2
 
-    cfg = proxy_config()
-    sender = make_sender(cfg) if args.live else None
+    targets = resolve_targets(args.target)
     results: list[CheckResult] = []
-    for i, r in enumerate(sel):
-        if args.live and args.sleep > 0 and i > 0:
-            time.sleep(args.sleep)
-        results.extend(run_one(r, sender, args.live, stream=args.stream))
+    for target in targets:
+        cfg = target_config(target)
+        sender = make_sender(cfg) if args.live else None
+        for i, r in enumerate(sel):
+            if args.live and args.sleep > 0 and i > 0:
+                time.sleep(args.sleep)
+            results.extend(run_one(r, sender, args.live, stream=args.stream,
+                                   target=target))
+            if args.contract and args.live and r["modality"].startswith("chat"):
+                results.extend(run_contract_suite(sender, r["group"],
+                                                  target=target))
 
     _print_and_export(results, args.live, args.out, write_matrix=True)
+    if args.live:
+        # S103 / P3b: grava sucesso E falha (skip de dry-run não é registrado).
+        from eval.novai_log import log_results
+        fam = args.family or ("both" if len(targets) > 1 else targets[0])
+        p = log_results(results, family=fam)
+        if p:
+            print(f"# log: {p}")
+    if len(targets) > 1:
+        _print_divergence(results)
     npass = sum(1 for x in results if x.passed)
     nskip = sum(1 for x in results if x.skipped)
     return 0 if npass == len(results) - nskip else 1
+
+
+def _print_divergence(results: list[CheckResult]) -> None:
+    """S103 — imprime a classificação gateway × proxy (só em --target both)."""
+    pairs = classify_all(results)
+    if not pairs:
+        return
+    counts: dict[str, int] = {}
+    for _, _, cls in pairs:
+        counts[cls] = counts.get(cls, 0) + 1
+    print("\n# divergência gateway × proxy")
+    for cls in DIVERGENCE_CLASSES:
+        if cls in counts:
+            ours = " (NOSSO)" if divergence_is_ours(cls) else ""
+            print(f"  {cls:12s} {counts[cls]:3d}{ours} — {DIVERGENCE_CLASSES[cls]}")
+    for group, test, cls in pairs:
+        if divergence_is_ours(cls):
+            print(f"  ⚠️  {group} :: {test} ⇒ {cls}")
 
 
 def _print_and_export(results: list[CheckResult], live: bool, out: str | None,
@@ -1171,11 +1368,12 @@ def _print_and_export(results: list[CheckResult], live: bool, out: str | None,
 
 def _to_md(results: list[CheckResult]) -> str:
     lines = ["# NovAI smoke — resultados", "",
-             "| grupo | modalidade | teste | status | evidência |",
-             "| --- | --- | --- | --- | --- |"]
+             "| grupo | alvo | modalidade | teste | status | latência | evidência |",
+             "| --- | --- | --- | --- | --- | --- | --- |"]
     for x in results:
-        lines.append(f"| {x.group} | {x.modality} | {x.test} | {x.status()} "
-                     f"| {x.evidence} |")
+        lat = "" if x.latency_ms is None else f"{x.latency_ms:.0f} ms"
+        lines.append(f"| {x.group} | {x.target} | {x.modality} | {x.test} "
+                     f"| {x.status()} | {lat} | {x.evidence} |")
     return "\n".join(lines) + "\n"
 
 
