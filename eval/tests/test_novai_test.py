@@ -857,6 +857,124 @@ def test_param_forwarding_whitespace_content_fails():
     assert not ok and "A7" in ev
 
 
+# --- Fase J: vídeo/3D assíncrono (task id + polling) -----------------------
+
+def test_extract_task_id_prefers_id():
+    assert nt.extract_task_id({"id": "abc", "request_id": "xyz"}) == "abc"
+
+
+def test_extract_task_id_accepts_task_id_variants():
+    assert nt.extract_task_id({"task_id": "t1"}) == "t1"
+    assert nt.extract_task_id({"taskId": "t2"}) == "t2"
+
+
+def test_extract_task_id_missing_is_none():
+    assert nt.extract_task_id({"status": "queued"}) is None
+    assert nt.extract_task_id({}) is None
+    assert nt.extract_task_id("nao-dict") is None
+
+
+def test_extract_task_status_normalizes_case():
+    assert nt.extract_task_status({"task_status": "processing"}) == "PROCESSING"
+    assert nt.extract_task_status({"status": "queued"}) == "QUEUED"
+    assert nt.extract_task_status({"state": "Success"}) == "SUCCESS"
+
+
+def test_extract_task_status_missing_is_empty():
+    assert nt.extract_task_status({"id": "x"}) == ""
+
+
+def test_extract_artifact_url_top_level():
+    assert nt.extract_artifact_url({"url": "https://x/v.mp4"}) == "https://x/v.mp4"
+
+
+def test_extract_artifact_url_nested():
+    p = {"data": {"output": {"video_url": "https://x/a.mp4"}}}
+    assert nt.extract_artifact_url(p) == "https://x/a.mp4"
+
+
+def test_extract_artifact_url_in_list():
+    p = {"results": [{"url": "https://x/b.mp4"}]}
+    assert nt.extract_artifact_url(p) == "https://x/b.mp4"
+
+
+def test_extract_artifact_url_ignores_non_http():
+    assert nt.extract_artifact_url({"url": "/local/path.mp4"}) is None
+    assert nt.extract_artifact_url({"url": "data:video/mp4;base64,AAA"}) is None
+
+
+def test_extract_artifact_url_missing_is_none():
+    assert nt.extract_artifact_url({"status": "SUCCESS"}) is None
+
+
+def test_verdict_video_task_success_with_url():
+    ok, ev = nt.verdict_video_task(
+        {"task_status": "SUCCESS", "url": "https://x/v.mp4"}, polls=3)
+    assert ok and "polls=3" in ev and "artefato=" in ev
+
+
+def test_verdict_video_task_failed_status():
+    ok, ev = nt.verdict_video_task({"task_status": "FAILED"}, polls=1)
+    assert not ok and "falhou" in ev
+
+
+def test_verdict_video_task_success_without_url_fails():
+    ok, ev = nt.verdict_video_task({"task_status": "SUCCESS"}, polls=2)
+    assert not ok and "sem URL" in ev
+
+
+def test_verdict_video_task_non_terminal_fails():
+    ok, ev = nt.verdict_video_task({"task_status": "PROCESSING"}, polls=0)
+    assert not ok and "não-terminal" in ev
+
+
+def _seq_sender(responses):
+    """Sender que devolve respostas em sequência (POST, depois N polls)."""
+    it = iter(responses)
+
+    def _send(path, **kw):
+        return next(it)
+    return _send
+
+
+def test_run_video_task_happy_path():
+    created = _FakeResp(json_data={"id": "t1", "status": "queued"})
+    poll1 = _FakeResp(json_data={"task_status": "PROCESSING"})
+    poll2 = _FakeResp(json_data={"task_status": "SUCCESS",
+                                 "url": "https://x/v.mp4"})
+    res = nt.run_video_task(_seq_sender([created, poll1, poll2]), "cogvideox-flash",
+                            sleep=lambda _s: None)
+    assert res.passed and res.test == "video_task" and "id=t1" in res.evidence
+
+
+def test_run_video_task_post_error():
+    res = nt.run_video_task(_seq_sender([_FakeResp(status=500, text="boom")]),
+                            "m", sleep=lambda _s: None)
+    assert not res.passed and "POST HTTP 500" in res.evidence
+
+
+def test_run_video_task_without_task_id():
+    res = nt.run_video_task(_seq_sender([_FakeResp(json_data={"status": "queued"})]),
+                            "m", sleep=lambda _s: None)
+    assert not res.passed and "sem task id" in res.evidence
+
+
+def test_run_video_task_poll_budget_exhausted_does_not_hang():
+    created = _FakeResp(json_data={"id": "t1"})
+    stuck = _FakeResp(json_data={"task_status": "PROCESSING"})
+    res = nt.run_video_task(_seq_sender([created] + [stuck] * 5), "m",
+                            max_polls=3, sleep=lambda _s: None)
+    assert not res.passed and "orçamento de polls esgotado (3)" in res.evidence
+
+
+def test_run_video_task_failed_status_stops_early():
+    created = _FakeResp(json_data={"id": "t1"})
+    failed = _FakeResp(json_data={"task_status": "FAILED"})
+    res = nt.run_video_task(_seq_sender([created, failed]), "m",
+                            sleep=lambda _s: None)
+    assert not res.passed and "falhou" in res.evidence
+
+
 # --- orquestradores novos com sender fake ----------------------------------
 
 def test_run_json_strict_via_fake_sender():

@@ -861,11 +861,18 @@ BODY_RAW_LIMIT = 4000
 
 
 def make_sender(cfg: dict) -> Sender:
-    """Fecha base_url/api_key num callable que faz POST ao proxy."""
+    """Fecha base_url/api_key num callable que faz POST (ou GET) ao proxy.
+
+    ``method="GET"`` (Fase J) é necessário para o polling de tasks assíncronas:
+    ``GET /video/generations/<id>`` devolve 405 se enviado como POST.
+    """
     headers = {"Authorization": f"Bearer {cfg['api_key']}"}
 
-    def _send(path: str, *, json_body=None, data=None, files=None, stream=False):
+    def _send(path: str, *, json_body=None, data=None, files=None, stream=False,
+              method: str = "POST"):
         url = f"{cfg['base_url']}/{path.lstrip('/')}"
+        if method.upper() == "GET":
+            return requests.get(url, headers=headers, timeout=120)
         return requests.post(url, headers=headers, json=json_body, data=data,
                              files=files, stream=stream, timeout=120)
 
@@ -1435,6 +1442,156 @@ def run_passthrough(cfg: dict, kind: str) -> CheckResult:
 
 
 # ---------------------------------------------------------------------------
+# S103 / Fase J — vídeo/3D assíncrono (task id + polling)
+# ---------------------------------------------------------------------------
+
+# Estados terminais conhecidos do gateway NovAI (vídeo). Qualquer outro estado
+# é tratado como "ainda rodando" até estourar o orçamento de polls.
+VIDEO_TERMINAL_OK = frozenset({"SUCCESS", "SUCCEEDED", "COMPLETED", "DONE"})
+VIDEO_TERMINAL_FAIL = frozenset({"FAILED", "FAILURE", "ERROR", "CANCELLED",
+                                 "CANCELED", "TIMEOUT"})
+VIDEO_POLL_MAX = 20
+VIDEO_POLL_INTERVAL_S = 6.0
+
+
+def extract_task_id(payload: dict) -> str | None:
+    """Extrai o id da task de um POST de vídeo/3D (PURA).
+
+    O gateway devolve ``{"id": ..., "request_id": ..., "status": "queued"}``.
+    Aceita também ``task_id``/``taskId`` por robustez a variação de upstream.
+    """
+    if not isinstance(payload, dict):
+        return None
+    for key in ("id", "task_id", "taskId"):
+        v = payload.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip()
+    return None
+
+
+def extract_task_status(payload: dict) -> str:
+    """Normaliza o estado da task em maiúsculas (PURA). ``""`` se ausente."""
+    if not isinstance(payload, dict):
+        return ""
+    for key in ("task_status", "status", "state"):
+        v = payload.get(key)
+        if isinstance(v, str) and v.strip():
+            return v.strip().upper()
+    return ""
+
+
+def extract_artifact_url(payload: dict) -> str | None:
+    """Acha a URL do artefato (mp4/glb/obj) na resposta terminal (PURA).
+
+    Procura em ``url``/``video_url``/``output``/``result``/``data`` e em listas
+    aninhadas. Só aceita http(s) — nunca devolve caminho local nem base64.
+    """
+    if not isinstance(payload, dict):
+        return None
+    keys = ("url", "video_url", "file_url", "output_url", "download_url")
+    stack: list = [payload]
+    seen = 0
+    while stack and seen < 200:
+        cur = stack.pop()
+        seen += 1
+        if isinstance(cur, str):
+            if cur.startswith(("http://", "https://")):
+                return cur
+            continue
+        if isinstance(cur, list):
+            stack.extend(cur)
+            continue
+        if not isinstance(cur, dict):
+            continue
+        for k in keys:
+            v = cur.get(k)
+            if isinstance(v, str) and v.startswith(("http://", "https://")):
+                return v
+        for k in ("output", "result", "data", "results", "videos", "artifacts"):
+            if k in cur:
+                stack.append(cur[k])
+    return None
+
+
+def verdict_video_task(payload: dict, *, polls: int) -> tuple[bool, str]:
+    """Veredito de uma task de vídeo/3D já em estado terminal (PURA).
+
+    Passa só com estado de sucesso **e** URL de artefato http(s). Estado de
+    falha ou sucesso sem artefato = fail (fail-closed: não inventa sucesso).
+    """
+    status = extract_task_status(payload)
+    url = extract_artifact_url(payload)
+    if status in VIDEO_TERMINAL_FAIL:
+        return False, f"task falhou (status={status}) polls={polls}"
+    if status not in VIDEO_TERMINAL_OK:
+        return False, f"estado não-terminal (status={status or '?'}) polls={polls}"
+    if not url:
+        return False, f"status={status} sem URL de artefato polls={polls}"
+    return True, f"status={status} artefato={url[:80]} polls={polls}"
+
+
+def run_video_task(sender: Sender, group: str, *, kind: str = "video",
+                   prompt: str = "um gato laranja pulando",
+                   path: str = "/video/generations",
+                   max_polls: int = VIDEO_POLL_MAX,
+                   interval_s: float = VIDEO_POLL_INTERVAL_S,
+                   sleep: Callable[[float], None] = time.sleep) -> CheckResult:
+    """T24 — vídeo/3D assíncrono: POST cria a task, GET faz polling até terminal.
+
+    **Polling limitado por design** (``max_polls``): nunca fica em loop infinito.
+    Estourar o orçamento de polls é fail com evidência explícita, não hang.
+
+    ``path`` é o endpoint de criação; o poll usa ``<path>/<task_id>``. Vídeo =
+    ``/video/generations``; 3D = ``/three_d/generations`` (Fase J).
+
+    ``sleep`` é injetável para os testes rodarem sem esperar de verdade.
+    """
+    # Fase J / classe H: NÃO enviar ``n``. O gateway derruba a conexão
+    # (``RemoteDisconnected``) quando ``n`` está presente, mesmo com ``n=1``;
+    # sem o campo responde 200 com a task. Achado J1.
+    body = {"model": group, "prompt": prompt}
+    try:
+        r = sender(path, json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, kind, "video_task", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, kind, "video_task", False,
+                           f"POST HTTP {r.status_code}: {r.text[:120]}")
+    try:
+        created = r.json()
+    except ValueError:
+        return CheckResult(group, kind, "video_task", False, "POST sem JSON")
+    task_id = extract_task_id(created)
+    if not task_id:
+        return CheckResult(group, kind, "video_task", False,
+                           f"POST sem task id: {str(created)[:120]}")
+
+    last: dict = created
+    for poll in range(1, max_polls + 1):
+        status = extract_task_status(last)
+        if status in VIDEO_TERMINAL_OK or status in VIDEO_TERMINAL_FAIL:
+            ok, ev = verdict_video_task(last, polls=poll - 1)
+            return CheckResult(group, kind, "video_task", ok, f"id={task_id} {ev}")
+        sleep(interval_s)
+        try:
+            pr = sender(f"{path}/{task_id}", method="GET")
+        except requests.RequestException as exc:
+            return CheckResult(group, kind, "video_task", False,
+                               f"poll {poll} erro rede: {exc}")
+        if pr.status_code != 200:
+            return CheckResult(group, kind, "video_task", False,
+                               f"poll {poll} HTTP {pr.status_code}: {pr.text[:120]}")
+        try:
+            last = pr.json()
+        except ValueError:
+            return CheckResult(group, kind, "video_task", False,
+                               f"poll {poll} sem JSON")
+    return CheckResult(group, kind, "video_task", False,
+                       f"orçamento de polls esgotado ({max_polls}) — "
+                       f"último status={extract_task_status(last) or '?'}")
+
+
+# ---------------------------------------------------------------------------
 # S103 / P1 — orquestradores dos testes novos (sender injetável, offline-testáveis)
 # ---------------------------------------------------------------------------
 
@@ -1926,6 +2083,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--context", action="store_true",
                     help="Fase I: contexto longo (needle em início/meio/fim) + stress "
                          "de concorrência (N=12, 6 workers) na bateria de contrato")
+    ap.add_argument("--video", metavar="MODEL",
+                    help="Fase J (T24): task assíncrona de vídeo — POST cria, GET faz "
+                         "polling limitado até estado terminal + URL do artefato")
+    ap.add_argument("--3d", dest="three_d", metavar="MODEL",
+                    help="Fase J (T24): idem para 3D (rota /three_d/generations)")
     ap.add_argument("--out", help="grava markdown de resultado aqui")
     ap.add_argument("--sleep", type=float, default=0.0,
                     help="pausa (s) ENTRE grupos no modo --live; respeita rate 60 rpm "
@@ -1935,7 +2097,8 @@ def main(argv: list[str] | None = None) -> int:
     rows = load_groups()
     sel = select(rows, args.family, args.only_id)
     # Sem seletor nenhum (--family/--id/--all) => nada roda (evita disparo acidental).
-    if not (args.family or args.only_id or args.all or args.media):
+    if not (args.family or args.only_id or args.all or args.media
+            or args.video or args.three_d):
         sel = []
     elif args.all:
         sel = rows
@@ -1980,6 +2143,24 @@ def main(argv: list[str] | None = None) -> int:
         print(f"# {len(sel)} grupos selecionados")
         print(f"# alvo(s): {', '.join(resolve_targets(args.target))}")
         return 0
+
+    # ---- S103 / Fase J: vídeo/3D assíncrono (task id + polling limitado). ----
+    if args.video or args.three_d:
+        if not args.live:
+            print("modo dry (use --live)", file=sys.stderr)
+            return 2
+        sender = make_sender(target_config("gateway"))
+        if args.video:
+            res = run_video_task(sender, args.video)
+        else:
+            # 3D é mais lento que vídeo (malha + textura): orçamento maior.
+            res = run_video_task(sender, args.three_d, kind="3d",
+                                 prompt="uma cadeira de madeira",
+                                 path="/three_d/generations",
+                                 max_polls=60, interval_s=10.0)
+        _print_and_export([res], True, args.out, write_matrix=False)
+        return 0 if res.passed else 1
+
     if not sel:
         print("nada selecionado (use --family/--id/--all)", file=sys.stderr)
         return 2
