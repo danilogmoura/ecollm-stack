@@ -24,6 +24,7 @@ import argparse
 import base64
 import csv
 import json
+import math
 import os
 import sys
 import time
@@ -389,6 +390,212 @@ def verdict_passthrough(resp: dict) -> tuple[bool, str]:
 
 
 # ---------------------------------------------------------------------------
+# S103 / P1 — vereditos novos (contrato, TTFT, JSON estrito, erros, params)
+# ---------------------------------------------------------------------------
+
+
+def verdict_ttft(ttft_ms: float | None, total_ms: float | None = None) -> tuple[bool, str]:
+    """TTFT: primeiro token medido, finito, ≥0 e ≤ tempo total.
+
+    ``ttft_ms=None`` = nenhum chunk com ``delta.content`` chegou ⇒ fail (stream
+    que só manda ``[DONE]`` não prova geração). Função PURA: a medição acontece
+    em ``measure_stream_timing``; aqui só se julga o número.
+    """
+    if ttft_ms is None:
+        return False, "sem primeiro token (nenhum delta.content)"
+    if ttft_ms < 0:
+        return False, f"ttft_ms={ttft_ms} negativo"
+    if total_ms is not None and ttft_ms > total_ms:
+        return False, f"ttft_ms={ttft_ms} > total_ms={total_ms}"
+    tail = f" total_ms={total_ms}" if total_ms is not None else ""
+    return True, f"ttft_ms={ttft_ms:.1f}{tail}"
+
+
+def measure_stream_timing(payloads: list[str], *, t0: float,
+                          stamps: list[float] | None = None) -> dict:
+    """Mede TTFT/total de um stream já recebido (PURA — sem relógio próprio).
+
+    ``t0`` = instante (s) do envio; ``stamps`` = instante de chegada de cada
+    payload, na MESMA ordem de ``payloads``. Sem ``stamps`` (corpo recebido de
+    uma vez, como no ``requests`` não-stream) o TTFT não é observável ⇒
+    ``ttft_ms=None`` (fail-closed: não inventa número).
+
+    Retorna ``{ttft_ms, total_ms, n_content_chunks}``.
+    """
+    n_content = 0
+    first_idx: int | None = None
+    for i, p in enumerate(payloads):
+        if p == "[DONE]":
+            continue
+        try:
+            obj = json.loads(p)
+        except ValueError:
+            continue
+        has = any(((ch.get("delta") or {}).get("content")) for ch in obj.get("choices") or [])
+        if has:
+            n_content += 1
+            if first_idx is None:
+                first_idx = i
+    total_ms = None
+    if stamps:
+        total_ms = (stamps[-1] - t0) * 1000.0
+    ttft_ms = None
+    if stamps and first_idx is not None and first_idx < len(stamps):
+        ttft_ms = (stamps[first_idx] - t0) * 1000.0
+    return {"ttft_ms": ttft_ms, "total_ms": total_ms, "n_content_chunks": n_content}
+
+
+def verdict_json_strict(resp: dict) -> tuple[bool, str]:
+    """JSON estrito (``response_format=json_object``): content parseia E é objeto.
+
+    Array/escalar não conta: ``json_object`` promete um OBJETO. Content vazio ou
+    cercado por ``` (markdown) = fail — o cliente pediu JSON puro.
+    """
+    try:
+        content = resp["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError):
+        return False, f"sem choices[0].message.content: {str(resp)[:120]}"
+    text = (content or "").strip()
+    if not text:
+        return False, "content vazio"
+    try:
+        obj = json.loads(text)
+    except ValueError as exc:
+        return False, f"content não-JSON: {exc} :: {text[:60]!r}"
+    if not isinstance(obj, dict):
+        return False, f"JSON não é objeto (tipo={type(obj).__name__})"
+    return True, f"json_object keys={sorted(obj)[:5]}"
+
+
+def verdict_error_contract(status_code: int, headers: dict | None,
+                           body: dict | None) -> tuple[bool, str]:
+    """Contrato de erro: status esperado + corpo ``error`` legível (+ Retry-After).
+
+    Regras (fail-closed):
+      - 404/400: corpo precisa ter ``error`` (dict ou str) — 500/timeout = fail.
+      - 429: além do ``error``, exige ``Retry-After`` numérico ≥ 0 (header ou
+        ``error.retry_after``). Sem ele o cliente não sabe quando voltar.
+    """
+    headers = headers or {}
+    body = body or {}
+    err = body.get("error")
+    if status_code not in (400, 404, 429):
+        return False, f"status={status_code} fora do contrato (esperado 400/404/429)"
+    if not err:
+        return False, f"HTTP {status_code} sem campo 'error': {str(body)[:100]}"
+    msg = err.get("message") if isinstance(err, dict) else str(err)
+    if not (msg or "").strip():
+        return False, f"HTTP {status_code} error sem message"
+    if status_code == 429:
+        ra = headers.get("Retry-After") or headers.get("retry-after")
+        if ra is None and isinstance(err, dict):
+            ra = err.get("retry_after")
+        try:
+            ra_num = float(ra) if ra is not None else None
+        except (TypeError, ValueError):
+            ra_num = None
+        if ra_num is None or ra_num < 0:
+            return False, f"HTTP 429 sem Retry-After numérico (ra={ra!r})"
+        return True, f"HTTP 429 error+Retry-After={ra_num:g}"
+    return True, f"HTTP {status_code} error={str(msg)[:60]!r}"
+
+
+def verdict_param_forwarding(sent: dict, resp: dict) -> tuple[bool, str]:
+    """Param forwarding: os params enviados chegaram ao upstream (evidência no corpo).
+
+    Só julga o que é OBSERVÁVEL na resposta (não inventa eco que o gateway não
+    devolve):
+      - ``stop``: o texto NÃO pode conter a sequência de parada;
+      - ``max_tokens``: ``usage.completion_tokens`` ≤ ``max_tokens``;
+      - ``temperature``/``top_p``: sem evidência no corpo ⇒ não julga (registra).
+    """
+    problems: list[str] = []
+    notes: list[str] = []
+    try:
+        content = (resp["choices"][0]["message"]["content"] or "")
+    except (KeyError, IndexError, TypeError):
+        return False, f"sem choices[0].message.content: {str(resp)[:120]}"
+    stop = sent.get("stop")
+    if stop:
+        stops = [stop] if isinstance(stop, str) else list(stop)
+        hit = [s for s in stops if s and s in content]
+        if hit:
+            problems.append(f"stop {hit!r} apareceu no texto")
+        else:
+            notes.append(f"stop={stops!r} respeitado")
+    mt = sent.get("max_tokens")
+    usage = resp.get("usage") or {}
+    ct = usage.get("completion_tokens")
+    if isinstance(mt, int) and isinstance(ct, int):
+        if ct > mt:
+            problems.append(f"completion_tokens={ct} > max_tokens={mt}")
+        else:
+            notes.append(f"completion_tokens={ct}<=max_tokens={mt}")
+    for k in ("temperature", "top_p"):
+        if k in sent:
+            notes.append(f"{k}={sent[k]} (sem eco no corpo)")
+    if problems:
+        return False, "; ".join(problems)
+    return True, "; ".join(notes) or "nada observável"
+
+
+def verdict_needle(assembled: str, needle: str, *, max_chars: int | None = None
+                   ) -> tuple[bool, str]:
+    """Needle-in-haystack: a agulha aparece no texto montado (case-insensitive).
+
+    ``max_chars`` (opcional) limita a janela de busca — útil para provar que a
+    agulha veio do MEIO do contexto e não de um eco do início.
+    """
+    if not needle:
+        return False, "agulha vazia (teste inválido)"
+    hay = assembled[:max_chars] if max_chars else assembled
+    pos = hay.lower().find(needle.lower())
+    if pos < 0:
+        return False, f"agulha {needle!r} ausente (len={len(assembled)})"
+    return True, f"agulha em pos={pos} len={len(assembled)}"
+
+
+def summarize_concurrency(results: list[dict]) -> dict:
+    """Agrega N chamadas concorrentes: sucesso, latências p50/p95, erros por status.
+
+    ``results`` = lista de ``{status_code, latency_ms, error?}``. PURA.
+    """
+    n = len(results)
+    ok = [r for r in results if r.get("status_code") == 200]
+    lat = sorted(float(r.get("latency_ms") or 0.0) for r in ok)
+
+    def _pct(p: float) -> float | None:
+        if not lat:
+            return None
+        # Nearest-rank (mesma convenção do eval/mcp_report): ceil(p*n)-1.
+        idx = min(len(lat) - 1, max(0, math.ceil(p * len(lat)) - 1))
+        return lat[idx]
+
+    errs: dict[str, int] = {}
+    for r in results:
+        if r.get("status_code") != 200:
+            key = str(r.get("status_code"))
+            errs[key] = errs.get(key, 0) + 1
+    return {"n": n, "ok": len(ok), "p50_ms": _pct(0.50), "p95_ms": _pct(0.95),
+            "errors": errs}
+
+
+def verdict_concurrency(summary: dict, *, expect_all_ok: bool = True) -> tuple[bool, str]:
+    """Concorrência: todas as N chamadas 200 (ou, se ``expect_all_ok=False``, ≥1)."""
+    n, ok = summary.get("n", 0), summary.get("ok", 0)
+    ev = (f"n={n} ok={ok} p50={summary.get('p50_ms')} p95={summary.get('p95_ms')} "
+          f"errors={summary.get('errors')}")
+    if n == 0:
+        return False, "nenhuma chamada executada"
+    if expect_all_ok and ok != n:
+        return False, ev
+    if not expect_all_ok and ok < 1:
+        return False, ev
+    return True, ev
+
+
+
+# ---------------------------------------------------------------------------
 # Transport injetável (só usado em modo --live)
 # ---------------------------------------------------------------------------
 
@@ -616,6 +823,176 @@ def run_passthrough(cfg: dict, kind: str) -> CheckResult:
                            f"HTTP {r.status_code}: {r.text[:120]}")
     ok, ev = verdict_passthrough(r.json())
     return CheckResult(path, f"{kind}-passthrough", kind, ok, ev)
+
+
+# ---------------------------------------------------------------------------
+# S103 / P1 — orquestradores dos testes novos (sender injetável, offline-testáveis)
+# ---------------------------------------------------------------------------
+
+
+def _elapsed_ms(t0: float) -> float:
+    return (time.monotonic() - t0) * 1000.0
+
+
+def run_ttft(sender: Sender, group: str) -> CheckResult:
+    """T13 — TTFT: stream curto; mede o instante do 1º ``delta.content``.
+
+    O sender devolve o corpo inteiro (``requests`` não-stream); o TTFT real só é
+    observável quando o sender expõe ``iter_lines`` (streaming). Sem isso o
+    veredito é fail-closed (``ttft_ms=None``) — nunca inventa número.
+    """
+    body = {"model": group, "messages": [{"role": "user", "content": "Conte até 5"}],
+            "max_tokens": 64, "stream": True}
+    t0 = time.monotonic()
+    try:
+        r = sender("/chat/completions", json_body=body, stream=True)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", "ttft", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "chat", "ttft", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    stamps: list[float] = []
+    lines: list[str] = []
+    it = getattr(r, "iter_lines", None)
+    if callable(it):
+        for raw in it():
+            line = raw.decode() if isinstance(raw, bytes) else raw
+            stamps.append(time.monotonic())
+            lines.append(line)
+        raw_text = "\n".join(lines)
+    else:
+        raw_text = r.text
+    info = parse_sse_lines(raw_text)
+    timing = measure_stream_timing(info["payloads"], t0=t0, stamps=stamps or None)
+    ok, ev = verdict_ttft(timing["ttft_ms"], timing["total_ms"])
+    return CheckResult(group, "chat", "ttft", ok, ev)
+
+
+def run_json_strict(sender: Sender, group: str) -> CheckResult:
+    """T14 — JSON estrito via ``response_format={"type":"json_object"}``."""
+    body = {
+        "model": group,
+        "messages": [{"role": "user",
+                      "content": 'Responda só JSON: {"ok": true, "n": 1}'}],
+        "max_tokens": 256,
+        "response_format": {"type": "json_object"},
+    }
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", "json_strict", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "chat", "json_strict", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    ok, ev = verdict_json_strict(r.json())
+    return CheckResult(group, "chat", "json_strict", ok, ev)
+
+
+def run_error_contract(sender: Sender, group: str, *, case: str) -> CheckResult:
+    """T15–T17 — contrato de erro. ``case`` ∈ {``404``, ``400``, ``429``}.
+
+    - 404: modelo inexistente (não gasta token no upstream);
+    - 400: payload inválido (``messages`` ausente);
+    - 429: payload válido num grupo que o chamador sabe estar em cooldown/rate.
+    """
+    expected = {"404": 404, "400": 400, "429": 429}[case]
+    if case == "404":
+        body = {"model": f"{group}-nao-existe-{int(time.time())}",
+                "messages": [{"role": "user", "content": "oi"}], "max_tokens": 8}
+    elif case == "400":
+        body = {"model": group, "max_tokens": 8}  # sem messages
+    else:
+        body = {"model": group, "messages": [{"role": "user", "content": "oi"}],
+                "max_tokens": 8}
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", f"error_{case}", False, f"erro rede: {exc}")
+    try:
+        payload = r.json()
+    except ValueError:
+        payload = {}
+    ok, ev = verdict_error_contract(r.status_code, dict(getattr(r, "headers", {}) or {}),
+                                    payload)
+    if r.status_code != expected:
+        ok, ev = False, f"status={r.status_code} esperado={expected} :: {ev}"
+    return CheckResult(group, "chat", f"error_{case}", ok, ev)
+
+
+def run_param_forwarding(sender: Sender, group: str) -> CheckResult:
+    """T18 — param forwarding: ``stop`` + ``max_tokens`` observáveis na resposta."""
+    body = {
+        "model": group,
+        "messages": [{"role": "user",
+                      "content": "Escreva a sequência: um dois tres quatro cinco seis"}],
+        "max_tokens": 24,
+        "stop": ["quatro"],
+        "temperature": 0.0,
+    }
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", "param_forwarding", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "chat", "param_forwarding", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    ok, ev = verdict_param_forwarding(body, r.json())
+    return CheckResult(group, "chat", "param_forwarding", ok, ev)
+
+
+def run_needle(sender: Sender, group: str, *, filler_tokens: int = 2000) -> CheckResult:
+    """T19 — needle-in-haystack: agulha única no MEIO de um contexto longo."""
+    needle = "AGULHA-7F3A"
+    filler = "O rato roeu a roupa do rei de Roma. " * max(1, filler_tokens // 10)
+    half = len(filler) // 2
+    context = f"{filler[:half]}\n{needle}\n{filler[half:]}"
+    body = {
+        "model": group,
+        "messages": [{"role": "user",
+                      "content": f"{context}\n\nQual é o código único no texto acima? "
+                                 f"Responda só o código."}],
+        "max_tokens": 64,
+    }
+    try:
+        r = sender("/chat/completions", json_body=body)
+    except requests.RequestException as exc:
+        return CheckResult(group, "chat", "needle", False, f"erro rede: {exc}")
+    if r.status_code != 200:
+        return CheckResult(group, "chat", "needle", False,
+                           f"HTTP {r.status_code}: {r.text[:120]}")
+    try:
+        content = r.json()["choices"][0]["message"]["content"] or ""
+    except (KeyError, IndexError, TypeError, ValueError):
+        return CheckResult(group, "chat", "needle", False, "resposta sem content")
+    ok, ev = verdict_needle(content, needle)
+    return CheckResult(group, "chat", "needle", ok, ev)
+
+
+def run_concurrency(sender: Sender, group: str, *, n: int = 4) -> CheckResult:
+    """T20 — concorrência: ``n`` chamadas em paralelo no MESMO grupo.
+
+    Usa ``ThreadPoolExecutor`` (o sender é thread-safe: ``requests.post`` novo por
+    chamada). Registra p50/p95 das latências e os status de erro.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    body = {"model": group, "messages": [{"role": "user", "content": "Diga: OK"}],
+            "max_tokens": 16}
+
+    def _one(_i: int) -> dict:
+        t0 = time.monotonic()
+        try:
+            r = sender("/chat/completions", json_body=body)
+            return {"status_code": r.status_code, "latency_ms": _elapsed_ms(t0)}
+        except requests.RequestException as exc:
+            return {"status_code": 0, "latency_ms": _elapsed_ms(t0), "error": str(exc)}
+
+    with ThreadPoolExecutor(max_workers=max(1, n)) as pool:
+        results = list(pool.map(_one, range(n)))
+    summary = summarize_concurrency(results)
+    ok, ev = verdict_concurrency(summary)
+    return CheckResult(group, "chat", "concurrency", ok, ev)
+
 
 
 # ---------------------------------------------------------------------------

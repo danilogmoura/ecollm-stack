@@ -426,3 +426,255 @@ def test_run_thinking_probe_http_error_reports():
         return _FakeResp(402, json_data={}, text="insufficient balance")
     res = nt.run_thinking_probe(_send, "novai-a", "novai-a-fast")
     assert not res.passed and "sonda falhou" in res.evidence and "402" in res.evidence
+
+
+# ===========================================================================
+# S103 / P1 — vereditos novos (TTFT, JSON estrito, contrato de erro, params,
+# needle, concorrência). Tudo offline: sender fake, zero rede.
+# ===========================================================================
+
+# --- verdict_ttft / measure_stream_timing ----------------------------------
+
+def test_verdict_ttft_ok():
+    ok, ev = nt.verdict_ttft(120.0, 900.0)
+    assert ok and "ttft_ms=120.0" in ev and "total_ms=900.0" in ev
+
+
+def test_verdict_ttft_none_is_fail():
+    ok, ev = nt.verdict_ttft(None)
+    assert not ok and "sem primeiro token" in ev
+
+
+def test_verdict_ttft_greater_than_total_is_fail():
+    ok, _ = nt.verdict_ttft(500.0, 400.0)
+    assert not ok
+
+
+def test_measure_stream_timing_with_stamps():
+    payloads = ['{"choices":[{"delta":{"role":"assistant"}}]}',
+                '{"choices":[{"delta":{"content":"O"}}]}',
+                '{"choices":[{"delta":{"content":"K"}}]}',
+                "[DONE]"]
+    stamps = [0.05, 0.20, 0.30, 0.31]
+    t = nt.measure_stream_timing(payloads, t0=0.0, stamps=stamps)
+    assert t["n_content_chunks"] == 2
+    assert abs(t["ttft_ms"] - 200.0) < 1e-6   # 1º chunk COM content (índice 1)
+    assert abs(t["total_ms"] - 310.0) < 1e-6
+
+
+def test_measure_stream_timing_without_stamps_is_none():
+    # Corpo recebido de uma vez: TTFT não observável ⇒ None (fail-closed).
+    t = nt.measure_stream_timing(['{"choices":[{"delta":{"content":"O"}}]}'], t0=0.0)
+    assert t["ttft_ms"] is None and t["n_content_chunks"] == 1
+
+
+def test_measure_stream_timing_no_content_chunks():
+    t = nt.measure_stream_timing(["[DONE]"], t0=0.0, stamps=[0.1])
+    assert t["ttft_ms"] is None and t["n_content_chunks"] == 0
+
+
+# --- verdict_json_strict ---------------------------------------------------
+
+def test_verdict_json_strict_ok():
+    resp = {"choices": [{"message": {"content": '{"ok": true, "n": 1}'}}]}
+    ok, ev = nt.verdict_json_strict(resp)
+    assert ok and "json_object" in ev
+
+
+def test_verdict_json_strict_array_is_fail():
+    resp = {"choices": [{"message": {"content": "[1, 2, 3]"}}]}
+    ok, ev = nt.verdict_json_strict(resp)
+    assert not ok and "não é objeto" in ev
+
+
+def test_verdict_json_strict_markdown_fence_is_fail():
+    resp = {"choices": [{"message": {"content": '```json\n{"a":1}\n```'}}]}
+    ok, _ = nt.verdict_json_strict(resp)
+    assert not ok
+
+
+def test_verdict_json_strict_empty_is_fail():
+    resp = {"choices": [{"message": {"content": "   "}}]}
+    ok, ev = nt.verdict_json_strict(resp)
+    assert not ok and "vazio" in ev
+
+
+# --- verdict_error_contract ------------------------------------------------
+
+def test_error_contract_404_ok():
+    ok, ev = nt.verdict_error_contract(
+        404, {}, {"error": {"message": "model not found", "type": "not_found"}})
+    assert ok and "HTTP 404" in ev
+
+
+def test_error_contract_400_ok():
+    ok, _ = nt.verdict_error_contract(400, {}, {"error": {"message": "messages required"}})
+    assert ok
+
+
+def test_error_contract_429_requires_retry_after():
+    body = {"error": {"message": "rate limited"}}
+    ok, ev = nt.verdict_error_contract(429, {}, body)
+    assert not ok and "Retry-After" in ev
+    ok2, ev2 = nt.verdict_error_contract(429, {"Retry-After": "5"}, body)
+    assert ok2 and "Retry-After=5" in ev2
+
+
+def test_error_contract_429_retry_after_in_body():
+    body = {"error": {"message": "cooldown", "retry_after": 5}}
+    ok, _ = nt.verdict_error_contract(429, {}, body)
+    assert ok
+
+
+def test_error_contract_500_is_out_of_contract():
+    ok, ev = nt.verdict_error_contract(500, {}, {"error": {"message": "boom"}})
+    assert not ok and "fora do contrato" in ev
+
+
+def test_error_contract_missing_error_field():
+    ok, ev = nt.verdict_error_contract(404, {}, {"detail": "nope"})
+    assert not ok and "sem campo 'error'" in ev
+
+
+# --- verdict_param_forwarding ----------------------------------------------
+
+def _chat_resp(content="um dois tres", completion_tokens=3):
+    return {"choices": [{"message": {"content": content}}],
+            "usage": {"completion_tokens": completion_tokens}}
+
+
+def test_param_forwarding_stop_respected():
+    ok, ev = nt.verdict_param_forwarding({"stop": ["quatro"], "max_tokens": 24},
+                                         _chat_resp("um dois tres"))
+    assert ok and "respeitado" in ev
+
+
+def test_param_forwarding_stop_leaked_is_fail():
+    ok, ev = nt.verdict_param_forwarding({"stop": ["quatro"]},
+                                         _chat_resp("um dois tres quatro"))
+    assert not ok and "apareceu no texto" in ev
+
+
+def test_param_forwarding_max_tokens_exceeded_is_fail():
+    ok, ev = nt.verdict_param_forwarding({"max_tokens": 2},
+                                         _chat_resp(completion_tokens=9))
+    assert not ok and "> max_tokens" in ev
+
+
+def test_param_forwarding_temperature_not_judged():
+    ok, ev = nt.verdict_param_forwarding({"temperature": 0.0}, _chat_resp())
+    assert ok and "sem eco no corpo" in ev
+
+
+# --- verdict_needle --------------------------------------------------------
+
+def test_verdict_needle_found():
+    ok, ev = nt.verdict_needle("bla AGULHA-7F3A bla", "agulha-7f3a")
+    assert ok and "pos=4" in ev
+
+
+def test_verdict_needle_missing():
+    ok, ev = nt.verdict_needle("nada aqui", "AGULHA-7F3A")
+    assert not ok and "ausente" in ev
+
+
+def test_verdict_needle_empty_needle_is_invalid():
+    ok, ev = nt.verdict_needle("texto", "")
+    assert not ok and "agulha vazia" in ev
+
+
+def test_verdict_needle_respects_max_chars():
+    ok, _ = nt.verdict_needle("x" * 100 + "AGULHA", "AGULHA", max_chars=50)
+    assert not ok
+
+
+# --- concorrência ----------------------------------------------------------
+
+def test_summarize_concurrency_all_ok():
+    s = nt.summarize_concurrency([{"status_code": 200, "latency_ms": v}
+                                  for v in (100, 200, 300, 400)])
+    assert s["n"] == 4 and s["ok"] == 4 and s["errors"] == {}
+    assert s["p50_ms"] == 200 and s["p95_ms"] == 400
+
+
+def test_summarize_concurrency_with_errors():
+    s = nt.summarize_concurrency([
+        {"status_code": 200, "latency_ms": 100},
+        {"status_code": 429, "latency_ms": 50},
+        {"status_code": 429, "latency_ms": 60},
+    ])
+    assert s["ok"] == 1 and s["errors"] == {"429": 2}
+
+
+def test_verdict_concurrency_all_ok_passes():
+    s = nt.summarize_concurrency([{"status_code": 200, "latency_ms": 10}] * 4)
+    ok, ev = nt.verdict_concurrency(s)
+    assert ok and "n=4 ok=4" in ev
+
+
+def test_verdict_concurrency_partial_fails():
+    s = nt.summarize_concurrency([{"status_code": 200, "latency_ms": 10},
+                                  {"status_code": 500, "latency_ms": 10}])
+    ok, _ = nt.verdict_concurrency(s)
+    assert not ok
+
+
+def test_verdict_concurrency_empty_is_fail():
+    ok, ev = nt.verdict_concurrency({"n": 0, "ok": 0})
+    assert not ok and "nenhuma chamada" in ev
+
+
+def test_run_concurrency_via_fake_sender():
+    resp = _FakeResp(json_data={"choices": [{"message": {"content": "OK"}}]})
+    res = nt.run_concurrency(_sender_factory(resp), "novai-x", n=3)
+    assert res.passed and res.test == "concurrency" and "n=3 ok=3" in res.evidence
+
+
+# --- orquestradores novos com sender fake ----------------------------------
+
+def test_run_json_strict_via_fake_sender():
+    resp = _FakeResp(json_data={"choices": [{"message": {"content": '{"ok": true}'}}]})
+    res = nt.run_json_strict(_sender_factory(resp), "novai-x")
+    assert res.passed and res.test == "json_strict"
+
+
+def test_run_error_contract_404_via_fake_sender():
+    resp = _FakeResp(status=404, json_data={"error": {"message": "not found"}})
+    res = nt.run_error_contract(_sender_factory(resp), "novai-x", case="404")
+    assert res.passed and res.test == "error_404"
+
+
+def test_run_error_contract_wrong_status_is_fail():
+    # Pediu 404, veio 500 → fail mesmo com corpo de erro.
+    resp = _FakeResp(status=500, json_data={"error": {"message": "boom"}})
+    res = nt.run_error_contract(_sender_factory(resp), "novai-x", case="404")
+    assert not res.passed and "esperado=404" in res.evidence
+
+
+def test_run_param_forwarding_via_fake_sender():
+    resp = _FakeResp(json_data=_chat_resp("um dois tres"))
+    res = nt.run_param_forwarding(_sender_factory(resp), "novai-x")
+    assert res.passed and res.test == "param_forwarding"
+
+
+def test_run_needle_via_fake_sender():
+    resp = _FakeResp(json_data={"choices": [{"message": {"content": "AGULHA-7F3A"}}]})
+    res = nt.run_needle(_sender_factory(resp), "novai-x", filler_tokens=100)
+    assert res.passed and res.test == "needle"
+
+
+def test_run_ttft_without_iter_lines_is_fail_closed():
+    # Corpo inteiro (sem iter_lines) ⇒ TTFT não observável ⇒ fail-closed.
+    raw = f'{_chunk("O")}\n\n{_chunk("K")}\n\ndata: [DONE]\n\n'
+    res = nt.run_ttft(_sender_factory(_FakeResp(200, text=raw)), "novai-x")
+    assert not res.passed and "sem primeiro token" in res.evidence
+
+
+def test_run_ttft_with_iter_lines_measures():
+    class _StreamResp(_FakeResp):
+        def iter_lines(self):
+            return iter([_chunk("O").encode(), b"", _chunk("K").encode(),
+                         b"data: [DONE]"])
+
+    res = nt.run_ttft(_sender_factory(_StreamResp(200)), "novai-x")
+    assert res.passed and res.test == "ttft" and "ttft_ms=" in res.evidence
