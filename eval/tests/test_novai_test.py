@@ -79,6 +79,196 @@ def test_verdict_thinking_off_but_has_reasoning_fails():
     assert not ok
 
 
+# --- Fase L: convenção -fast não é universal -------------------------------
+
+def test_is_reasoning_model_true_for_reasoning_slug():
+    assert nt.is_reasoning_model("novai-glm-5.3")
+    assert nt.is_reasoning_model("novai-glm-5.3-fast")
+
+
+def test_is_reasoning_model_false_for_vision_ocr():
+    assert not nt.is_reasoning_model("novai-qwen3.5-ocr")
+    assert not nt.is_reasoning_model("novai-qwen3.5-ocr-fast")
+    assert not nt.is_reasoning_model("novai-hy-mt2-lite")
+
+
+def test_non_reasoning_slugs_have_no_fast_suffix():
+    # A lista guarda o slug BASE; sufixo -fast é removido por is_reasoning_model.
+    assert all(not s.endswith("-fast") for s in nt.NON_REASONING_SLUGS)
+
+
+def test_thinking_off_supported_true_for_regular_upstream():
+    assert nt.thinking_off_supported("novai-deepseek-v4-flash")
+    assert nt.thinking_off_supported("novai-qwen3.8-max")
+
+
+def test_thinking_off_supported_false_for_kimi_and_glm():
+    # Kimi/ZhiPu rejeitam `disabled` e `low` NÃO desliga o reasoning (medido
+    # no re-sweep de 2026-10-17) → não existe modo "off" nesses upstreams.
+    assert not nt.thinking_off_supported("novai-kimi-k2.6-fast")
+    assert not nt.thinking_off_supported("novai-glm-5.3-fast")
+
+
+def test_run_chat_skips_thinking_on_for_non_reasoning_model():
+    class _R:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "OK"}}]}
+
+    res = nt.run_chat(lambda *a, **k: _R(), "novai-qwen3.5-ocr", thinking="on")
+    assert res.passed and res.skipped
+    assert "não-reasoning" in res.evidence
+
+
+def test_run_chat_skips_thinking_off_for_kimi_fast():
+    class _R:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "OK"}}],
+                    "usage": {"completion_tokens_details": {"reasoning_tokens": 0}}}
+
+    res = nt.run_chat(lambda *a, **k: _R(), "novai-kimi-k2.6-fast",
+                      thinking="disabled")
+    assert res.passed and res.skipped
+    assert "não suporta thinking OFF" in res.evidence
+
+
+def test_run_chat_uses_disabled_payload_for_regular_fast():
+    seen = {}
+
+    class _R:
+        status_code = 200
+
+        @staticmethod
+        def json():
+            return {"choices": [{"message": {"content": "OK"}}],
+                    "usage": {"completion_tokens_details": {"reasoning_tokens": 0}}}
+
+    def sender(path, json_body=None, **kw):
+        seen.update(json_body)
+        return _R()
+
+    nt.run_chat(sender, "novai-deepseek-v4-flash-fast", thinking="disabled")
+    assert seen["extra_body"] == {"thinking": {"type": "disabled"}}
+
+
+# --- Fase L: defaults de parâmetro por modelo ------------------------------
+
+def test_image_size_default_and_override():
+    assert nt.image_size_for("novai-image-qwen-image") == "1024x1024"
+    assert nt.image_size_for("novai-image-seedream-image-v5.0-lite") == "2048x2048"
+
+
+def test_tts_voice_default_and_override():
+    assert nt.tts_voice_for("novai-tts-openai") == "alloy"
+    assert nt.tts_voice_for("novai-tts-qwen3-tts-flash") == "Cherry"
+
+
+# --- Fase L (L5): retry em 429 ---------------------------------------------
+
+def test_retry_delay_prefers_retry_after_header():
+    assert nt.retry_delay(1, "7") == 7.0
+    assert nt.retry_delay(3, "0") == 0.0
+
+
+def test_retry_delay_falls_back_to_exponential_backoff():
+    assert nt.retry_delay(1) == nt.RETRY_BACKOFF_S
+    assert nt.retry_delay(2) == nt.RETRY_BACKOFF_S * 2
+    assert nt.retry_delay(99) == nt.RETRY_BACKOFF_CAP_S
+
+
+def test_retry_delay_ignores_invalid_retry_after():
+    # HTTP-date e lixo não são numéricos: cai no backoff exponencial.
+    assert nt.retry_delay(1, "Wed, 21 Oct 2026 07:28:00 GMT") == nt.RETRY_BACKOFF_S
+    assert nt.retry_delay(1, "abc") == nt.RETRY_BACKOFF_S
+
+
+class _Resp:
+    def __init__(self, status_code, headers=None):
+        self.status_code = status_code
+        self.headers = headers or {}
+        self.text = ""
+
+
+def test_send_with_retry_retries_429_then_succeeds():
+    calls = []
+    sleeps = []
+
+    def send():
+        calls.append(1)
+        return _Resp(429, {"Retry-After": "1"}) if len(calls) == 1 else _Resp(200)
+
+    r = nt._send_with_retry(send, sleep=sleeps.append)
+    assert r.status_code == 200
+    assert len(calls) == 2
+    assert sleeps == [1.0]
+
+
+def test_send_with_retry_does_not_retry_400_or_404():
+    for code in (400, 404, 500):
+        calls = []
+
+        def send(code=code):
+            calls.append(1)
+            return _Resp(code)
+
+        r = nt._send_with_retry(send, sleep=lambda _s: None)
+        assert r.status_code == code
+        assert len(calls) == 1
+
+
+def test_send_with_retry_gives_up_after_max_retries():
+    calls = []
+
+    def send():
+        calls.append(1)
+        return _Resp(429)
+
+    r = nt._send_with_retry(send, sleep=lambda _s: None, max_retries=2)
+    assert r.status_code == 429
+    assert len(calls) == 3  # 1 tentativa + 2 retries
+
+
+# --- Fase L (L6): passthrough na matriz ------------------------------------
+
+def test_passthrough_matrix_group_matches_csv_rows():
+    assert nt.passthrough_matrix_group("video") == "(passthrough) /novai/video"
+    assert nt.passthrough_matrix_group("3d") == "(passthrough) /novai/3d"
+
+
+def test_passthrough_model_is_a_real_catalog_id():
+    # "default" devolve 400 "Model not found": o passthrough não traduz o corpo.
+    assert nt.passthrough_model_for("video") == "minimax-video-h3"
+    assert nt.passthrough_model_for("3d") == "hy-3d-express"
+    assert nt.passthrough_model_for("desconhecido") == "default"
+
+
+def test_run_passthrough_uses_matrix_group_as_key(monkeypatch):
+    seen = {}
+
+    class _R:
+        status_code = 200
+        text = ""
+
+        def json(self):
+            return {"task_id": "t1", "status": "queued"}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        return _R()
+
+    monkeypatch.setattr(nt.requests, "post", fake_post)
+    cfg = {"base_url": "http://localhost:4000/v1", "api_key": "sk-x"}
+    res = nt.run_passthrough(cfg, "video")
+    assert res.group == "(passthrough) /novai/video"
+    assert seen["url"] == "http://localhost:4000/novai/video"
+    assert res.passed
+
+
 # --- tool calls ------------------------------------------------------------
 
 def test_verdict_tool_calls_ok():

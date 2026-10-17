@@ -274,6 +274,71 @@ def verdict_thinking_on(resp: dict) -> tuple[bool, str]:
     return False, "sem reasoning (esperado ON)"
 
 
+# S103 / Fase L — a convenção "rota base = thinking ON" NÃO é universal.
+# Modelos de visão/OCR/tradução/role-play não raciocinam em nenhum modo, então
+# exigir reasoning deles é FALSO POSITIVO do harness (17 casos na varredura de
+# 2026-10-17). A lista abaixo é o conjunto medido de modelos não-reasoning que
+# têm par `-fast` no config. Manter em sincronia com `litellm/config.yaml`.
+NON_REASONING_SLUGS = frozenset({
+    "novai-qwen3-vl-plus",
+    "novai-qwen3.5-ocr",
+    "novai-qwen-vl-ocr",
+    "novai-qwen-mt-plus",
+    "novai-qwen-plus",
+    "novai-qwen3-coder-flash",
+    "novai-qwen3-omni-flash",
+    "novai-minimax-text-01",
+    "novai-hunyuan-t1-vision",
+    "novai-hy-vision-2.0-instruct",
+    "novai-hunyuan-turbos-vision-video",
+    "novai-hy-mt2-pro",
+    "novai-hy-mt2-plus",
+    "novai-hunyuan-role",
+    "novai-hy-role",
+    "novai-hy3-preview",
+    "novai-hy-mt2-lite",
+})
+
+
+def is_reasoning_model(group: str) -> bool:
+    """True se o grupo é de raciocínio (logo, a rota base deve emitir reasoning).
+
+    Puro e determinístico: só olha o nome do grupo. Modelos em
+    ``NON_REASONING_SLUGS`` (com ou sem sufixo ``-fast``) devolvem False — para
+    eles o veredito de thinking ON vira ``skip`` em vez de ``fail``.
+    """
+    slug = group[: -len("-fast")] if group.endswith("-fast") else group
+    return slug not in NON_REASONING_SLUGS
+
+
+# S103 / Fase L — upstreams que REJEITAM ``thinking:{type:disabled}``.
+# Kimi (Moonshot) e ZhiPu (GLM) devolvem 400 "The request is invalid"; GLM 5.3
+# responde "该模型始终思考，不支持关闭思考" (sempre pensa).
+#
+# TENTATIVA DESCARTADA (medida em 2026-10-17): trocar ``disabled`` por
+# ``thinking:{type:"low"}`` para esses prefixos. O re-sweep mostrou que ``low``
+# NÃO desliga o reasoning — modelos que passavam (glm-5.2-fast, glm-5.1-fast,
+# glm-5v-turbo-fast, glm-4.6v-fast, kimi-k2.6-fast, kimi-k3-fast) passaram a
+# emitir reasoning e viraram fail (chat-fast: 20 → 27 fails). Conclusão: para
+# esses upstreams NÃO existe modo "off" — a rota ``-fast`` é inválida por
+# construção. O veredito correto é ``skip``, não ``low``.
+THINKING_OFF_UNSUPPORTED_PREFIXES = (
+    "novai-kimi-",
+    "novai-glm-",
+)
+
+
+def thinking_off_supported(group: str) -> bool:
+    """True se o upstream aceita ``thinking:{type:disabled}`` neste grupo.
+
+    Puro: decide só pelo nome. Kimi/ZhiPu devolvem False — para eles a rota
+    ``-fast`` não tem como desligar o reasoning, então o teste vira ``skip``
+    em vez de ``fail`` (não é defeito nosso nem do gateway: é a convenção
+    "``-fast`` = thinking OFF" que não se aplica).
+    """
+    return not group.startswith(THINKING_OFF_UNSUPPORTED_PREFIXES)
+
+
 def verdict_thinking_off(resp: dict) -> tuple[bool, str]:
     """thinking OFF (-fast): reasoning≈0 (ausente ou 0 tokens)."""
     msg = (resp.get("choices") or [{}])[0].get("message", {}) or {}
@@ -901,12 +966,56 @@ Sender = Callable[..., requests.Response]
 # S103 / P3b: limite de bytes do corpo bruto guardado no jsonl (spec §12).
 BODY_RAW_LIMIT = 4000
 
+# S103 / Fase L (L5): retry em 429. O gateway roda a 60 rpm e o sweep dispara
+# ~157 rotas em sequência; sem retry um 429 transitório vira ``fail`` e polui a
+# matriz com falso positivo. Só 429 é retentado — 400/404/500 são determinísticos
+# e retentar só gasta cota.
+RETRY_STATUS = frozenset({429})
+RETRY_MAX = 2
+RETRY_BACKOFF_S = 2.0
+RETRY_BACKOFF_CAP_S = 30.0
+
+
+def retry_delay(attempt: int, retry_after: str | None = None) -> float:
+    """Espera (s) antes da tentativa ``attempt`` (1-based). Puro e testável.
+
+    Prefere ``Retry-After`` numérico do upstream (o gateway manda); senão usa
+    backoff exponencial ``RETRY_BACKOFF_S * 2**(attempt-1)`` limitado por
+    ``RETRY_BACKOFF_CAP_S``. ``Retry-After`` inválido/HTTP-date é ignorado.
+    """
+    if retry_after:
+        try:
+            return max(0.0, float(retry_after))
+        except (TypeError, ValueError):
+            pass
+    return min(RETRY_BACKOFF_CAP_S, RETRY_BACKOFF_S * (2 ** (attempt - 1)))
+
+
+def _send_with_retry(send: Callable[[], requests.Response], *,
+                     sleep: Callable[[float], None] = time.sleep,
+                     max_retries: int = RETRY_MAX) -> requests.Response:
+    """Executa ``send`` retentando só em ``RETRY_STATUS`` (429).
+
+    ``sleep`` é injetável para o teste rodar sem esperar de verdade. Devolve a
+    última resposta (mesmo 429) — quem decide o veredito é o chamador.
+    """
+    r = send()
+    for attempt in range(1, max_retries + 1):
+        if r.status_code not in RETRY_STATUS:
+            return r
+        ra = (getattr(r, "headers", {}) or {}).get("Retry-After")
+        sleep(retry_delay(attempt, ra))
+        r = send()
+    return r
+
 
 def make_sender(cfg: dict) -> Sender:
     """Fecha base_url/api_key num callable que faz POST (ou GET) ao proxy.
 
     ``method="GET"`` (Fase J) é necessário para o polling de tasks assíncronas:
     ``GET /video/generations/<id>`` devolve 405 se enviado como POST.
+
+    S103 / Fase L (L5): 429 é retentado com backoff (``_send_with_retry``).
     """
     headers = {"Authorization": f"Bearer {cfg['api_key']}"}
 
@@ -914,9 +1023,12 @@ def make_sender(cfg: dict) -> Sender:
               method: str = "POST"):
         url = f"{cfg['base_url']}/{path.lstrip('/')}"
         if method.upper() == "GET":
-            return requests.get(url, headers=headers, timeout=120)
-        return requests.post(url, headers=headers, json=json_body, data=data,
-                             files=files, stream=stream, timeout=120)
+            return _send_with_retry(
+                lambda: requests.get(url, headers=headers, timeout=120))
+        return _send_with_retry(
+            lambda: requests.post(url, headers=headers, json=json_body,
+                                  data=data, files=files, stream=stream,
+                                  timeout=120))
 
     return _send
 
@@ -935,8 +1047,12 @@ def make_capturing_sender(cfg: dict, sink: dict) -> Sender:
         url = f"{cfg['base_url']}/{path.lstrip('/')}"
         sink.clear()
         sink["request"] = {"method": "POST", "url": url, "body": json_body}
-        r = requests.post(url, headers=headers, json=json_body, data=data,
-                          files=files, stream=stream, timeout=120)
+        # S103 / Fase L (L5): mesmo retry do make_sender, para o jsonl registrar
+        # a resposta FINAL (não o 429 transitório).
+        r = _send_with_retry(
+            lambda: requests.post(url, headers=headers, json=json_body,
+                                  data=data, files=files, stream=stream,
+                                  timeout=120))
         sink["headers"] = dict(getattr(r, "headers", {}) or {})
         text = getattr(r, "text", "") or ""
         # S103 / Fase G: respostas de imagem trazem URL PRÉ-ASSINADA (OSS/COS)
@@ -1023,8 +1139,19 @@ def run_chat(sender: Sender, group: str, *, stream=False, tools=False,
     if tools:
         ok, ev = verdict_tool_calls(resp)
     elif thinking == "disabled":
+        # S103 / Fase L: Kimi/ZhiPu não têm modo "off" — a rota -fast é
+        # inválida por construção. Cobrar reasoning==0 deles é falso positivo.
+        if not thinking_off_supported(group):
+            return CheckResult(group, "chat", label, True,
+                               "skip: upstream não suporta thinking OFF",
+                               skipped=True)
         ok, ev = verdict_thinking_off(resp)
     elif thinking == "on":
+        # S103 / Fase L: modelo não-reasoning não tem como emitir reasoning —
+        # exigir isso é falso positivo. Vira skip com evidência explícita.
+        if not is_reasoning_model(group):
+            ok, ev = True, "skip: modelo não-reasoning (sem par de thinking)"
+            return CheckResult(group, "chat", label, ok, ev, skipped=True)
         ok, ev = verdict_thinking_on(resp)
     else:
         ok, ev = verdict_chat(resp)
@@ -1364,12 +1491,37 @@ def _parse_pgvector_text(text: str) -> list[float]:
         return []
 
 
+# S103 / Fase L — defaults de parâmetro por modelo.
+# A varredura de 2026-10-17 mostrou que ``1024x1024``/``alloy`` não são
+# universais: Seedream exige área mínima maior e o Qwen TTS não conhece a voz
+# ``alloy``. Sem isso o teste acusa o MODELO por um default NOSSO inválido.
+IMAGE_SIZE_OVERRIDES = {
+    "novai-image-seedream-image-v5.0-lite": "2048x2048",
+}
+TTS_VOICE_OVERRIDES = {
+    "novai-tts-qwen3-tts-flash": "Cherry",
+    "novai-tts-qwen-tts": "Cherry",
+    "novai-tts-qwen-tts-latest": "Cherry",
+}
+
+
+def image_size_for(group: str) -> str:
+    """Tamanho de imagem aceito pelo modelo (puro: só olha o nome)."""
+    return IMAGE_SIZE_OVERRIDES.get(group, "1024x1024")
+
+
+def tts_voice_for(group: str) -> str:
+    """Voz aceita pelo modelo TTS (puro: só olha o nome)."""
+    return TTS_VOICE_OVERRIDES.get(group, "alloy")
+
+
 def run_image(sender: Sender, group: str) -> CheckResult:
-    # S103 / Fase G: ``1024x1024`` é o menor tamanho aceito por TODOS os
+    # S103 / Fase G: ``1024x1024`` é o menor tamanho aceito por QUASE TODOS os
     # provedores de imagem do gateway. Com ``512x512`` os modelos Seedream
     # devolvem 400 ("image area must be ..."), o que mascarava o teste como
-    # falha de modelo quando era só parâmetro inválido.
-    body = {"model": group, "prompt": "um gato azul", "size": "1024x1024",
+    # falha de modelo quando era só parâmetro inválido. Fase L: Seedream v5.0
+    # lite exige ainda mais área → override por modelo.
+    body = {"model": group, "prompt": "um gato azul", "size": image_size_for(group),
             "n": 1}
     try:
         r = sender("/images/generations", json_body=body)
@@ -1383,7 +1535,7 @@ def run_image(sender: Sender, group: str) -> CheckResult:
 
 
 def run_tts(sender: Sender, group: str) -> CheckResult:
-    body = {"model": group, "input": "Olá mundo", "voice": "alloy",
+    body = {"model": group, "input": "Olá mundo", "voice": tts_voice_for(group),
             "response_format": "mp3"}
     try:
         r = sender("/audio/speech", json_body=body)
@@ -1464,23 +1616,64 @@ def run_vision(sender: Sender, group: str, *,
     return CheckResult(group, "chat", "vision", ok, ev)
 
 
+# S103 / Fase L (L6): a matriz tem uma linha por passthrough, com ``group`` no
+# formato ``(passthrough) /novai/<kind>``. ``run_passthrough`` devolve o path
+# (``/novai/<kind>``); este mapa converte para a chave da matriz.
+PASSTHROUGH_MATRIX_GROUP = {
+    "video": "(passthrough) /novai/video",
+    "3d": "(passthrough) /novai/3d",
+}
+
+# S103 / Fase L (L6): o passthrough NÃO traduz o corpo — o ``model`` vai cru para
+# o gateway, que exige um id real do catálogo (``"default"`` devolve 400 "Model
+# not found"). Estes são os primeiros ids que o próprio gateway lista como
+# disponíveis na mensagem de erro, então são estáveis por construção.
+PASSTHROUGH_MODEL = {
+    "video": "minimax-video-h3",
+    "3d": "hy-3d-express",
+}
+
+
+def passthrough_model_for(kind: str) -> str:
+    """Id de modelo real para o passthrough ``kind`` (puro)."""
+    return PASSTHROUGH_MODEL.get(kind, "default")
+
+
+def passthrough_matrix_group(kind: str) -> str:
+    """Chave da linha da matriz para o passthrough ``kind`` (puro)."""
+    return PASSTHROUGH_MATRIX_GROUP.get(kind, f"(passthrough) /novai/{kind}")
+
+
 def run_passthrough(cfg: dict, kind: str) -> CheckResult:
-    """video/3d via passthrough: POST <host>/novai/<kind> (fora do /v1)."""
+    """video/3d via passthrough: POST <host>/novai/<kind> (fora do /v1).
+
+    S103 / Fase L (L6): o ``group`` do resultado é a chave da matriz
+    (``(passthrough) /novai/<kind>``), para ``update_matrix`` conseguir gravar.
+
+    A rota existe SÓ no proxy (``general_settings.pass_through_endpoints`` do
+    ``litellm/config.yaml``): o proxy injeta o ``Authorization`` do NovAI e
+    repassa cru para ``https://aiapi-pro.com/v1/<...>``. Chamar o gateway direto
+    devolve 405 — por isso ``cfg`` deve ser o do alvo ``proxy``.
+    """
     path = f"/novai/{kind}"
-    body = {"model": "default", "prompt": "bola girando"} if kind == "video" \
-        else {"model": "default", "prompt": "uma cadeira"}
+    group = passthrough_matrix_group(kind)
+    model = passthrough_model_for(kind)
+    body = {"model": model, "prompt": "bola girando"} if kind == "video" \
+        else {"model": model, "prompt": "uma cadeira"}
     url_base = cfg["base_url"].rsplit("/v1", 1)[0]
     try:
-        r = requests.post(f"{url_base}{path}",
-                          headers={"Authorization": f"Bearer {cfg['api_key']}"},
-                          json=body, timeout=120)
+        r = _send_with_retry(
+            lambda: requests.post(f"{url_base}{path}",
+                                  headers={"Authorization": f"Bearer {cfg['api_key']}"},
+                                  json=body, timeout=120))
     except requests.RequestException as exc:
-        return CheckResult(path, f"{kind}-passthrough", kind, False, f"erro rede: {exc}")
+        return CheckResult(group, f"{kind}-passthrough", kind, False,
+                           f"erro rede: {exc}")
     if r.status_code != 200:
-        return CheckResult(path, f"{kind}-passthrough", kind, False,
+        return CheckResult(group, f"{kind}-passthrough", kind, False,
                            f"HTTP {r.status_code}: {r.text[:120]}")
     ok, ev = verdict_passthrough(r.json())
-    return CheckResult(path, f"{kind}-passthrough", kind, ok, ev)
+    return CheckResult(group, f"{kind}-passthrough", kind, ok, ev)
 
 
 # ---------------------------------------------------------------------------
@@ -2300,6 +2493,9 @@ def main(argv: list[str] | None = None) -> int:
                          "polling limitado até estado terminal + URL do artefato")
     ap.add_argument("--3d", dest="three_d", metavar="MODEL",
                     help="Fase J (T24): idem para 3D (rota /three_d/generations)")
+    ap.add_argument("--passthrough", choices=["video", "3d", "both"],
+                    help="Fase L (L6): smoke do passthrough /novai/<kind> (fora do "
+                         "/v1) e grava o resultado na linha correspondente da matriz")
     ap.add_argument("--agent", metavar="MODEL",
                     help="Fase K (T25/T26): reproduz o request de um agente "
                          "(system longo + tools + stream) e valida a resposta")
@@ -2315,7 +2511,7 @@ def main(argv: list[str] | None = None) -> int:
     sel = select(rows, args.family, args.only_id)
     # Sem seletor nenhum (--family/--id/--all) => nada roda (evita disparo acidental).
     if not (args.family or args.only_id or args.all or args.media
-            or args.video or args.three_d or args.agent):
+            or args.video or args.three_d or args.agent or args.passthrough):
         sel = []
     elif args.all:
         sel = rows
@@ -2377,6 +2573,18 @@ def main(argv: list[str] | None = None) -> int:
                                  max_polls=60, interval_s=10.0)
         _print_and_export([res], True, args.out, write_matrix=False)
         return 0 if res.passed else 1
+
+    # ---- S103 / Fase L (L6): passthrough /novai/<kind> (fora do /v1). ----
+    if args.passthrough:
+        if not args.live:
+            print("modo dry (use --live)", file=sys.stderr)
+            return 2
+        kinds = ["video", "3d"] if args.passthrough == "both" else [args.passthrough]
+        # A rota /novai/<kind> só existe no PROXY (pass_through_endpoints).
+        cfg = target_config("proxy")
+        p_results = [run_passthrough(cfg, k) for k in kinds]
+        _print_and_export(p_results, True, args.out, write_matrix=True)
+        return 0 if all(r.passed for r in p_results) else 1
 
     # ---- S103 / Fase K: agentes E2E (T25 Copilot BYOK, T26 Roo Code). ----
     if args.agent:
