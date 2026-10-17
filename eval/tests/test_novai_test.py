@@ -804,3 +804,76 @@ def test_run_contract_suite_marks_target_and_runs_all():
     assert {r.test for r in out} >= {"ttft", "json_strict", "param_forwarding",
                                      "needle", "concurrency"}
     assert len(calls) > 0
+
+
+# ---------------------------------------------------------------------------
+# S103 / P3b — captura bruta para o jsonl (spec §12)
+# ---------------------------------------------------------------------------
+
+def test_detect_sse_framing_canonical():
+    assert nt.detect_sse_framing('data: {"a":1}\n\ndata: [DONE]\n\n') == "\\n\\n"
+
+
+def test_detect_sse_framing_single_newline_regression():
+    assert nt.detect_sse_framing('data: {"a":1}\ndata: [DONE]\n') == "\\n"
+
+
+def test_detect_sse_framing_not_sse():
+    assert nt.detect_sse_framing('{"choices": []}') == ""
+    assert nt.detect_sse_framing("") == ""
+
+
+def test_attach_capture_copies_and_redacts():
+    sink = {
+        "request": {"method": "POST", "url": "http://x/v1/chat/completions",
+                    "body": {"model": "m", "api_key": "nvai-SECRET123"}},
+        "headers": {"Authorization": "Bearer sk-SECRET456", "x-req": "1"},
+        "body_raw": '{"erro":"nvai-SECRET789"}',
+        "sse_framing": "\\n\\n",
+    }
+    res = nt.attach_capture(_cr("proxy", True), sink)
+    assert res.request["method"] == "POST"
+    assert res.sse_framing == "\\n\\n"
+    blob = f"{res.request}{res.headers}{res.body_raw}"
+    assert "SECRET" not in blob
+
+
+def test_attach_capture_empty_sink_is_noop():
+    res = nt.attach_capture(_cr("proxy", True), {})
+    assert res.request is None and res.body_raw == ""
+
+
+def test_make_capturing_sender_records_request(monkeypatch):
+    calls = {}
+
+    class _R:
+        status_code = 200
+        text = 'data: {"a":1}\n\ndata: [DONE]\n\n'
+        headers = {"content-type": "text/event-stream"}
+
+    def fake_post(url, **kw):
+        calls["url"] = url
+        return _R()
+
+    monkeypatch.setattr(nt.requests, "post", fake_post)
+    sink = {}
+    sender = nt.make_capturing_sender({"base_url": "http://x/v1",
+                                       "api_key": "nvai-K"}, sink)
+    sender("/chat/completions", json_body={"model": "m"}, stream=True)
+    assert calls["url"] == "http://x/v1/chat/completions"
+    assert sink["request"]["body"] == {"model": "m"}
+    assert sink["sse_framing"] == "\\n\\n"
+    assert sink["headers"]["content-type"] == "text/event-stream"
+
+
+def test_body_raw_limit_truncates(monkeypatch):
+    class _R:
+        status_code = 200
+        text = "x" * (nt.BODY_RAW_LIMIT + 500)
+        headers = {}
+
+    monkeypatch.setattr(nt.requests, "post", lambda url, **kw: _R())
+    sink = {}
+    nt.make_capturing_sender({"base_url": "http://x", "api_key": "k"},
+                             sink)("/chat/completions", json_body={})
+    assert len(sink["body_raw"]) == nt.BODY_RAW_LIMIT

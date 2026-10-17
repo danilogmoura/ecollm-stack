@@ -8,9 +8,10 @@ Formato: uma linha JSON por check, em
 ``reports/logs/<YYYY-MM-DD>-novai-<family>.jsonl``. Grava **sucesso E falha**
 (achado é dado; só o skip de dry-run não é registrado).
 
-Campos por linha:
-    ts, group, modality, test, target, status, passed, skipped,
-    latency_ms, cost_usd, evidence, notes, run_id
+Campos por linha (spec §12 do plano + extras):
+    ts, run_id, target, group, test_id, modality, status (success|failure),
+    passed, skipped, request (sanitizado), headers (redigidos), body_raw
+    (truncado), sse_framing, latency_ms, error, cost_usd, evidence, notes
 """
 
 from __future__ import annotations
@@ -68,19 +69,31 @@ def log_path(family: str, *, root: str | Path = "reports/logs",
 
 def result_to_record(result, *, run_id: str = "",
                      when: datetime | None = None) -> dict:
-    """Converte um ``CheckResult`` em dict serializável (já redigido)."""
+    """Converte um ``CheckResult`` em dict serializável (já redigido).
+
+    Campos alinhados à spec §12 do plano: ``ts, target, group, test_id,
+    request (sanitizado), status, headers, body_raw, sse_framing, latency_ms,
+    error`` — mais os extras úteis (``modality, passed, skipped, cost_usd,
+    evidence, notes, run_id``). Nada é descartado: o que existe no resultado
+    vai para o log.
+    """
     when = when or datetime.now(timezone.utc)
     rec = {
         "ts": when.isoformat(timespec="seconds"),
         "run_id": run_id,
-        "group": result.group,
-        "modality": result.modality,
-        "test": result.test,
         "target": result.target,
-        "status": result.status(),
+        "group": result.group,
+        "test_id": result.test,
+        "modality": result.modality,
+        "status": "success" if result.passed else "failure",
         "passed": bool(result.passed),
         "skipped": bool(result.skipped),
+        "request": getattr(result, "request", None),
+        "headers": getattr(result, "headers", None),
+        "body_raw": getattr(result, "body_raw", ""),
+        "sse_framing": getattr(result, "sse_framing", ""),
         "latency_ms": result.latency_ms,
+        "error": getattr(result, "error", ""),
         "cost_usd": result.cost_usd,
         "evidence": result.evidence,
         "notes": result.notes,

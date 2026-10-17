@@ -105,15 +105,38 @@ def main(argv: list[str] | None = None) -> int:
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
+    # S103 / P3: PRESERVA o que já foi medido. Se a matriz já existe, status e
+    # evidência de cada grupo são mantidos (regenerar o inventário NUNCA apaga
+    # resultado de run). Só grupos novos entram como "untested".
+    previous: dict[str, list[str]] = {}
+    lineterminator = "\r\n"  # o CSV versionado usa CRLF; preservar evita diff espúrio
+    if out.exists():
+        with out.open(encoding="utf-8", newline="") as fh:
+            raw = fh.read()
+        lineterminator = "\r\n" if "\r\n" in raw else "\n"
+        old = list(csv.reader(raw.splitlines()))
+        if old:
+            old_header = old[0]
+            gi = old_header.index("group")
+            si = old_header.index("status") if "status" in old_header else None
+            ei = old_header.index("evidence") if "evidence" in old_header else None
+            for line in old[1:]:
+                if len(line) > gi:
+                    previous[line[gi]] = [
+                        line[si] if si is not None and si < len(line) else "",
+                        line[ei] if ei is not None and ei < len(line) else "",
+                    ]
+
     with out.open("w", newline="", encoding="utf-8") as fh:
-        w = csv.writer(fh)
+        w = csv.writer(fh, lineterminator=lineterminator)
         # S103 / P3: colunas novas no FIM — as 5 primeiras ficam idênticas à Fase A,
         # então qualquer leitor antigo (por índice ou por nome) continua funcionando.
         w.writerow(["group", "modality", "upstream_id", "status", "evidence",
                     "target", "test_id", "latency_ms", "notes"])
         for r in all_rows:
-            w.writerow([r["group"], r["modality"], r["upstream_id"], "untested", "",
-                        "", "", "", ""])
+            status, evidence = previous.get(r["group"], ["untested", ""])
+            w.writerow([r["group"], r["modality"], r["upstream_id"], status,
+                        evidence, "", "", "", ""])
 
     # resumo por modalidade
     counts: dict[str, int] = {}

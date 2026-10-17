@@ -116,6 +116,13 @@ class CheckResult:
     target: str = "proxy"
     latency_ms: float | None = None
     notes: str = ""
+    # S103 / P3b: captura bruta para o jsonl (spec §12). Tudo passa por redact()
+    # antes de ir ao disco; aqui fica o valor já sanitizado.
+    request: dict | None = None
+    headers: dict | None = None
+    body_raw: str = ""
+    sse_framing: str = ""
+    error: str = ""
 
     def status(self) -> str:
         if self.skipped:
@@ -713,6 +720,9 @@ def verdict_concurrency(summary: dict, *, expect_all_ok: bool = True) -> tuple[b
 
 Sender = Callable[..., requests.Response]
 
+# S103 / P3b: limite de bytes do corpo bruto guardado no jsonl (spec §12).
+BODY_RAW_LIMIT = 4000
+
 
 def make_sender(cfg: dict) -> Sender:
     """Fecha base_url/api_key num callable que faz POST ao proxy."""
@@ -724,6 +734,57 @@ def make_sender(cfg: dict) -> Sender:
                              files=files, stream=stream, timeout=120)
 
     return _send
+
+
+def make_capturing_sender(cfg: dict, sink: dict) -> Sender:
+    """Sender que também registra request/response em ``sink`` (para o jsonl).
+
+    ``sink`` recebe ``request`` (método, url, body), ``headers`` (resposta, já
+    redigidos), ``body_raw`` (truncado em ``BODY_RAW_LIMIT``) e ``sse_framing``
+    (``"\\n\\n"`` | ``"\\n"`` | ``""``). O sink é limpo a cada chamada, então o
+    orquestrador lê o último valor depois de rodar o check.
+    """
+    headers = {"Authorization": f"Bearer {cfg['api_key']}"}
+
+    def _send(path: str, *, json_body=None, data=None, files=None, stream=False):
+        url = f"{cfg['base_url']}/{path.lstrip('/')}"
+        sink.clear()
+        sink["request"] = {"method": "POST", "url": url, "body": json_body}
+        r = requests.post(url, headers=headers, json=json_body, data=data,
+                          files=files, stream=stream, timeout=120)
+        sink["headers"] = dict(getattr(r, "headers", {}) or {})
+        text = getattr(r, "text", "") or ""
+        sink["body_raw"] = text[:BODY_RAW_LIMIT]
+        sink["sse_framing"] = detect_sse_framing(text) if stream else ""
+        return r
+
+    return _send
+
+
+def detect_sse_framing(text: str) -> str:
+    """Classifica o separador de eventos SSE observado no corpo.
+
+    ``"\\n\\n"`` = canônico; ``"\\n"`` = regressão conhecida (S41→S42); ``""`` =
+    não parece SSE. Puro — usado no jsonl e testável offline.
+    """
+    if not text or "data:" not in text:
+        return ""
+    if "\n\n" in text:
+        return "\\n\\n"
+    return "\\n"
+
+
+def attach_capture(result: CheckResult, sink: dict) -> CheckResult:
+    """Copia a captura do ``sink`` para o ``CheckResult`` (já redigida)."""
+    from eval.novai_log import redact_obj
+
+    if not sink:
+        return result
+    result.request = redact_obj(sink.get("request"))
+    result.headers = redact_obj(sink.get("headers"))
+    result.body_raw = redact_obj(sink.get("body_raw", ""))
+    result.sse_framing = sink.get("sse_framing", "")
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -1307,15 +1368,23 @@ def main(argv: list[str] | None = None) -> int:
     results: list[CheckResult] = []
     for target in targets:
         cfg = target_config(target)
-        sender = make_sender(cfg) if args.live else None
+        sink: dict = {}
+        sender = make_capturing_sender(cfg, sink) if args.live else None
         for i, r in enumerate(sel):
             if args.live and args.sleep > 0 and i > 0:
                 time.sleep(args.sleep)
-            results.extend(run_one(r, sender, args.live, stream=args.stream,
-                                   target=target))
+            t0 = time.monotonic()
+            batch = run_one(r, sender, args.live, stream=args.stream,
+                            target=target)
+            for res in batch:
+                if args.live and res.latency_ms is None:
+                    res.latency_ms = _elapsed_ms(t0)
+                attach_capture(res, sink)
+            results.extend(batch)
             if args.contract and args.live and r["modality"].startswith("chat"):
-                results.extend(run_contract_suite(sender, r["group"],
-                                                  target=target))
+                for res in run_contract_suite(sender, r["group"], target=target):
+                    attach_capture(res, sink)
+                    results.append(res)
 
     _print_and_export(results, args.live, args.out, write_matrix=True)
     if args.live:

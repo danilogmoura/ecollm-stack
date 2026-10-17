@@ -118,3 +118,27 @@ def test_matrix_csv_has_new_columns_after_legacy_prefix(tmp_path):
     assert header[5:] == ["target", "test_id", "latency_ms", "notes"]
     assert all(len(r) == len(header) for r in rows[1:])
     assert all(r[3] == "untested" for r in rows[1:])
+
+
+def test_regenerate_preserves_existing_results(tmp_path):
+    """S103 / P3: regenerar o inventário NUNCA apaga resultado de run."""
+    import csv
+
+    from eval import novai_inventory as ni
+
+    out = tmp_path / "m.csv"
+    assert ni.main(["--out", str(out)]) == 0
+    # simula um run que marcou 2 grupos
+    with out.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.reader(fh))
+    rows[1][3], rows[1][4] = "pass", "chat: OK"
+    rows[2][3], rows[2][4] = "fail", "chat: HTTP 404"
+    with out.open("w", encoding="utf-8", newline="") as fh:
+        csv.writer(fh).writerows(rows)
+
+    assert ni.main(["--out", str(out)]) == 0
+    with out.open(encoding="utf-8", newline="") as fh:
+        after = list(csv.reader(fh))
+    assert after[1][3] == "pass" and after[1][4] == "chat: OK"
+    assert after[2][3] == "fail" and after[2][4] == "chat: HTTP 404"
+    assert after[0][:5] == ["group", "modality", "upstream_id", "status", "evidence"]

@@ -68,9 +68,24 @@ def test_log_path_sanitizes_family():
 def test_result_to_record_fields():
     rec = nl.result_to_record(_cr(latency_ms=12.5, target="gateway"))
     assert rec["target"] == "gateway"
-    assert rec["status"] == "pass"
+    # spec §12: status do jsonl é success|failure (não pass|fail da matriz)
+    assert rec["status"] == "success"
+    assert rec["test_id"] == "smoke"
     assert rec["latency_ms"] == 12.5
     assert rec["ts"].startswith("20")
+
+
+def test_result_to_record_failure_status():
+    rec = nl.result_to_record(_cr(passed=False))
+    assert rec["status"] == "failure" and rec["passed"] is False
+
+
+def test_result_to_record_has_spec12_fields():
+    """Spec §12: request, headers, body_raw, sse_framing, error presentes."""
+    rec = nl.result_to_record(_cr())
+    for key in ("request", "headers", "body_raw", "sse_framing", "error",
+                "latency_ms", "target", "test_id", "status"):
+        assert key in rec, key
 
 
 def test_result_to_record_redacts_evidence():
