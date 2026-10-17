@@ -138,7 +138,7 @@ do achado **A6** da Fase F).
 
 | # | Alvo | Ação | Classe | Status |
 | --- | --- | --- | --- | --- |
-| L1 | `litellm/config.yaml` | Corrigir/remover os 16 `upstream_id` mortos (404) | A | ⬜ pendente |
+| L1 | `litellm/config.yaml` | Corrigir/remover os 16 `upstream_id` mortos (404) | A | ✅ **investigado — não acionável** (§3g) |
 | L2 | `eval/novai_test.py` | Veredito de thinking: só exigir reasoning se o modelo **declarar** suporte; senão `skip` | C | ✅ feito |
 | L3 | `eval/novai_test.py` | `-fast` em Kimi/ZhiPu: **não existe modo off** → `skip` | B | ✅ feito (2ª tentativa) |
 | L4 | `eval/novai_test.py` | Defaults de `size` (image) e `voice` (tts) por modelo | F | ✅ feito |
@@ -147,6 +147,10 @@ do achado **A6** da Fase F).
 
 **L1 é o único que muda comportamento de produção.** L2–L6 são qualidade do
 harness (reduzem falso positivo) e bookkeeping.
+
+> **L1 fechado em 2026-10-17:** a investigação (§3g) mostrou que **não há
+> correção de config a fazer** — os ids estão certos, o gateway é que anuncia
+> modelos que o provider não serve. Ver §3g.
 
 ### 3b. O que foi implementado (L2–L4)
 
@@ -225,6 +229,73 @@ Resultado ao vivo: ambos **pass**, `status=queued` com task id.
 Cobertura **157/157 (100%)**, zero `untested`. Os 33 fails restantes são
 majoritariamente **Classe A** (upstream morto, 404) e **Classe B** (Kimi/ZhiPu
 sem modo off) — ambos dependem de L1, não do harness.
+
+---
+
+## 3g. L1 — investigação e fechamento (2026-10-17)
+
+**Hipótese inicial (errada):** "os 16 `upstream_id` do `config.yaml` estão mortos
+e precisam ser corrigidos". **Medido e refutado.**
+
+### O que foi medido
+
+1. **Os ids existem no catálogo do gateway.** `GET /v1/models` devolve 121 ids,
+   e todos os 16 suspeitos estão lá com o nome exato que o `config.yaml` usa:
+
+   | id no catálogo | id no `config.yaml` |
+   | --- | --- |
+   | `qwen3-max` | `openai/qwen3-max` |
+   | `qwen3.6-max-preview` | `openai/qwen3.6-max-preview` |
+   | `qwen3-coder-plus` | `openai/qwen3-coder-plus` |
+   | `qwen-vl-max` | `openai/qwen-vl-max` |
+   | `qwen3-vl-flash` | `openai/qwen3-vl-flash` |
+   | `qwen-omni-turbo` | `openai/qwen-omni-turbo` |
+   | `qwen-image` / `qwen-image-plus` | idem |
+   | `qwen-tts` / `qwen-tts-latest` | idem |
+
+2. **O gateway responde 404 mesmo chamado direto, sem o proxy.** `POST
+   https://aiapi-pro.com/v1/chat/completions` com `model: qwen3-max` devolve
+   `404 {"error":{"message":"[Alibaba Cloud] Model not exist.","type":"upstream_provider_error","provider":"Alibaba Cloud","code":404}}`.
+   O mesmo acontece com os outros 5 de chat.
+
+3. **Controle positivo:** no mesmo instante, `qwen3.8-max`, `qwen3-coder-flash`
+   e `qwen-plus` devolvem **200 "OK"**. Ou seja, a chave, a cota e o gateway
+   estão saudáveis — o problema é só desses ids.
+
+### Conclusão
+
+**Não é config nossa.** O `config.yaml` está correto: o `model_name` e o
+`litellm_params.model` batem com o que o gateway anuncia. O defeito é do
+**gateway NovAI**, que lista em `/v1/models` ids que o provider upstream
+(Alibaba Cloud / 通义千问) **não serve mais** — catálogo anunciado ≠ catálogo
+roteável. É a mesma família do gap já registrado na S100 ("vídeo 20 no catálogo,
+só 9 roteáveis").
+
+**Ação nossa:** nenhuma correção de id é possível — não existe id alternativo
+para apontar. As opções são (a) **remover** os 16 grupos do `config.yaml` para
+não anunciar rota quebrada, ou (b) **manter** e documentar como gap do gateway.
+Recomendação: **(a) remover**, porque um `model_name` que sempre devolve 404 é
+pior que ausência — o cliente descobre o problema em runtime.
+
+**Status:** L1 **fechado como "não acionável por nós"** — a investigação
+concluiu que não há correção de config a fazer. A decisão de remover os grupos
+fica como item de backlog separado (muda o catálogo de produção, fora do escopo
+de teste).
+
+### Impacto nos 33 fails
+
+| Classe | Fails | Acionável por nós? |
+| --- | --- | --- |
+| A — 404 upstream (gateway anuncia, provider não serve) | 14 | ❌ não (só remover do config) |
+| B — Kimi/ZhiPu rejeitam `thinking:disabled` | 9 | ❌ não (upstream não tem modo off) |
+| D — `reasoning_chars>0` mas `reasoning_tokens=0` | 3 | ❌ não (contabilidade do gateway) |
+| E — 429 transitório | 1 | ⚠️ retry já cobre (L5); re-rodar |
+| F — `size`/`voice` inválido | 2 | ✅ **já corrigido** (L4) — re-sweep pendente |
+| G — rede / resposta vazia | 2 | ❌ não (upstream) |
+| **total** | **33** | |
+
+Nenhum fail restante é defeito do harness. Os 2 de classe F já têm correção
+aplicada (L4) e devem virar `pass` no próximo sweep.
 
 ---
 
