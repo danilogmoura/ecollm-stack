@@ -219,16 +219,15 @@ Resultado ao vivo: ambos **pass**, `status=queued` com task id.
 | chat | 38 | 6 | 17 |
 | chat-fast | 34 | 19 | 8 |
 | embedding | 6 | 0 | 0 |
-| image | 10 | 4 | 0 |
-| tts | 8 | 3 | 0 |
+| image | 11 | 3 | 0 |
+| tts | 9 | 2 | 0 |
 | asr | 1 | 1 | 0 |
 | video-passthrough | 1 | 0 | 0 |
 | 3d-passthrough | 1 | 0 | 0 |
-| **total (157)** | **99** | **33** | **25** |
+| **total (157)** | **101** | **31** | **25** |
 
-Cobertura **157/157 (100%)**, zero `untested`. Os 33 fails restantes são
-majoritariamente **Classe A** (upstream morto, 404) e **Classe B** (Kimi/ZhiPu
-sem modo off) — ambos dependem de L1, não do harness.
+Cobertura **157/157 (100%)**, zero `untested`. Os 31 fails restantes são
+todos de **upstream/gateway** — nenhum é defeito do harness (ver §3g).
 
 ---
 
@@ -282,7 +281,7 @@ concluiu que não há correção de config a fazer. A decisão de remover os gru
 fica como item de backlog separado (muda o catálogo de produção, fora do escopo
 de teste).
 
-### Impacto nos 33 fails
+### Impacto nos 31 fails
 
 | Classe | Fails | Acionável por nós? |
 | --- | --- | --- |
@@ -290,12 +289,17 @@ de teste).
 | B — Kimi/ZhiPu rejeitam `thinking:disabled` | 9 | ❌ não (upstream não tem modo off) |
 | D — `reasoning_chars>0` mas `reasoning_tokens=0` | 3 | ❌ não (contabilidade do gateway) |
 | E — 429 transitório | 1 | ⚠️ retry já cobre (L5); re-rodar |
-| F — `size`/`voice` inválido | 2 | ✅ **já corrigido** (L4) — re-sweep pendente |
 | G — rede / resposta vazia | 2 | ❌ não (upstream) |
-| **total** | **33** | |
+| **total** | **31** | |
 
-Nenhum fail restante é defeito do harness. Os 2 de classe F já têm correção
-aplicada (L4) e devem virar `pass` no próximo sweep.
+**Nenhum fail restante é defeito do harness.** Os 2 de classe F
+(`seedream-image-v5.0-lite` e `qwen3-tts-flash`) foram **re-rodados e viraram
+`pass`** após a correção L4 — confirmado ao vivo:
+
+```
+✅ [image] novai-image-seedream-image-v5.0-lite :: image — url=https://aigc-output-image-...
+✅ [tts]   novai-tts-qwen3-tts-flash          :: tts — wav bytes=49964
+```
 
 ---
 
