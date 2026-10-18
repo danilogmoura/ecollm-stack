@@ -1,6 +1,6 @@
 # NovAI — Reports & Evidence
 
-Complete investigation of the NovAI gateway (`aiapi-pro.com`) integration via LiteLLM proxy. Period: 2026-10-14 to 2026-10-18.
+Complete investigation of the NovAI gateway (`aiapi-pro.com`) integration via LiteLLM proxy.
 
 ---
 
