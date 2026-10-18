@@ -13,7 +13,7 @@ Matriz antes/depois: `matrix-before.csv` (backup) vs `reports/novai-test-matrix.
 ## Resumo dos vereditos
 
 | # | Falha | Veredito do reteste | Evidência |
-|---|-------|---------------------|-----------|
+| --- | ------- | --------------------- | ----------- |
 | P-1 | Catálogo anuncia modelos não-roteáveis | **CONFIRMADA** (persiste) | `envelope-erro.txt`, probes §1 |
 | P-2 | Kimi/ZhiPu sem thinking-OFF | **CONFIRMADA** (Kimi mais rígida que ZhiPu) | probes §2 |
 | P-3 | Contabilidade de reasoning (classe D) | **CONFIRMADA** (3/3 falham de novo, métricas mudam a cada run) | `2026-10-18-novai-proxy.jsonl` |
@@ -77,7 +77,7 @@ Re-run do harness exatamente nos 3 grupos que falham:
 Log: `reports/logs/2026-10-18-novai-proxy.jsonl` (11 registros, 3 failures):
 
 | grupo | baseline (matrix-before) | hoje |
-|---|---|---|
+| --- | --- | --- |
 | novai-minimax-m2.7-fast | chars=79 tok=0 | **fail** chars=108 tok=28 |
 | novai-minimax-m2.5-fast | chars=173 tok=48 | **fail** chars=134 tok=29 |
 | novai-step-5-preview-fast | chars=123 tok=0 | **fail** chars=161 tok=0 |
@@ -93,7 +93,7 @@ A narrativa histórica ("gateway ignora `thinking:{type:disabled}`") estava erra
 na causa. Matriz de 4 casos (`a6-thinking-forwarding.txt`):
 
 | alvo | modelo | payload | HTTP | completion | reasoning_tokens | rc_chars |
-|---|---|---|---|---|---|---|
+| --- | --- | --- | --- | --- | --- | --- |
 | gateway | glm-5 | sem campo (baseline ON) | 200 | 114 | 112 | 376 |
 | gateway | glm-5 | `thinking:{type:disabled}` **na raiz** | 200 | **1** | null | **0** |
 | proxy | novai-glm-5-fast | `extra_body.thinking:disabled` (payload do harness) | 200 | **1** | null | 0 |
@@ -137,7 +137,7 @@ Probe stream com `tools=[noop]`, `tool_choice:auto`, gateway direto
 (`tools-stream-assimetria.txt`):
 
 | modelo | content antes do tool_call? | chunks com content | detalhe |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | glm-4.6v | **SIM** — `"\nI will call the noop tool as requested."` | 10 | finish=tool_calls |
 | glm-5 | **SIM** — `"Vou chamar a ferramenta \`noop\` para você"` | 7 | |
 | minimax-m3 | **SIM** — `"<think>The user is asking me to use the '` | 7 | raciocínio vazando em `delta.content` |
@@ -186,6 +186,7 @@ parser ficam pendurados. **Veredito: persiste (upstream MiniMax).**
 ### 7c. mimo-v2.6-pro vision — RECUPERADO, com restrição de budget
 
 `mimo-vision.txt`: escada de `max_tokens` no mesmo pedido visual:
+
 - 128 → 200, `finish=length`, `content=""`, só `reasoning_content` truncado;
 - 256 → idem;
 - **512 → 200 em 8,8 s, `finish=stop`, `content="Verde"`** ✔.
@@ -270,7 +271,7 @@ reincidente desde ontem; monitorar antes de rotacionar tráfego para esse id.
 Diretório: `reports/logs/retest-2026-10-18/`
 
 | arquivo | conteúdo |
-|---|---|
+| --- | --- |
 | `matrix-before.csv` | snapshot da matriz antes dos re-runs de hoje |
 | `a6-thinking-forwarding.txt` | matriz de 4 casos thinking raiz × extra_body × alvo |
 | `envelope-erro.txt` | probes de erro POST/GET nos dois alvos (inclui HTML 404) |

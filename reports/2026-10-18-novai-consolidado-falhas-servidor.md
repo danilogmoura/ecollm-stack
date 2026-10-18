@@ -99,11 +99,13 @@ graph LR
 
 - **Sintoma:** a rota `-fast` retorna HTTP 200 com `reasoning_content` preenchido
   mas `usage.reasoning_tokens = 0` (ou parcial):
+
   | Grupo | Evidência medida |
   | --- | --- |
   | `novai-minimax-m2.7-fast` | `reasoning_chars=79–150`, `reasoning_tokens=0` |
   | `novai-minimax-m2.5-fast` | `reasoning_chars=90–173`, `reasoning_tokens=23–48` (subcontabilizado) |
   | `novai-step-5-preview-fast` | `reasoning_chars=123–130`, `reasoning_tokens=0` |
+
 - **Diagnóstico:** o upstream MiniMax/Step **ignora o pedido de thinking OFF**
   (emite reasoning mesmo na rota `-fast`) **e** não contabiliza os tokens de
   reasoning em `usage`. Dupla divergência de contrato: comportamento + contabilidade.
@@ -240,16 +242,16 @@ K1 (merge de tool_calls), S115-fix (expected 404→(400,404)), captura por-check
 
 **Do nosso lado — administrativas:**
 
-8. **P-8** Rodar `--passthrough` e registrar as 2 linhas remanescentes da matriz
+1. **P-8** Rodar `--passthrough` e registrar as 2 linhas remanescentes da matriz
    (bookkeeping; funcionalmente validado na Fase J/L6). *(baixa)*
-9. **P-9** "Refresh Models" no perfil NovAI do Roo (cache 168 → 152). *(manual, baixa)*
-10. **P-10** Re-checar os 3 fails classe D periodicamente com
+2. **P-9** "Refresh Models" no perfil NovAI do Roo (cache 168 → 152). *(manual, baixa)*
+3. **P-10** Re-checar os 3 fails classe D periodicamente com
     `RAG_PROFILE=qwen37 .venv/bin/python -m eval.novai_test --family chat --live --sleep 1.1`
     — fechar S115 quando caírem a ≤2 ou forem aceitos como permanentes. *(baixa)*
-11. **P-11** (opcional) Implementar S118 — validadores de contrato de tools
+4. **P-11** (opcional) Implementar S118 — validadores de contrato de tools
     offline no harness (o sweep S119 já cobriu empiricamente; S118 formaliza em
     schema/testes). *(média, sem bloqueio)*
-12. **P-12** (opcional) Persistir logs do proxy LiteLLM entre restarts do
+5. **P-12** (opcional) Persistir logs do proxy LiteLLM entre restarts do
     container. *(baixa)*
 
 **Regra de decisão do S115 (fechamento):** item fecha quando (i) fails ≤2 ou
