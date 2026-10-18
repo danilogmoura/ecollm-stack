@@ -10,7 +10,7 @@
 ## Resumo Executivo
 
 | Error ID | Descrição | Veredito Anterior | Veredito Reteste | Mudança? |
-|----------|-----------|-------------------|------------------|----------|
+| ---------- | ----------- | ------------------- | ------------------ | ---------- |
 | P-3 | Reasoning accounting (chars/tokens) | 🔴 FAIL | 🔴 **FAIL persistente** (3/3) | Não |
 | P-7a | wan2.2-t2i-flash timeout | 🔴 FAIL | 🔴 **FAIL determinístico** (3/3 timeout 120s) | Não |
 | P-5 | FastAPI error envelope | 🔴 FAIL | 🔴 **FAIL confirmado** (gateway diverged) | Não |
@@ -24,6 +24,7 @@
 | P-7c | mimo-v2.6-pro intermitente | 🟡 | ✅ **RESOLVIDO** (3/3 pass) | Melhorou! |
 
 **Mudanças significativas:**
+
 - 🟢 **P-7c RESOLVIDO** — mimo-v2.6-pro agora funciona consistentemente
 - 🔴 **E-429 glm-4.6v-flash PIOROU** — de intermitente para persistente (3/3 fail)
 - ⚪ **P-7e** não é bug — quota Tencent Hunyuan esgotada (402 billing)
@@ -37,7 +38,7 @@
 **Evidência:** `onda1-p3.txt`
 
 | Modelo | reasoning_chars | reasoning_tokens | Veredito |
-|--------|----------------|-----------------|----------|
+| -------- | ---------------- | ----------------- | ---------- |
 | minimax-m2.7-fast | 102 | 28 | ❌ FAIL |
 | minimax-m2.5-fast | 118 | 31 | ❌ FAIL |
 | step-5-preview-fast | 133 | 0 | ❌ FAIL |
@@ -49,7 +50,7 @@
 **Evidência:** `onda1-p7a.txt`
 
 | Run | Timestamp | Resultado |
-|-----|-----------|-----------|
+| ----- | ----------- | ----------- |
 | 1 | 06:20:44 | ❌ Read timed out (read timeout=120) |
 | 2 | 06:22:55 | ❌ Read timed out (read timeout=120) |
 | 3 | 06:25:06 | ❌ Read timed out (read timeout=120) |
@@ -102,7 +103,7 @@ Todos os outros endpoints (chat.completion, chat.completion.chunk, embeddings, i
 **Evidência:** `onda3-tools.txt`
 
 | Modelo | Events | Tool Calls | Content Antes? | Veredito |
-|--------|--------|------------|----------------|----------|
+| -------- | -------- | ------------ | ---------------- | ---------- |
 | glm-4.6v | 55 | 2 | Sim (linha 77 < 105) | ❌ P-6 FAIL |
 | glm-5 | 18 | 2 | Não | ✅ P-6 PASS |
 | minimax-m3 | 13 | 3 | Sim (linha 3 < 17) | ❌ P-6 FAIL |
@@ -192,7 +193,7 @@ checks=2 pass=2 fail=0 skip=0
 **Evidência:** `onda5-intermitentes.txt`
 
 | Run | Events | [DONE] | Resultado |
-|-----|--------|--------|-----------|
+| ----- | -------- | -------- | ----------- |
 | 1 | 19 | ✅ | ✅ HTTP 200 |
 | 2 | 15 | ✅ | ✅ HTTP 200 |
 | 3 | 15 | ✅ | ✅ HTTP 200 |
@@ -211,23 +212,23 @@ checks=2 pass=2 fail=0 skip=0
 
 ### Tickets NovAI (manter)
 
-4. **P-3 reasoning accounting** — 3 modelos afetados, persistente.
-5. **P-7a wan2.2-t2i-flash** — timeout determinístico 120s, bug upstream.
-6. **P-5 error envelope** — gateway FastAPI vs OpenAI shape (proxy mitiga).
-7. **P-6 tools stream** — 3/5 modelos falam antes de tool_calls.
-8. **P-7b minimax-text-01** — stream sem [DONE].
-9. **P-7d vídeo** — task FAILED imediata, ticket com task_id `1409238524-WandVideo-811df415e84746e7a7eed25faf3b47a5`.
+1. **P-3 reasoning accounting** — 3 modelos afetados, persistente.
+2. **P-7a wan2.2-t2i-flash** — timeout determinístico 120s, bug upstream.
+3. **P-5 error envelope** — gateway FastAPI vs OpenAI shape (proxy mitiga).
+4. **P-6 tools stream** — 3/5 modelos falam antes de tool_calls.
+5. **P-7b minimax-text-01** — stream sem [DONE].
+6. **P-7d vídeo** — task FAILED imediata, ticket com task_id `1409238524-WandVideo-811df415e84746e7a7eed25faf3b47a5`.
 
 ### Monitoramento
 
-10. **E-429 glm-4.7-flash** — ainda intermitente (1/3), retry cobre.
+ 1. **E-429 glm-4.7-flash** — ainda intermitente (1/3), retry cobre.
 
 ---
 
 ## Arquivos de Evidência
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `onda1-p3.txt` | P-3 reasoning accounting (3 modelos) |
 | `onda1-p7a.txt` | P-7a wan2.2 timeout (3 runs) |
 | `onda2-contrato.txt` | P-5 contrato shape dual-target |
