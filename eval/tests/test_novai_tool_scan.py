@@ -423,6 +423,87 @@ class TestScanModel:
                      st_code=ST_SO_TOOLS)
         assert not r2.irregular
 
+    def test_record_recebe_duas_evidencias_crus(self):
+        ns = FakeResp(_resp(tool_calls=[_tc()], finish="tool_calls"),
+                      text='{"ok":1}')
+        raw = _sse([_delta_event(tool_calls=[
+            {"index": 0, "function": {"arguments": "{}"}}]),
+            _delta_event(finish="tool_calls")])
+        st = FakeResp({}, text=raw)
+        recs: list[dict] = []
+        row = scan_model(_sender_for([ns, st]), "m1", record=recs.append)
+        assert row.ns_code == NS_CONFORME
+        assert [r["kind"] for r in recs] == ["nonstream", "stream"]
+        assert recs[0]["raw_text"] == '{"ok":1}'
+        assert recs[0]["status_code"] == 200
+        assert recs[1]["raw_text"] == raw  # SSE integral, sem truncar
+        assert all(r["model"] == "m1" for r in recs)
+
+    def test_record_omitido_em_falha_de_transport(self):
+        recs: list[dict] = []
+        row = scan_model(_sender_for([Boom("down"), Boom("down")]), "m1",
+                         record=recs.append)
+        assert row.ns_code == NS_ERRO
+        assert recs == []
+
+
+class TestJsonlDumper:
+    def test_escreve_linhas_jsonl_append(self, tmp_path: Path):
+        import json as _json
+        import eval.novai_tool_scan as ts
+        p = tmp_path / "d.jsonl"
+        rec = ts.jsonl_dumper(p)
+        rec({"model": "a", "kind": "nonstream", "raw_text": "x"})
+        rec({"model": "b", "kind": "stream", "raw_text": "y\n\n"})
+        rec.handle.close()
+        lines = p.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        assert _json.loads(lines[1])["raw_text"] == "y\n\n"
+        # append: reabrir mantém as anteriores
+        rec2 = ts.jsonl_dumper(p)
+        rec2({"model": "c", "kind": "nonstream", "raw_text": "z"})
+        rec2.handle.close()
+        assert len(p.read_text(encoding="utf-8").splitlines()) == 3
+
+    def test_run_scan_com_record_factory(self, monkeypatch, tmp_path: Path):
+        import eval.novai_tool_scan as ts
+        mcsv = tmp_path / "m.csv"
+        mcsv.write_text(
+            "group,modality,upstream_id,status,evidence,target,test_id,"
+            "latency_ms,notes\n"
+            "novai-a,chat,x,pass,,proxy,chat,1,\n", encoding="utf-8")
+        monkeypatch.setattr(ts, "MATRIX_CSV", mcsv)
+        ns = FakeResp(_resp(tool_calls=[_tc()], finish="tool_calls"),
+                      text='{"choices":[]}')
+        raw = _sse([_delta_event(tool_calls=[
+            {"index": 0, "function": {"arguments": "{}"}}]),
+            _delta_event(finish="tool_calls")])
+        st = FakeResp({}, text=raw)
+        calls = iter([ns, st])
+
+        def sender(path, *, json_body=None, stream=False, method="POST", **kw):
+            return next(calls)
+
+        out = tmp_path / "logs" / "dump.jsonl"
+        made: list = []
+
+        def factory(t: str):
+            rec = ts.jsonl_dumper(out)
+            made.append(rec)
+            return rec
+
+        rows = ts.run_scan(["proxy"], sleep=0, limit=1,
+                           sender_factory=lambda t: sender,
+                           record_factory=factory,
+                           progress=lambda s: None)
+        for rec in made:
+            rec.handle.close()
+        assert len(rows) == 1
+        import json as _json
+        lines = [_json.loads(x) for x in out.read_text(encoding="utf-8").splitlines()]
+        assert [l["kind"] for l in lines] == ["nonstream", "stream"]
+        assert lines[1]["raw_text"] == raw
+
 
 class TestSaidas:
     def _rows(self):

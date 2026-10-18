@@ -36,6 +36,8 @@ from typing import Callable
 
 import time as _time
 
+from eval.novai_enrich import redact_signed_urls
+
 from eval.novai_test import (
     TARGETS,
     Sender,
@@ -379,9 +381,16 @@ class ScanRow:
                              ST_SEM_TOOLCALL, ST_ERRO)
 
 
-def scan_model(sender: Sender, model: str, *, stream_raw_sink: dict | None = None
-               ) -> ScanRow:
-    """2 chamadas (non-stream + stream) para ``model`` via ``sender`` já autenticado."""
+def scan_model(sender: Sender, model: str, *, stream_raw_sink: dict | None = None,
+               record: Callable[[dict], None] | None = None,
+               target: str = "") -> ScanRow:
+    """2 chamadas (non-stream + stream) para ``model`` via ``sender`` já autenticado.
+
+    ``record`` (S120): se dado, recebe um dicionário de evidência crua por
+    chamada (``kind`` = ``nonstream``/``stream``), com corpo/SSE integral — é o
+    sink do ``--dump-responses``. ``stream_raw_sink`` legado mantém só o texto
+    truncado p/ testes antigos.
+    """
     row = ScanRow(target="", model=model)
     body = {"model": model, **SCAN_BODY}
     try:
@@ -389,6 +398,11 @@ def scan_model(sender: Sender, model: str, *, stream_raw_sink: dict | None = Non
         r = sender("/chat/completions", json_body=body)
         row.ns_ms = _elapsed_ms(t0)
         row.ns_code, row.ns_ev = verdict_tool_nonstream(r.json(), r.status_code)
+        if record is not None:
+            record({"target": target,
+                    "model": model, "kind": "nonstream",
+                    "status_code": r.status_code,
+                    "raw_text": r.text or "", "ms": row.ns_ms})
     except Exception as exc:  # noqa: BLE001 - registro, não engano
         row.ns_code, row.ns_ev = NS_ERRO, f"transport: {type(exc).__name__}"
     try:
@@ -402,25 +416,54 @@ def scan_model(sender: Sender, model: str, *, stream_raw_sink: dict | None = Non
         row.st_code, row.st_ev = verdict_tool_stream(info, raw)
         if stream_raw_sink is not None:
             stream_raw_sink["raw"] = raw[:4000]
+        if record is not None:
+            record({"target": target,
+                    "model": model, "kind": "stream",
+                    "status_code": rs.status_code,
+                    "raw_text": raw, "ms": row.st_ms})
     except Exception as exc:  # noqa: BLE001
         row.st_code, row.st_ev = ST_ERRO, f"transport: {type(exc).__name__}"
     return row
 
 
+def jsonl_dumper(path: Path) -> Callable[[dict], None]:
+    """Abre ``path`` em append e devolve um ``record`` que grava 1 linha JSON por chamada.
+
+    O texto cru passa pelo redator canônico de URLs pré-assinadas
+    (``eval.novai_enrich.redact_signed_urls``, política S103/S106: nada de
+    credencial de terceiro em ``reports/`` versionado). O chamador deve fechar o
+    handle via ``.handle.close()``; tests usam tmp_path. Cria diretório pai.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fh = path.open("a", encoding="utf-8")
+
+    def _rec(d: dict) -> None:
+        raw, _n = redact_signed_urls(d.get("raw_text", ""))
+        d = {**d, "raw_text": raw}
+        fh.write(json.dumps(d, ensure_ascii=False) + "\n")
+        fh.flush()
+
+    _rec.handle = fh  # type: ignore[attr-defined]
+    return _rec
+
+
 def run_scan(targets: list[str], *, sleep: float = 1.5,
              limit: int | None = None,
              progress: Callable[[str], None] = print,
-             sender_factory: Callable[[str], Sender] | None = None
+             sender_factory: Callable[[str], Sender] | None = None,
+             record_factory: Callable[[str], Callable[[dict], None]] | None = None
              ) -> list[ScanRow]:
     """Varredura completa: catálogo por alvo, 2 chamadas por modelo.
 
     ``sender_factory``/``models_provider`` injetáveis para teste offline; o
-    default usa o harness real (S119).
+    default usa o harness real (S119). ``record_factory`` (S120): dado um alvo,
+    devolve o sink de evidência crua daquele alvo (uma linha jsonl por chamada).
     """
     rows: list[ScanRow] = []
     for t in targets:
         cfg = target_config(t)
         sender = sender_factory(t) if sender_factory else make_capturing_sender(cfg, {})
+        record = record_factory(t) if record_factory else None
         if t == "proxy":
             models = chat_groups_from_matrix()
         else:
@@ -430,7 +473,7 @@ def run_scan(targets: list[str], *, sleep: float = 1.5,
             models = models[:limit]
         progress(f"[{t}] {len(models)} modelos chat")
         for i, m in enumerate(models):
-            row = scan_model(sender, m)
+            row = scan_model(sender, m, record=record, target=t)
             row.target = t
             rows.append(row)
             progress(f"  [{t} {i + 1}/{len(models)}] {m}: ns={row.ns_code} "
@@ -512,6 +555,8 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI live
     ap.add_argument("--limit", type=int, default=None, help="so N primeiros modelos")
     ap.add_argument("--sleep", type=float, default=1.5)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--dump-responses", action="store_true",
+                    help="grava jsonl com corpo/SSE crus por chamada (S120)")
     ap.add_argument("--list-models", action="store_true")
     args = ap.parse_args(argv)
 
@@ -532,8 +577,19 @@ def main(argv: list[str] | None = None) -> int:  # pragma: no cover - CLI live
     if not args.live:
         print("# modo dry — use --live para a varredura real")
         return 0
-    rows = run_scan(targets, sleep=args.sleep, limit=args.limit)
     today = date.today().isoformat()
+    dumpers: list = []
+    record_factory = None
+    if args.dump_responses:
+        def record_factory(t: str, _today=today, _dumpers=dumpers):  # noqa: E731
+            rec = jsonl_dumper(Path(f"reports/logs/tool-scan-{_today}-{t}.jsonl"))
+            _dumpers.append(rec)
+            return rec
+    rows = run_scan(targets, sleep=args.sleep, limit=args.limit,
+                    record_factory=record_factory)
+    for rec in dumpers:
+        rec.handle.close()  # type: ignore[attr-defined]
+        print(f"dump: {rec.handle.name} ({sum(1 for _ in open(rec.handle.name))} linhas)")  # type: ignore[attr-defined]
     out = Path(args.out) if args.out else Path(f"reports/{today}-novai-tool-scan.md")
     rows_to_csv(rows, out.with_suffix(".csv"))
     build_report(rows, out_path=out)
