@@ -31,7 +31,7 @@ P-3 foi identificado como fail ativo na matriz (`novai-test-matrix.csv`). Se o a
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 FAIL persistente (3/3) | Os 3 modelos continuam reportando reasoning inconsistente. `step-5-preview-fast` é o pior: 133 chars mas **0 tokens** — accounting completamente quebrado. |
 | Para o stack | Nosso proxy repassa o `usage` do gateway sem modificar. Se quisermos accounting correto, precisamos calcular tokens localmente (tokenizer por modelo) ou ignorar o campo. |
 | Para usuários | Custos reportados em dashboards LiteLLM (`spend_logs`) podem estar subestimados para estes modelos. Não afeta funcionalidade, apenas visibilidade financeira. |
@@ -52,7 +52,7 @@ P-7a foi classificado como "transiente" no dossier original, mas a suspeita era 
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 FAIL determinístico (3/3 timeout 120s) | Não é transiente. O gateway aceita a requisição, encaminha ao upstream, e **nunca recebe resposta** — timeout exato em 120s em todas as tentativas. Espaçamento de ~131s entre runs confirma que o gateway espera até o limite antes de falhar. |
 | Para o stack | A rota `novai-image-wan2.2-t2i-flash` no `litellm/config.yaml` está efetivamente morta. Qualquer chamada consome 120s de recurso (conexão aberta, thread bloqueada) antes de falhar. |
 | Para usuários | Geração de imagem via wan2.2 flash **não funciona**. Usuários que tentarem receberão timeout após 2 minutos. |
@@ -73,7 +73,7 @@ SDKs OpenAI (Python, Node.js, Go) fazem parsing do campo `error.message` para ex
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 Gateway diverged, Proxy pass | O gateway retorna FastAPI `{detail}` para erros 400/404. O proxy LiteLLM **corrige automaticamente** para o shape OpenAI `{error:{message}}`. |
 | Para o stack | Enquanto usarmos o proxy, o problema é mitigado. Chamadas diretas ao gateway (sem proxy) quebram clientes OpenAI-compatíveis. |
 | Para usuários | Via proxy: experiência normal, erros legíveis. Via gateway direto: mensagens de erro confusas ou exceções não-tratadas. |
@@ -94,7 +94,7 @@ S115 valida que o comportamento de erro é **previsível e uniforme**. Se alguns
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | ✅ 440/440 pass | Comportamento de erro é 100% consistente. Gateway sempre usa FastAPI para 404 e OpenAI para 400. Proxy sempre normaliza para OpenAI. |
 | Para o stack | Tratamento de erro genérico funciona. Não há regressão desde o último sweep (17/10). |
 | Para usuários | Erros são previsíveis. Retry logic e error handling funcionam conforme esperado. |
@@ -117,7 +117,7 @@ P-6 afeta **agentes de IA** (Copilot, Roo Code, LangChain) que processam streams
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 FAIL parcial (3/5) | `glm-4.6v`, `minimax-m3`, `kimi-k2.8-preview` falam antes de tool_calls. `glm-5` e `hunyuan-t1-vision` são conformes. |
 | Para o stack | Agentes que usam estes modelos precisam de mitigação client-side: bufferizar `delta.content` e descartar se `tool_calls` aparecer depois. O Roo Code já tem essa lógica parcialmente. |
 | Para usuários | Em modelos afetados, o chat pode mostrar "pensamento em voz alta" antes da ação da ferramenta. Não quebra funcionalidade, mas degrada UX. |
@@ -138,7 +138,7 @@ O SDK OpenAI Python usa `[DONE]` como sinal de fim de stream. Sem ele, o iterado
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 FAIL confirmado (events=8, done=0) | Stream encerra abruptamente sem `[DONE]`. Non-stream funciona normalmente. |
 | Para o stack | SDKs OpenAI podem hang ou perder dados no último chunk. Nosso proxy repassa o stream raw — não adiciona `[DONE]` sintético. |
 | Para usuários | Aplicações que usam streaming com `minimax-text-01` podem travar ou mostrar resposta incompleta. Non-stream não é afetado. |
@@ -159,7 +159,7 @@ P-7d foi identificado como fail no sweep anterior. Geração de vídeo é funcio
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 FAIL (task FAILED em 1 poll) | Task falha **imediatamente** — não é timeout nem SLA longo. O upstream MiniMax rejeita a requisição na criação. Task ID: `1409238524-WandVideo-811df415e84746e7a7eed25faf3b47a5`. |
 | Para o stack | Rota de vídeo está inoperante. Polling não ajuda — a falha é na criação, não no processamento. |
 | Para usuários | Geração de vídeo via MiniMax V2.3 Fast **não funciona**. Erro imediato. |
@@ -180,7 +180,7 @@ P-7e foi originalmente classificado como bug nosso (rota GET subpath incorreta n
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | ⚪ HTTP 402 (quota esgotada) | **Não é bug de software.** A Tencent Hunyuan esgotou a quota gratuita e billing pós-pago não está habilitado na conta NovAI. O proxy funciona corretamente — repassa o 402 do upstream. |
 | Para o stack | Rota proxy está correta. O problema é financeiro/contratual, não técnico. |
 | Para usuários | Geração 3D via Hunyuan indisponível até quota ser renovada ou billing habilitado. |
@@ -203,7 +203,7 @@ E-429 foi classificado como "intermitente" — às vezes funciona, às vezes 429
 ### glm-4.6v-flash
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🔴 PERSISTENTE (3/3 HTTP 429) | **Piorou.** De intermitente passou a 100% fail. O upstream ZhiPu pode ter reduzido quota ou o modelo está sob carga crônica. |
 | Para o stack | Modelo inutilizável. Manter na rotação de tráfego desperdiça requests e aumenta latência percebida. |
 | Ação | **Remover da rotação imediatamente.** Marcar como 🔴 persistente no catálogo. Não rotear tráfego para este ID. |
@@ -211,7 +211,7 @@ E-429 foi classificado como "intermitente" — às vezes funciona, às vezes 429
 ### glm-4.7-flash
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | 🟡 Intermitente (1/3 pass) | Igual ao reteste anterior. Funciona ocasionalmente. |
 | Para o stack | Utilizável com retry/backoff. Não remover da rotação, mas considerar peso menor no load balancing. |
 | Ação | Monitorar. Se persistir por >7 dias, considerar reduzir peso no catálogo. |
@@ -231,7 +231,7 @@ P-7c era o único erro classificado como "intermitente de transporte" que poderi
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | ✅ RESOLVIDO (3/3 pass) | O upstream MiMo estabilizou. Tools-stream funciona consistentemente com `[DONE]` presente. |
 | Para o stack | Modelo pode ser promovido de 🟡 para ✅ na matriz. Retry ainda recomendado como boa prática, mas não mais obrigatório. |
 | Para usuários | `mimo-v2.6-pro` agora é confiável para uso com ferramentas e streaming. |
@@ -252,7 +252,7 @@ Valida que a infraestrutura de proxy para endpoints assíncronos está operacion
 ### O que implica?
 
 | Resultado | Implicação |
-|-----------|------------|
+| ----------- | ------------ |
 | ✅ 2/2 pass | Rotas funcionam. Tasks enfileiradas com sucesso em ambos os endpoints. |
 | Para o stack | Infraestrutura proxy saudável. Falhas de vídeo/3D são upstream, não nossas. |
 | Ação | Nenhuma. Health check básico funcionando. |
@@ -262,7 +262,7 @@ Valida que a infraestrutura de proxy para endpoints assíncronos está operacion
 ## Matriz de Decisão Rápida
 
 | Error ID | Status Pós-Reteste | Ação Imediata | Prioridade |
-|----------|---------------------|---------------|------------|
+| ---------- | --------------------- | --------------- | ------------ |
 | P-3 | 🔴 Persistente | Ticket NovAI | Alta |
 | P-7a | 🔴 Determinístico | Remover rota wan2.2 | Alta |
 | P-5 | 🔴 Confirmado | Documentar + ticket | Média (proxy mitiga) |
