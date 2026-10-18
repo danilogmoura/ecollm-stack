@@ -1,7 +1,7 @@
 # NovAI Upstream Bug Reports — S122-R Retest Evidence
 
 **Date:** 2026-10-18  
-**Reporter:** eCollM Stack Team  
+**Reporter:** <danilogmoura@gmail.com>  
 **Gateway:** `https://aiapi-pro.com`  
 **Architecture:** We consume the NovAI gateway through a LiteLLM proxy that normalizes API responses to strict OpenAI compatibility. Tests were run against both targets (gateway direct and via proxy) where applicable to isolate upstream bugs from proxy behavior.
 
