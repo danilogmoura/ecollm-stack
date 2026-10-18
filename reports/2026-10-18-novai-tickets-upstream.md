@@ -3,7 +3,7 @@
 **Date:** 2026-10-18  
 **Reporter:** eCollM Stack Team  
 **Gateway:** `https://aiapi-pro.com`  
-**Test methodology:** Each test was executed with N≥3 retries, 10s spacing between runs, against the live gateway endpoint. All requests use OpenAI-compatible API format with streaming enabled unless noted otherwise.
+**Test methodology:** This is the second retest cycle (S122-R) for these issues. The original failures were first detected on 2026-10-17, and this retest was conducted on 2026-10-18 to confirm persistence vs. transience. Each test was executed with N≥3 retries, 10s spacing between runs, against the live gateway endpoint. All requests use OpenAI-compatible API format with streaming enabled unless noted otherwise. Results marked as "persistent" have now failed across both test cycles (original + retest).
 
 ---
 
@@ -16,7 +16,7 @@ Models supporting thinking/reasoning return inconsistent `usage` fields: `reason
 ### Affected Models
 
 | Model | reasoning_chars | reasoning_tokens | Expected Ratio |
-|-------|----------------|-----------------|----------------|
+| ------- | ---------------- | ----------------- | ---------------- |
 | minimax-m2.7-fast | 102 | 28 | ~3.6 chars/token ✓ plausible but verify |
 | minimax-m2.5-fast | 118 | 31 | ~3.8 chars/token ✓ plausible but verify |
 | step-5-preview-fast | 133 | **0** | ❌ Zero tokens for 133 chars of reasoning |
@@ -78,7 +78,7 @@ When the gateway encounters an error (HTTP 400/404), it returns FastAPI-style `{
 ### Evidence
 
 | Endpoint | Target | Response Shape | HTTP Status |
-|----------|--------|---------------|-------------|
+| ---------- | -------- | --------------- | ------------- |
 | `/v1/chat/completions` (invalid model) | Gateway direct | `{"detail": "..."}` | 400 |
 | `/v1/chat/completions` (invalid model) | Via LiteLLM proxy | `{"error": {"message": "...", "type": "...", "code": "..."}}` | 400 |
 
@@ -109,7 +109,7 @@ During streaming with `tools` enabled, some models emit `delta.content` (free te
 ### Affected Models
 
 | Model | Total Events | Tool Calls | Content Before Tool Calls? | Compliant? |
-|-------|-------------|------------|---------------------------|------------|
+| ------- | ------------- | ------------ | --------------------------- | ------------ |
 | glm-4.6v | 55 | 2 | Yes (content at line 77, tool_calls at line 105) | ❌ |
 | glm-5 | 18 | 2 | No | ✅ |
 | minimax-m3 | 13 | 3 | Yes (content at line 3, tool_calls at line 17) | ❌ |
@@ -129,6 +129,7 @@ Captured raw SSE streams via curl with `tools` parameter containing a simple fun
 ### Requested Action
 
 Please escalate to the upstream providers for the 3 affected models:
+
 - **ZhiPu GLM-4.6v** (glm-4.6v)
 - **MiniMax M3** (minimax-m3)
 - **Moonshot Kimi-K2.8** (kimi-k2.8-preview)
@@ -209,7 +210,7 @@ Please investigate using task ID `1409238524-WandVideo-811df415e84746e7a7eed25fa
 ### Evidence
 
 | Run | Spacing | Result |
-|-----|---------|--------|
+| ----- | --------- | -------- |
 | 1 | — | HTTP 429 |
 | 2 | +10s | HTTP 429 |
 | 3 | +10s | HTTP 429 |
@@ -235,7 +236,7 @@ Please investigate whether the ZhiPu upstream has reduced rate limits or quota f
 ## Summary Table
 
 | Ticket | Error ID | Severity | Models Affected | Action Needed |
-|--------|----------|----------|----------------|---------------|
+| -------- | ---------- | ---------- | ---------------- | --------------- |
 | 1 | P-3 | High | minimax-m2.7-fast, minimax-m2.5-fast, step-5-preview-fast | Verify reasoning_tokens upstream |
 | 2 | P-7a | High | wan2.2-t2i-flash | Investigate/remove dead route |
 | 3 | P-5 | Medium | All (gateway-level) | Standardize error envelope |
