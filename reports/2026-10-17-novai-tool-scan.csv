@@ -1,0 +1,213 @@
+target,model,ns_code,ns_ev,st_code,st_ev,framing,ns_ms,st_ms,irregular
+gateway,deepseek-v4-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1944,1636,nao
+gateway,deepseek-v4-flash-vision,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3009,2072,nao
+gateway,deepseek-v4-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2181,2218,nao
+gateway,deepseek-v4.1-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2444,1852,nao
+gateway,doubao-seed-2.0-code,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3418,2984,nao
+gateway,doubao-seed-2.0-lite,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',4141,4054,nao
+gateway,doubao-seed-2.0-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5786,6226,nao
+gateway,doubao-seed-2.1-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3143,4505,nao
+gateway,doubao-seed-2.1-turbo,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3935,3438,nao
+gateway,doubao-seedance-2.0,erro,http=400,erro,events=0 done=False,'',707,711,sim
+gateway,doubao-seedance-2.0-fast,erro,http=400,erro,events=0 done=False,'',702,700,sim
+gateway,doubao-seedance-2.5,erro,http=400,erro,events=0 done=False,'',717,1314,sim
+gateway,doubao-seedream-5.0,erro,http=400,erro,events=0 done=False,'',680,678,sim
+gateway,doubao-seedream-5.0-pro,erro,http=400,erro,events=0 done=False,'',686,697,sim
+gateway,glm-4.1v-thinking-flash,sem_tool_call,"finish='length' content=""<think>Got it, let's see. The user is as""",sem_tool_call,fala=1133ch args=ausente/INVALID finish=['length'],'\\n\\n',2954,6066,sim
+gateway,glm-4.6v,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=43ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1783,1464,sim
+gateway,glm-4.6v-flash,irregular_content_e_tool,content+tool_calls: 'I will now call the get_weather function',erro,events=0 done=False,'',11960,8370,sim
+gateway,glm-4.7-flash,erro,http=429,fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',9112,22337,sim
+gateway,glm-5,irregular_content_e_tool,content+tool_calls: 'Vou consultar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1896,1947,sim
+gateway,glm-5-turbo,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',4514,4792,nao
+gateway,glm-5.1,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4589,5008,nao
+gateway,glm-5.2,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3027,3275,sim
+gateway,glm-5.3,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4435,4250,nao
+gateway,glm-5.3-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',5778,1721,nao
+gateway,glm-5.3-flashx,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5046,4718,nao
+gateway,glm-5v-turbo,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1976,6614,sim
+gateway,hunyuan-role,erro,http=400,erro,events=0 done=False,'',1724,1547,sim
+gateway,hunyuan-t1-vision,irregular_content_e_tool,content+tool_calls: '调用get_weather工具来获取Tokyo的天气。\n\t\n\t用户想要获取Tok',fala_depois,fala=373ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4574,6326,sim
+gateway,hunyuan-turbos-vision-video,irregular_content_e_tool,"content+tool_calls: ""Chamar a ferramenta 'get_weather' com a """,fala_depois,fala=93ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',6533,4465,sim
+gateway,hy-3d-3.0,erro,transport: JSONDecodeError,erro,events=0 done=False,'',708,702,sim
+gateway,hy-3d-3.1,erro,transport: JSONDecodeError,erro,events=0 done=False,'',712,705,sim
+gateway,hy-3d-express,erro,transport: JSONDecodeError,erro,events=0 done=False,'',688,695,sim
+gateway,hy-3d-motion,erro,transport: JSONDecodeError,erro,events=0 done=False,'',759,784,sim
+gateway,hy-mt2-lite,erro,http=400,erro,events=0 done=False,'',2281,1199,sim
+gateway,hy-mt2-plus,sem_tool_call,finish='stop' content='Claro! Vou usar a ferramenta para obter ',sem_tool_call,fala=824ch args=ausente/INVALID finish=['length'],'\\n\\n',2302,3755,sim
+gateway,hy-mt2-pro,sem_tool_call,"finish='stop' content='<tool_call>get_weather\n{""city"": ""Tokyo""}'",sem_tool_call,fala=55ch args=ausente/INVALID finish=['stop'],'\\n\\n',1585,1612,sim
+gateway,hy-role,erro,http=400,erro,events=0 done=False,'',1668,2063,sim
+gateway,hy-video-v1.5,erro,http=400,erro,events=0 done=False,'',744,738,sim
+gateway,hy-vision-2.0-instruct,sem_tool_call,finish='length' content='Não tenho acesso direto à ferramenta `ge',sem_tool_call,fala=868ch args=ausente/INVALID finish=['length'],'\\n\\n',5327,5241,sim
+gateway,hy3,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2915,2472,nao
+gateway,hy3-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2524,2250,nao
+gateway,hy4-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5058,4936,nao
+gateway,kimi-k2.5,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2817,2463,nao
+gateway,kimi-k2.6,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3633,3470,nao
+gateway,kimi-k2.7-code,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2908,3374,nao
+gateway,kimi-k2.7-code-highspeed,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2208,1975,nao
+gateway,kimi-k2.8-preview,irregular_content_e_tool,content+tool_calls: 'Vou consultar o clima em Tokyo para você',fala_antes,fala=41ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3294,3612,sim
+gateway,kimi-k3,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5271,4814,sim
+gateway,kling-video-o1,erro,http=400,erro,events=0 done=False,'',704,712,sim
+gateway,kling-video-v2.5-turbo,erro,http=400,erro,events=0 done=False,'',739,766,sim
+gateway,kling-video-v2.6,erro,http=400,erro,events=0 done=False,'',741,738,sim
+gateway,kling-video-v3,erro,http=400,erro,events=0 done=False,'',738,729,sim
+gateway,kling-video-v3-omni,erro,http=400,erro,events=0 done=False,'',739,707,sim
+gateway,kling-video-v3-turbo,erro,http=400,erro,events=0 done=False,'',705,723,sim
+gateway,mimo-v2.5-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2627,2495,nao
+gateway,mimo-v2.6-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3832,2947,nao
+gateway,mimo-v2.6-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3608,5539,nao
+gateway,minimax-m2.5,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2585,2345,nao
+gateway,minimax-m2.7,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3290,2460,nao
+gateway,minimax-m3,irregular_content_e_tool,content+tool_calls: '<think>The user is asking about the weat',fala_antes,fala=255ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2333,2203,sim
+gateway,minimax-music-v2.6,erro,transport: JSONDecodeError,erro,events=0 done=False,'',690,731,sim
+gateway,minimax-music-v3.0,erro,transport: JSONDecodeError,erro,events=0 done=False,'',738,729,sim
+gateway,minimax-text-01,conforme,names=['get_weather'] finish='tool_calls',erro,events=8 done=False,'\\n\\n',2133,1627,sim
+gateway,minimax-video-h3,erro,http=400,erro,events=0 done=False,'',739,754,sim
+gateway,minimax-video-h3-max,erro,http=400,erro,events=0 done=False,'',749,716,sim
+gateway,minimax-video-v2.3,erro,http=400,erro,events=0 done=False,'',700,721,sim
+gateway,minimax-video-v2.3-fast,erro,http=400,erro,events=0 done=False,'',758,738,sim
+gateway,pixverse-video-c1,erro,http=400,erro,events=0 done=False,'',727,724,sim
+gateway,pixverse-video-v5.6,erro,http=400,erro,events=0 done=False,'',709,703,sim
+gateway,pixverse-video-v6.0,erro,http=400,erro,events=0 done=False,'',715,719,sim
+gateway,qwen-mt-plus,erro,http=400,erro,events=1 done=False,'\\n\\n',1479,1104,sim
+gateway,qwen-omni-turbo,erro,http=404,erro,events=0 done=False,'',932,920,sim
+gateway,qwen-plus,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1819,1665,nao
+gateway,qwen-vl-max,erro,http=404,erro,events=0 done=False,'',919,994,sim
+gateway,qwen-vl-ocr,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1856,1160,nao
+gateway,qwen3-coder-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1296,1333,nao
+gateway,qwen3-coder-plus,erro,http=404,erro,events=0 done=False,'',935,948,sim
+gateway,qwen3-max,erro,http=404,erro,events=0 done=False,'',916,928,sim
+gateway,qwen3-omni-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1616,1545,nao
+gateway,qwen3-vl-flash,erro,http=404,erro,events=0 done=False,'',941,956,sim
+gateway,qwen3-vl-plus,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1548,1539,nao
+gateway,qwen3.5-ocr,sem_tool_call,"finish='stop' content='```json\n{\n    ""city"": ""Tokyo""\n}\n```'",sem_tool_call,fala=35ch args=ausente/INVALID finish=['stop'],'\\n\\n',1108,1166,sim
+gateway,qwen3.6-max-preview,erro,http=404,erro,events=0 done=False,'',936,901,sim
+gateway,qwen3.7-max,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3451,3136,nao
+gateway,qwen3.8-max,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2664,3371,nao
+gateway,step-5-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2640,3245,nao
+gateway,tripo-3d-3.1,erro,transport: JSONDecodeError,erro,events=0 done=False,'',712,698,sim
+gateway,tripo-3d-p1,erro,transport: JSONDecodeError,erro,events=0 done=False,'',786,708,sim
+gateway,vidu-video-q3,erro,http=400,erro,events=0 done=False,'',715,709,sim
+gateway,vidu-video-q3-pro,erro,http=400,erro,events=0 done=False,'',744,752,sim
+proxy,novai-deepseek-v4-flash,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo agora mes',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1552,1201,sim
+proxy,novai-deepseek-v4-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1282,1433,nao
+proxy,novai-deepseek-v4-flash-vision,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2091,1856,nao
+proxy,novai-deepseek-v4-flash-vision-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1846,1925,nao
+proxy,novai-deepseek-v4-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1541,1977,nao
+proxy,novai-deepseek-v4-pro-fast,conforme,names=['get_weather'] finish='tool_calls',fala_antes,fala=41ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1405,1548,sim
+proxy,novai-deepseek-v4.1-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2100,1630,nao
+proxy,novai-deepseek-v4.1-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1642,1662,nao
+proxy,novai-doubao-seed-2.0-code,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3091,3279,nao
+proxy,novai-doubao-seed-2.0-code-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1936,1889,nao
+proxy,novai-doubao-seed-2.0-lite,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3982,3159,nao
+proxy,novai-doubao-seed-2.0-lite-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2240,2290,nao
+proxy,novai-doubao-seed-2.0-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',15366,6084,nao
+proxy,novai-doubao-seed-2.0-pro-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3339,3250,nao
+proxy,novai-doubao-seed-2.1-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3539,5906,nao
+proxy,novai-doubao-seed-2.1-pro-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1898,1518,nao
+proxy,novai-doubao-seed-2.1-turbo,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3496,4641,nao
+proxy,novai-doubao-seed-2.1-turbo-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',54938,2922,nao
+proxy,novai-glm-4.1v-thinking-flash,sem_tool_call,"finish='length' content='<answer>Para obter o clima em Tokyo, uti'",sem_tool_call,fala=895ch args=ausente/INVALID finish=['stop'],'\\n\\n',2722,2650,sim
+proxy,novai-glm-4.1v-thinking-flash-fast,sem_tool_call,"finish='length' content=""<think>Got it, let's see. The user is as""",sem_tool_call,fala=1017ch args=ausente/INVALID finish=['length'],'\\n\\n',2738,2873,sim
+proxy,novai-glm-4.6v,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tóquio para voc',fala_antes,fala=43ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2111,1819,sim
+proxy,novai-glm-4.6v-fast,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=42ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1039,1299,sim
+proxy,novai-glm-4.6v-flash,irregular_content_e_tool,content+tool_calls: 'Vou chamar a função get_weather para obt',fala_antes,fala=73ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',5371,9231,sim
+proxy,novai-glm-4.6v-flash-fast,irregular_content_e_tool,content+tool_calls: 'Vou chamar a função get_weather para obt',fala_antes,fala=61ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1401,915,sim
+proxy,novai-glm-4.7-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',14842,4452,nao
+proxy,novai-glm-4.7-flash-fast,conforme,names=['get_weather'] finish='tool_calls',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',21485,16548,sim
+proxy,novai-glm-5,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2044,2021,sim
+proxy,novai-glm-5-fast,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',3468,1619,sim
+proxy,novai-glm-5-turbo,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5590,1906,nao
+proxy,novai-glm-5-turbo-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1770,4819,nao
+proxy,novai-glm-5.1,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4671,5443,nao
+proxy,novai-glm-5.1-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',5105,4616,nao
+proxy,novai-glm-5.2,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2718,2198,sim
+proxy,novai-glm-5.2-fast,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1811,1751,sim
+proxy,novai-glm-5.3,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',3982,1360,sim
+proxy,novai-glm-5.3-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',3584,1097,nao
+proxy,novai-glm-5.3-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4940,4499,nao
+proxy,novai-glm-5.3-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4042,4650,nao
+proxy,novai-glm-5.3-flashx,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2426,1746,nao
+proxy,novai-glm-5.3-flashx-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1734,3938,nao
+proxy,novai-glm-5v-turbo,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1529,1595,sim
+proxy,novai-glm-5v-turbo-fast,irregular_content_e_tool,content+tool_calls: 'Vou verificar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',879,902,sim
+proxy,novai-hunyuan-role,erro,http=400,erro,events=0 done=False,'',1512,988,sim
+proxy,novai-hunyuan-role-fast,erro,http=400,erro,events=0 done=False,'',974,1033,sim
+proxy,novai-hunyuan-t1-vision,irregular_content_e_tool,content+tool_calls: '调用get_weather工具来获取Tokyo的天气。\n\t\n\t用户想要获取东京的',fala_depois,fala=95ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4008,4107,sim
+proxy,novai-hunyuan-t1-vision-fast,irregular_content_e_tool,content+tool_calls: '调用get_weather工具来获取Tokyo的天气。\n\t\n\t用户想要查询Tok',fala_depois,fala=363ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4010,5962,sim
+proxy,novai-hunyuan-turbos-vision-video,irregular_content_e_tool,content+tool_calls: '调用get_weather工具来获取东京的天气信息。\n\t\n\t用户想要获取东京的天',fala_depois,fala=117ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4327,4985,sim
+proxy,novai-hunyuan-turbos-vision-video-fast,irregular_content_e_tool,content+tool_calls: '使用get_weather工具来获取东京的天气。\n\t\n\t用户想要知道东京的天气情',fala_depois,fala=97ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',4716,4354,sim
+proxy,novai-hy-mt2-lite,erro,http=400,erro,events=0 done=False,'',908,899,sim
+proxy,novai-hy-mt2-lite-fast,erro,http=400,erro,events=0 done=False,'',899,890,sim
+proxy,novai-hy-mt2-plus,sem_tool_call,finish='stop' content='Claro! Vou usar a ferramenta para obter ',sem_tool_call,fala=668ch args=ausente/INVALID finish=['stop'],'\\n\\n',2178,2123,sim
+proxy,novai-hy-mt2-plus-fast,sem_tool_call,finish='length' content='Claro! Vou usar a ferramenta para obter ',sem_tool_call,fala=655ch args=ausente/INVALID finish=['stop'],'\\n\\n',3275,2878,sim
+proxy,novai-hy-mt2-pro,sem_tool_call,"finish='stop' content='<tool_call>get_weather\n{""city"": ""Tokyo""}'",sem_tool_call,fala=41ch args=ausente/INVALID finish=['stop'],'\\n\\n',1373,1358,sim
+proxy,novai-hy-mt2-pro-fast,sem_tool_call,"finish='stop' content='<tool_call>get_weather\n{""city"": ""Tokyo""}'",sem_tool_call,fala=41ch args=ausente/INVALID finish=['stop'],'\\n\\n',1204,1216,sim
+proxy,novai-hy-role,erro,http=400,erro,events=0 done=False,'',1032,1039,sim
+proxy,novai-hy-role-fast,erro,http=400,erro,events=0 done=False,'',1045,1057,sim
+proxy,novai-hy-vision-2.0-instruct,sem_tool_call,finish='length' content='Não tenho acesso direto à ferramenta `ge',sem_tool_call,fala=835ch args=ausente/INVALID finish=['length'],'\\n\\n',4505,4539,sim
+proxy,novai-hy-vision-2.0-instruct-fast,sem_tool_call,finish='stop' content='Não tenho acesso direto à ferramenta `ge',sem_tool_call,fala=868ch args=ausente/INVALID finish=['length'],'\\n\\n',3945,4392,sim
+proxy,novai-hy3,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2056,1876,nao
+proxy,novai-hy3-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1908,1867,nao
+proxy,novai-hy3-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2044,2014,nao
+proxy,novai-hy3-preview-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2073,2025,nao
+proxy,novai-hy4-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',5161,2778,nao
+proxy,novai-hy4-preview-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1955,1767,nao
+proxy,novai-kimi-k2.5,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2241,2825,nao
+proxy,novai-kimi-k2.5-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2411,2195,nao
+proxy,novai-kimi-k2.6,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2458,2078,nao
+proxy,novai-kimi-k2.6-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2909,3017,nao
+proxy,novai-kimi-k2.7-code,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2223,2074,nao
+proxy,novai-kimi-k2.7-code-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2057,2111,nao
+proxy,novai-kimi-k2.7-code-highspeed,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1873,1699,nao
+proxy,novai-kimi-k2.7-code-highspeed-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1723,1771,nao
+proxy,novai-kimi-k2.8-preview,irregular_content_e_tool,content+tool_calls: 'Vou consultar o clima em Tokyo para você',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3019,4418,sim
+proxy,novai-kimi-k2.8-preview-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2750,3116,nao
+proxy,novai-kimi-k3,irregular_content_e_tool,content+tool_calls: 'Vou consultar o clima em Tokyo para você',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',4066,4402,sim
+proxy,novai-kimi-k3-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2594,2775,nao
+proxy,novai-mimo-v2.5-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3003,1996,nao
+proxy,novai-mimo-v2.5-pro-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2129,1829,nao
+proxy,novai-mimo-v2.6-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',4238,3356,nao
+proxy,novai-mimo-v2.6-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',3517,5587,nao
+proxy,novai-mimo-v2.6-pro,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1952,5757,nao
+proxy,novai-mimo-v2.6-pro-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1844,1596,nao
+proxy,novai-minimax-m2.5,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2270,1925,nao
+proxy,novai-minimax-m2.5-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2207,3137,nao
+proxy,novai-minimax-m2.7,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2605,2009,nao
+proxy,novai-minimax-m2.7-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2136,2043,nao
+proxy,novai-minimax-m3,conforme,names=['get_weather'] finish='tool_calls',fala_antes,fala=169ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2307,2334,sim
+proxy,novai-minimax-m3-fast,irregular_content_e_tool,content+tool_calls: 'Vou consultar o clima em Tokyo para você',fala_antes,fala=41ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',2038,2040,sim
+proxy,novai-minimax-text-01,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1782,1184,nao
+proxy,novai-minimax-text-01-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1142,1317,nao
+proxy,novai-qwen-mt-plus,erro,http=400,erro,events=0 done=False,'',1316,1104,sim
+proxy,novai-qwen-mt-plus-fast,erro,http=400,erro,events=0 done=False,'',967,880,sim
+proxy,novai-qwen-omni-turbo,erro,http=400,erro,events=0 done=False,'',28,21,sim
+proxy,novai-qwen-omni-turbo-fast,erro,http=400,erro,events=0 done=False,'',20,19,sim
+proxy,novai-qwen-plus,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1328,1239,nao
+proxy,novai-qwen-plus-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1366,1270,nao
+proxy,novai-qwen-vl-max,erro,http=400,erro,events=0 done=False,'',19,18,sim
+proxy,novai-qwen-vl-max-fast,erro,http=400,erro,events=0 done=False,'',18,19,sim
+proxy,novai-qwen-vl-ocr,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1337,875,nao
+proxy,novai-qwen-vl-ocr-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',818,836,nao
+proxy,novai-qwen3-coder-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',904,917,nao
+proxy,novai-qwen3-coder-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1025,1030,nao
+proxy,novai-qwen3-coder-plus,erro,http=400,erro,events=0 done=False,'',19,19,sim
+proxy,novai-qwen3-coder-plus-fast,erro,http=400,erro,events=0 done=False,'',17,20,sim
+proxy,novai-qwen3-max,erro,http=400,erro,events=0 done=False,'',18,17,sim
+proxy,novai-qwen3-max-fast,erro,http=400,erro,events=0 done=False,'',23,17,sim
+proxy,novai-qwen3-omni-flash,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',1386,1063,nao
+proxy,novai-qwen3-omni-flash-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=chunk_unico/ok finish=['tool_calls'],'\\n\\n',888,878,nao
+proxy,novai-qwen3-vl-flash,erro,http=400,erro,events=0 done=False,'',19,18,sim
+proxy,novai-qwen3-vl-flash-fast,erro,http=400,erro,events=0 done=False,'',18,18,sim
+proxy,novai-qwen3-vl-plus,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1145,1053,nao
+proxy,novai-qwen3-vl-plus-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1334,1093,nao
+proxy,novai-qwen3.5-ocr,sem_tool_call,"finish='stop' content='```json\n{\n    ""city"": ""Tokyo""\n}\n```'",sem_tool_call,fala=35ch args=ausente/INVALID finish=['stop'],'\\n\\n',5502,764,sim
+proxy,novai-qwen3.5-ocr-fast,sem_tool_call,"finish='stop' content='```json\n{\n    ""city"": ""Tokyo""\n}\n```'",sem_tool_call,fala=35ch args=ausente/INVALID finish=['stop'],'\\n\\n',753,821,sim
+proxy,novai-qwen3.6-max-preview,erro,http=400,erro,events=0 done=False,'',17,20,sim
+proxy,novai-qwen3.6-max-preview-fast,erro,http=400,erro,events=0 done=False,'',18,18,sim
+proxy,novai-qwen3.7-max,conforme,names=['get_weather'] finish='tool_calls',fala_depois,fala=96ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2651,3455,sim
+proxy,novai-qwen3.7-max-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1532,1817,nao
+proxy,novai-qwen3.8-max,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2571,2651,nao
+proxy,novai-qwen3.8-max-fast,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',1380,1289,nao
+proxy,novai-step-5-preview,conforme,names=['get_weather'] finish='tool_calls',so_tools,fala=0ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2514,2628,nao
+proxy,novai-step-5-preview-fast,conforme,names=['get_weather'] finish='tool_calls',fala_antes,fala=51ch args=fragmentado/ok finish=['tool_calls'],'\\n\\n',2269,1980,sim
