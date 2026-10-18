@@ -8,11 +8,12 @@ Investigação completa da integração com o gateway NovAI (`aiapi-pro.com`) vi
 
 ```
 NovAI/
-├── catalogo/       # Configuração, modelos, docs, tool scan
-├── contrato/       # Contrato API, streaming SSE, LiteLLM stack
-├── testes/         # Fases de teste (F–L), sweeps, verificações
-├── reteste/        # S122-R: dossiê, evidências, consolidado, tickets upstream
-└── logs/           # Logs brutos (jsonl, txt, csv) de todas as execuções
+├── tickets-upstream.md  # 📌 7 bug reports em inglês (pronto para envio à NovAI)
+├── catalogo/            # Configuração, modelos, docs, tool scan
+├── contrato/            # Contrato API, streaming SSE, LiteLLM stack
+├── testes/              # Fases de teste (F–L), sweeps, verificações
+├── reteste/             # S122-R: dossiê, evidências, consolidado
+└── logs/                # Logs brutos (jsonl, txt, csv) de todas as execuções
 ```
 
 ---
@@ -63,12 +64,11 @@ NovAI/
 | `2026-10-18-novai-reteste-s122-r-evidencia.md` | S122-R: vereditos apenas |
 | `2026-10-18-novai-reteste-s122-r-detalhado.md` | S122-R: análise detalhada (o que é / por que / implica) |
 | `2026-10-18-novai-reteste-s122-r-consolidado.md` | **📌 Referência canônica** — unifica evidências + análise |
-| `2026-10-18-novai-tickets-upstream.md` | **Tickets para NovAI** (inglês, 7 bugs, pronto para envio) |
 
 ### Leitura recomendada (ordem)
 
-1. **`reteste-s122-r-consolidado.md`** — visão completa em documento único
-2. **`tickets-upstream.md`** — se precisar enviar bugs à NovAI
+1. **`../tickets-upstream.md`** — 7 bug reports prontos para envio à NovAI
+2. **`reteste-s122-r-consolidado.md`** — visão completa em documento único
 3. **`erros-servidor-dossie-completo.md`** — contexto técnico profundo
 
 ## Logs (`logs/`)
@@ -94,6 +94,30 @@ Logs brutos organizados por data e tipo. Incluem:
 | ⚪ Billing | 1 | P-7e (hy-3d-3.1 quota) |
 
 **7 bugs abertos → 7 tickets upstream prontos para envio.**
+
+---
+
+## Tickets Upstream
+
+O arquivo [`tickets-upstream.md`](tickets-upstream.md) contém **7 bug reports em inglês**, formatados e prontos para envio à NovAI. Cada ticket inclui:
+
+- **Summary** — descrição concisa do problema
+- **Evidence** — dados reproduzidos (tabelas, timestamps, payloads)
+- **How We Tested** — metodologia (N≥3 retries, 10s spacing, streaming)
+- **Impact** — consequências para billing, monitoring, UX
+- **Requested Action** — o que se espera da NovAI
+
+| # | Ticket | Error ID | Severidade |
+| --- | -------- | ---------- | ------------ |
+| 1 | Reasoning Accounting Inconsistency | P-3 | 🔴 Persistente |
+| 2 | wan2.2-t2i-flash Deterministic Timeout | P-7a | 🔴 Persistente (120s) |
+| 3 | Gateway/Proxy Divergence on Error Envelopes | P-5 | 🔴 Confirmado |
+| 4 | Partial Model Failures (3/5 models) | P-6 | 🔴 Parcial |
+| 5 | Missing [DONE] Sentinel in SSE Stream | P-7b | 🔴 Confirmado |
+| 6 | Async Task FAILED Without Error Detail | P-7d | 🔴 Confirmado |
+| 7 | glm-4.6v-flash Persistent Rate Limit | E-429 | 🔴 Persistente |
+
+> **Arquitetura:** Os testes foram executados contra o gateway direto (`aiapi-pro.com`) e via proxy LiteLLM (`localhost:4000`) para isolar bugs upstream de comportamento do proxy.
 
 ---
 
