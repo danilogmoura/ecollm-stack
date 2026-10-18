@@ -1,0 +1,2 @@
+checks=1 pass=0 fail=1 skip=0
+  ❌ [video] minimax-video-v2.3-fast :: video_task — id=1409238524-WandVideo-811df415e84746e7a7eed25faf3b47a5 task falhou (status=FAILED) polls=1

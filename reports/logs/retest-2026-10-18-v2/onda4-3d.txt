@@ -1,0 +1,2 @@
+checks=1 pass=0 fail=1 skip=0
+  ❌ [3d] hy-3d-3.1 :: video_task — POST HTTP 402: {"error":{"message":"[Tencent Hunyuan (混元)] The free trial quota for the service has been exhausted and postpaid billing

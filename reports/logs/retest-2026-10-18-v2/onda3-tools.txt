@@ -1,0 +1,138 @@
+=== ONDA 3: Tools stream assimetria (P-6) + [DONE] (P-7b) ===
+Data: 2026-10-18T06:41:08Z
+
+--- glm-4.6v ---
+  events=55 done=1 tool_calls=2 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=77 tools=105)
+  SSE (primeiras 20 linhas):
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"The"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" user"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" is"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" asking"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" for"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" the"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" weather"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" in"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" Tokyo"}}]}
+
+data: {"id":"20261018144110d3f3daa842e14748","created":1792305671,"object":"chat.completion.chunk","model":"glm-4.6v","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" and"}}]}
+
+
+--- glm-5 ---
+  events=18 done=1 tool_calls=2 content_before=0
+  ✅ P-6 PASS (sem content antes de tool_calls)
+  SSE (primeiras 20 linhas):
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"The"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" user wants"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" to know"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" the weather"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" in Tokyo"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":". I"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"'ll call"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" the get"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":"_weather function"}}]}
+
+data: {"id":"20261018144115b4da472320e4499c","created":1792305676,"object":"chat.completion.chunk","model":"glm-5","choices":[{"index":0,"delta":{"role":"assistant","reasoning_content":" with \""}}]}
+
+
+--- minimax-m3 ---
+  events=13 done=1 tool_calls=3 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=3 tools=17)
+  SSE (primeiras 20 linhas):
+data: {"choices":[{"index":0,"delta":{"role":"assistant"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"\u003cthink\u003eThe"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":" user is asking about the weather in Tokyo and has specifically"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":" requested that I use the get_weather tool. I'll"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":" make a function call with the city parameter set"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":" to \"Tokyo\"."}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"\u003c/think\u003e\n\nI'll check the"}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","content":" weather in Tokyo for you."}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_SMgNxSvqWccMPvPtYkZdAzM6","type":"function","function":{"name":"get_weather","arguments":"{\"city\": \"Tokyo\""}}]}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"type":"function","function":{"arguments":"}"}}]}}],"created":1792305681,"id":"3971d906-2962-417a-9646-99c8fb7abaff","model":"minimax-m3","object":"chat.completion.chunk"}
+
+
+--- kimi-k2.8-preview ---
+  events=53 done=1 tool_calls=7 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=71 tools=89)
+  SSE (primeiras 20 linhas):
+data: {"choices":[{"index":0,"delta":{"role":"assistant"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":"The"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" user"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" wants"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" to"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" know"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" the"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" weather"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" in"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+data: {"choices":[{"index":0,"delta":{"reasoning_content":" Tokyo"}}],"created":1792305688,"id":"de4e959e-4f39-40f6-b4d8-9f987c2c6767","model":"kimi-k2.8-preview","object":"chat.completion.chunk"}
+
+
+--- hunyuan-t1-vision ---
+  events=5 done=1 tool_calls=3 content_before=0
+  ✅ P-6 PASS (sem content antes de tool_calls)
+  SSE (primeiras 20 linhas):
+data: {"id":"4bf3e580-d9ca-4d57-9265-c72b2dcb0f93","object":"chat.completion.chunk","created":1792305697,"model":"hunyuan-t1-vision-20250916","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_dba6k8c2c3m476hmifkg","type":"function","function":{"name":"get_weather","arguments":""}}]}}]}
+
+data: {"id":"4bf3e580-d9ca-4d57-9265-c72b2dcb0f93","object":"chat.completion.chunk","created":1792305697,"model":"hunyuan-t1-vision-20250916","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"call_dba6k8c2c3m476hmifkg","type":"function","function":{"arguments":"{\"city\":\"Tokyo\"}"}}]}}]}
+
+data: {"id":"4bf3e580-d9ca-4d57-9265-c72b2dcb0f93","object":"chat.completion.chunk","created":1792305697,"model":"hunyuan-t1-vision-20250916","choices":[{"index":0,"delta":{"role":"assistant","content":"Use the 'get_weather' tool to retrieve the weather information for Tokyo.\n\t\n\tThe user wants to know the current weather in Tokyo and has specified using the 'get_weather' tool to obtain this information. The task requires invoking the 'get_weather' tool with the parameter 'city' set to 'Tokyo' to fetch the weather data."}}]}
+
+data: {"id":"4bf3e580-d9ca-4d57-9265-c72b2dcb0f93","object":"chat.completion.chunk","created":1792305697,"model":"hunyuan-t1-vision-20250916","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":715,"completion_tokens":114,"total_tokens":829,"prompt_tokens_details":{"cached_tokens":0},"completion_tokens_details":{"reasoning_tokens":0}}}
+
+data: [DONE]
+
+--- minimax-text-01 ---
+  events=8 done=0 tool_calls=2 content_before=1
+  ❌ P-7b FAIL ([DONE] ausente, events=8)
+  SSE (primeiras 20 linhas):
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"content":"","role":"assistant","name":"MiniMax AI","audio_content":""}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":null,"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"content":"","role":"assistant","name":"MiniMax AI","audio_content":""}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":null,"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"content":"","role":"assistant","name":"MiniMax AI","audio_content":""}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":null,"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"content":"","role":"assistant","name":"MiniMax AI","audio_content":""}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":null,"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"content":"","role":"assistant","name":"MiniMax AI","audio_content":""}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":null,"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"id":"call_function_kdn4bd2nfmkl","type":"function","function":{"name":"get_weather","arguments":""},"index":0}]}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":{"total_tokens":0,"total_characters":0},"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[{"finish_reason":"tool_calls","index":0,"delta":{"role":"assistant","tool_calls":[{"function":{"arguments":"{\"city\": \"Tokyo\"}"},"index":0}]}}],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":{"total_tokens":0,"total_characters":0},"input_sensitive":false,"output_sensitive":false,"input_sensitive_type":0,"output_sensitive_type":0,"output_sensitive_int":0}
+
+data: {"id":"07239d25235b678af19a84532e0115d7","choices":[],"created":1792305701,"model":"MiniMax-Text-01","object":"chat.completion.chunk","usage":{"total_tokens":640,"total_characters":0,"prompt_tokens":624,"completion_tokens":16},"base_resp":{"status_code":0,"status_msg":""}}
+
+=== FIM ONDA 3 ===

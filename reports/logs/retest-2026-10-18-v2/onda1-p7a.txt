@@ -1,0 +1,12 @@
+--- Run 1 (06:20:44) ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [image] novai-image-wan2.2-t2i-flash :: image — erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)
+# log: reports/logs/2026-10-18-novai-proxy.jsonl
+--- Run 2 (06:22:55) ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [image] novai-image-wan2.2-t2i-flash :: image — erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)
+# log: reports/logs/2026-10-18-novai-proxy.jsonl
+--- Run 3 (06:25:06) ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [image] novai-image-wan2.2-t2i-flash :: image — erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)
+# log: reports/logs/2026-10-18-novai-proxy.jsonl

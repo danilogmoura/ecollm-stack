@@ -1,0 +1,19 @@
+=== ONDA 5: Intermitentes E-429 + P-7c (N=3) ===
+Data: 2026-10-18T06:43:15Z
+
+--- E-429: glm-4.6v-flash (N=3) ---
+  Run 1: ❌ HTTP 429 (rate limit)
+  Run 2: ❌ HTTP 429 (rate limit)
+  Run 3: ❌ HTTP 429 (rate limit)
+
+--- E-429: glm-4.7-flash (N=3) ---
+  Run 1: ❌ HTTP 429 (rate limit)
+  Run 2: ✅ HTTP 200 OK
+  Run 3: ❌ HTTP 429 (rate limit)
+
+--- P-7c: mimo-v2.6-pro (N=3 tools-stream) ---
+  Run 1: ✅ HTTP 200, events=19, [DONE]=yes
+  Run 2: ✅ HTTP 200, events=15, [DONE]=yes
+  Run 3: ✅ HTTP 200, events=15, [DONE]=yes
+
+=== FIM ONDA 5 ===

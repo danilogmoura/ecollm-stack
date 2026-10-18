@@ -1,0 +1,12 @@
+--- novai-minimax-m2.7-fast ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [chat] novai-minimax-m2.7-fast :: chat — reasoning_chars=102 reasoning_tokens=28
+# log: reports/logs/2026-10-18-novai-proxy.jsonl
+--- novai-minimax-m2.5-fast ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [chat] novai-minimax-m2.5-fast :: chat — reasoning_chars=118 reasoning_tokens=31
+# log: reports/logs/2026-10-18-novai-proxy.jsonl
+--- novai-step-5-preview-fast ---
+checks=1 pass=0 fail=1 skip=0
+  ❌ [chat] novai-step-5-preview-fast :: chat — reasoning_chars=133 reasoning_tokens=0
+# log: reports/logs/2026-10-18-novai-proxy.jsonl

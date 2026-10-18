@@ -1,0 +1,3 @@
+checks=2 pass=2 fail=0 skip=0
+  ✅ [video-passthrough] (passthrough) /novai/video :: video — id=1409238524-WandVideo-2416c0c795b446c8b9a24a6bccce7410 status=queued
+  ✅ [3d-passthrough] (passthrough) /novai/3d :: 3d — id=1503286218493673472 status=queued

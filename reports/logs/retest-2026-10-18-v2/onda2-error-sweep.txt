@@ -1,0 +1,15 @@
+  ✅ [proxy] novai-glm-5.3-flashx-fast :: error_404 — HTTP 400 error='/chat/completions: Invalid model name passed in model=novai-'
+  ✅ [proxy] novai-glm-5.3-flashx-fast :: error_400 — HTTP 400 error="/chat/completions: Missing required parameter: 'messages'."
+
+# resumo por (alvo, teste)
+  gateway  error_400  env:openai=1 pass=110
+  gateway  error_404  env:fastapi=1 pass=110
+  proxy    error_400  env:openai=1 pass=110
+  proxy    error_404  env:openai=1 pass=110
+
+# envelopes observados
+  gateway  {'fastapi': 1, 'openai': 1}
+  proxy    {'openai': 2}
+# log: reports/logs/2026-10-18-novai-error-sweep.jsonl
+
+# 440 checks · 440 pass · 0 fail

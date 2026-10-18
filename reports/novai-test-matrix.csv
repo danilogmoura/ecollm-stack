@@ -52,9 +52,9 @@ novai-doubao-seed-2.0-lite-fast,chat-fast,doubao-seed-2.0-lite,pass,chat: no-rea
 novai-minimax-m3,chat,minimax-m3,pass,chat: reasoning_chars=73 reasoning_tokens=21,proxy,chat,2224.9,
 novai-minimax-m3-fast,chat-fast,minimax-m3,pass,chat: no-reasoning OK len(content)=2,proxy,chat,1714.4,
 novai-minimax-m2.7,chat,minimax-m2.7,pass,chat: reasoning_chars=94 reasoning_tokens=0,proxy,chat,9301.7,
-novai-minimax-m2.7-fast,chat-fast,minimax-m2.7,fail,chat: reasoning_chars=108 reasoning_tokens=28,proxy,chat,3630.7,
+novai-minimax-m2.7-fast,chat-fast,minimax-m2.7,fail,chat: reasoning_chars=102 reasoning_tokens=28,proxy,chat,3903.6,
 novai-minimax-m2.5,chat,minimax-m2.5,pass,chat: reasoning_chars=157 reasoning_tokens=39,proxy,chat,1966.8,
-novai-minimax-m2.5-fast,chat-fast,minimax-m2.5,fail,chat: reasoning_chars=134 reasoning_tokens=29,proxy,chat,1649.0,
+novai-minimax-m2.5-fast,chat-fast,minimax-m2.5,fail,chat: reasoning_chars=118 reasoning_tokens=31,proxy,chat,4172.0,
 novai-minimax-text-01,chat,minimax-text-01,skipped,chat: skip: modelo não-reasoning (sem par de thinking),proxy,chat,1568.8,
 novai-minimax-text-01-fast,chat-fast,minimax-text-01,pass,chat: no-reasoning OK len(content)=2,proxy,chat,1044.4,
 novai-kimi-k3,chat,kimi-k3,pass,chat: reasoning_chars=286 reasoning_tokens=62,proxy,chat,4549.2,
@@ -70,7 +70,7 @@ novai-kimi-k2.6-fast,chat-fast,kimi-k2.6,skipped,chat: skip: upstream não supor
 novai-kimi-k2.5,chat,kimi-k2.5,pass,chat: reasoning_chars=374 reasoning_tokens=116,proxy,chat,3535.0,
 novai-kimi-k2.5-fast,chat-fast,kimi-k2.5,skipped,chat: skip: upstream não suporta thinking OFF,proxy,chat,3811.2,
 novai-step-5-preview,chat,step-5-preview,pass,chat: reasoning_chars=168 reasoning_tokens=0,proxy,chat,2177.0,
-novai-step-5-preview-fast,chat-fast,step-5-preview,fail,chat: reasoning_chars=161 reasoning_tokens=0,proxy,chat,2025.7,
+novai-step-5-preview-fast,chat-fast,step-5-preview,fail,chat: reasoning_chars=133 reasoning_tokens=0,proxy,chat,1854.6,
 novai-hy4-preview,chat,hy4-preview,pass,chat: reasoning_chars=141 reasoning_tokens=38,proxy,chat,3992.2,
 novai-hy4-preview-fast,chat-fast,hy4-preview,pass,chat: no-reasoning OK len(content)=2,proxy,chat,1665.0,
 novai-hy3,chat,hy3,pass,chat: reasoning_chars=148 reasoning_tokens=40,proxy,chat,3924.5,
@@ -130,7 +130,7 @@ novai-embed-kinfra-vl-embedding-2b,embedding,kinfra-vl-embedding-2b,pass,embed: 
 novai-image-qwen-image,image,qwen-image,removed,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,1569.2,S114: grupo removido do config.yaml (404 upstream permanente)
 novai-image-qwen-image-plus,image,qwen-image-plus,removed,"image: HTTP 404: {""error"":{""message"":""[Alibaba Cloud] Model not exist."",""type"":""upstream_provider_error""}}",gateway,image,879.1,S114: grupo removido do config.yaml (404 upstream permanente)
 novai-image-wan2.5-t2i-preview,image,wan2.5-t2i-preview,pass,image: url=https://dashscope-7c2c.oss-accelerate.aliyuncs.com/1d/64/20261018/2b8dd67a/44b43,proxy,image,10417.4,
-novai-image-wan2.2-t2i-flash,image,wan2.2-t2i-flash,fail,"image: erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)",proxy,image,120107.4,
+novai-image-wan2.2-t2i-flash,image,wan2.2-t2i-flash,fail,"image: erro rede: HTTPConnectionPool(host='localhost', port=4000): Read timed out. (read timeout=120)",proxy,image,120095.5,
 novai-image-doubao-seedream-4.5,image,doubao-seedream-4.5,pass,image: url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0-pro/1ac,proxy,image,31427.2,
 novai-image-seedream-image-v5.0-pro,image,seedream-image-v5.0-pro,pass,image: url=https://aigc-output-image-1326893053.cos.ap-guangzhou.myqcloud.com/1409238524/14,proxy,image,22597.6,
 novai-image-doubao-seedream-4.0,image,doubao-seedream-4.0,pass,image: url=https://ark-acg-cn-beijing.tos-cn-beijing.volces.com/doubao-seedream-5-0/0217922,proxy,image,11716.7,
@@ -154,5 +154,5 @@ novai-tts-minimax-music-v3.0,tts,minimax-music-v3.0,pass,tts: bytes=272708 heade
 novai-tts-minimax-music-v2.6,tts,minimax-music-v2.6,pass,tts: bytes=19738 header=b'ID3\x04\x00\x00\x00\x00\x08jTX',,,,
 novai-asr-hy-asr-3.0-preview,asr,hy-asr-3.0-preview,pass,asr: text_len=50,proxy,asr,3556.9,
 novai-asr-wand-asr-v1,asr,wand-asr-v1,pass,asr: text='Hello world is in effect on speech recognition.' (re-teste 2026-10-17),,,,S115: fail transitório (rede/resposta vazia) — passou no re-teste
-(passthrough) /novai/video,video-passthrough,https://aiapi-pro.com/v1/video/generations,pass,video: id=1409238524-WandVideo-8f6372c1df634f9fb93aa164dff20ae7 status=queued,proxy,video,,
-(passthrough) /novai/3d,3d-passthrough,https://aiapi-pro.com/v1/three_d/generations,pass,3d: id=1503247691944968192 status=queued,proxy,3d,,
+(passthrough) /novai/video,video-passthrough,https://aiapi-pro.com/v1/video/generations,pass,video: id=1409238524-WandVideo-2416c0c795b446c8b9a24a6bccce7410 status=queued,proxy,video,,
+(passthrough) /novai/3d,3d-passthrough,https://aiapi-pro.com/v1/three_d/generations,pass,3d: id=1503286218493673472 status=queued,proxy,3d,,

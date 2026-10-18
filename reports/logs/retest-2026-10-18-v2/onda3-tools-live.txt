@@ -1,0 +1,28 @@
+=== ONDA 3: Tools stream assimetria (P-6) + [DONE] (P-7b) ===
+Data: 2026-10-18T06:41:08Z
+
+--- glm-4.6v ---
+  events=55 done=1 tool_calls=2 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=77 tools=105)
+
+--- glm-5 ---
+  events=18 done=1 tool_calls=2 content_before=0
+  ✅ P-6 PASS (sem content antes de tool_calls)
+
+--- minimax-m3 ---
+  events=13 done=1 tool_calls=3 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=3 tools=17)
+
+--- kimi-k2.8-preview ---
+  events=53 done=1 tool_calls=7 content_before=1
+  ❌ P-6 FAIL (content antes de tool_calls, lines: content=71 tools=89)
+
+--- hunyuan-t1-vision ---
+  events=5 done=1 tool_calls=3 content_before=0
+  ✅ P-6 PASS (sem content antes de tool_calls)
+
+--- minimax-text-01 ---
+  events=8 done=0 tool_calls=2 content_before=1
+  ❌ P-7b FAIL ([DONE] ausente, events=8)
+
+=== FIM ONDA 3 ===
