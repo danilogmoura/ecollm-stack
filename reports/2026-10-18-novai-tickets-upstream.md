@@ -3,6 +3,8 @@
 **Date:** 2026-10-18  
 **Reporter:** eCollM Stack Team  
 **Gateway:** `https://aiapi-pro.com`  
+**Architecture:** We consume the NovAI gateway through a LiteLLM proxy that normalizes API responses to strict OpenAI compatibility. Tests were run against both targets (gateway direct and via proxy) where applicable to isolate upstream bugs from proxy behavior.
+
 **Test methodology:** This is the second retest cycle (S122-R) for these issues. The original failures were first detected on 2026-10-17, and this retest was conducted on 2026-10-18 to confirm persistence vs. transience. Each test was executed with N≥3 retries, 10s spacing between runs, against the live gateway endpoint. All requests use OpenAI-compatible API format with streaming enabled unless noted otherwise. Results marked as "persistent" have now failed across both test cycles (original + retest).
 
 ---
