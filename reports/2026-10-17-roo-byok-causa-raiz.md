@@ -9,7 +9,7 @@
 A coluna `metadata->>'user_agent'` separa os clientes que passam pelo proxy:
 
 | user_agent | origem |
-|---|---|
+| --- | --- |
 | `GitHubCopilotChat/0.70.0` | sessão Copilot (tráfego pesado, prompts 30k–105k) |
 | `python-requests/2.34.2` | harness `eval/novai_*.py` (smoke tests) |
 | `curl/8.5.0` | testes manuais de endpoint |
