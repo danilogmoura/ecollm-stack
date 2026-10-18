@@ -20,7 +20,7 @@ NovAI/
 ## Catálogo (`catalogo/`)
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `2026-10-16-novai-configs-por-modelo.md` | Configurações por modelo (params, limits, capabilities) |
 | `2026-10-16-novai-model-api.md` | Análise da API de modelos NovAI |
 | `2026-10-16-novai-docs.md` | Documentação oficial NovAI analisada |
@@ -31,7 +31,7 @@ NovAI/
 ## Contrato (`contrato/`)
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `2026-10-14-novai-sse-streaming.md` | Análise do streaming SSE NovAI |
 | `2026-10-15-litellm-stack-e-catalogo-novai.md` | Integração LiteLLM + catálogo NovAI |
 | `2026-10-17-novai-contrato-api.md` | Verificação de contrato OpenAI-compatível |
@@ -39,7 +39,7 @@ NovAI/
 ## Testes (`testes/`)
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `2026-10-17-novai-fase-f.md` | Fase F: testes iniciais |
 | `2026-10-17-novai-fase-g.md` | Fase G: expansão de cobertura |
 | `2026-10-17-novai-fase-h.md` | Fase H: validação de embeddings |
@@ -56,7 +56,7 @@ NovAI/
 ## Reteste S122-R (`reteste/`)
 
 | Arquivo | Conteúdo |
-|---------|----------|
+| --------- | ---------- |
 | `2026-10-18-novai-consolidado-falhas-servidor.md` | Consolidação inicial das falhas de servidor |
 | `2026-10-18-novai-erros-servidor-dossie-completo.md` | **Dossiê completo** de erros de servidor |
 | `2026-10-18-novai-reteste-falhas-evidencia.md` | Evidências do primeiro reteste |
@@ -74,6 +74,7 @@ NovAI/
 ## Logs (`logs/`)
 
 Logs brutos organizados por data e tipo. Incluem:
+
 - `*-novai-*.jsonl` — respostas raw da API (chat, embedding, image, proxy, gateway)
 - `retest-2026-10-18/` — evidências do primeiro reteste
 - `retest-2026-10-18-v2/` — evidências do reteste S122-R (5 ondas)
@@ -84,7 +85,7 @@ Logs brutos organizados por data e tipo. Incluem:
 ## Resumo dos Resultados (S122-R)
 
 | Status | Count | Error IDs |
-|--------|-------|-----------|
+| -------- | ------- | ----------- |
 | 🔴 FAIL persistente | 6 | P-3, P-7a, P-5, P-6, P-7b, P-7d |
 | 🔴 Rate limit persistente | 1 | E-429 (glm-4.6v-flash) |
 | 🟡 Intermitente | 1 | E-429 (glm-4.7-flash) |
