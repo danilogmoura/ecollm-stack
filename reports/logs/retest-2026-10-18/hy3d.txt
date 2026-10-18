@@ -1,0 +1,56 @@
+== hy-3d-3.1 via PROXY passthrough /novai/3d (re-teste 2026-10-18) ==
+{"id":"1503253012881031168","request_id":"3dgen-c36f80483fa44336a7d1e629","status":"queued","model":"hy-3d-3.1"}
+
+id=1503253012881031168
+poll1: {"detail":"Not Found"}
+poll2: {"detail":"Not Found"}
+poll3: {"detail":"Not Found"}
+poll4: {"detail":"Not Found"}
+poll5: {"detail":"Not Found"}
+poll6: {"detail":"Not Found"}
+poll7: {"detail":"Not Found"}
+poll8: {"detail":"Not Found"}
+tus":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"6a476a1d-1a62-4db0-aeb1-6613e1969249","created":1792
+poll2: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"e30ba42c-9d86-4ef6-819f-1b1c7fe630ea","created":1792
+== hy-3d-3.1 submit novo (re-teste 2026-10-18, gateway direto) ==
+{"id":"1503253348777730048","request_id":"3dgen-6a98445795924e288c2c7939","status":"queued","model":"hy-3d-3.1"}
+
+novo id=1503253348777730048
+poll3: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"1c7b6dca-23a1-4e90-a40c-31863647d536","created":1792
+poll1: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"5fab5c00-08e9-4d3b-8caf-7d1aa37f7f57","created":1792297941}
+poll4: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"814fb692-0459-49f8-83c1-f5f1371ffbe1","created":1792
+poll2: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"c1c3036e-f7b0-4e8f-9ca5-6b8d58dd46aa","created":1792297955}
+poll5: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"70f2b57b-03b3-44a0-ad57-1b9d30acad72","created":1792
+poll3: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"3b95c667-160a-4139-9575-844b05a4c402","created":1792297969}
+== hy-3d-3.1 poll gateway direto (continuação task 1503253348777730048) ==
+poll6: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"cc51ecd8-864b-4341-bda4-d66accd05cb6","created":1792
+poll1: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"a0d17ebe-1d83-4628-b407-a17e87d26fbf","created":1792297970}
+poll4: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"2f064fb4-9173-458a-a089-3f11d05676d2","created":1792297983}
+poll7: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"c05d7a51-db51-4d0c-8c8f-3148f02a86b1","created":1792
+poll2: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"21ace01f-948e-47de-9cf1-7076ef3df187","created":1792297987}
+poll5: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"d7b94b07-7af1-4c74-a9f4-2326365ee5a8","created":1792297997}
+poll8: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"0f6c690e-f800-46dc-9cbf-5deec8f95022","created":1792
+poll3: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"ec0de551-e459-4ca9-8379-7a184d65c963","created":1792298004}
+poll6: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"f6be5551-3580-4298-9a96-87490683e75f","created":1792298011}
+poll9: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"2da8ddfa-3107-43c7-89fa-cb00343fad32","created":1792
+poll4: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"58f84ff9-7767-4d74-b570-ef2332790d33","created":1792298021}
+poll7: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"54834192-fba9-4a73-9663-d48c4f25ed77","created":1792298024}
+poll10: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"eb74742b-0a75-4722-a476-78cf49eacf9c","created":1792
+== hy-3d-3.1 poll final (task 1503253348777730048) ==
+poll1: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"801f20f3-f53a-425f-b8bc-1adedd94c591","created":1792298036}
+poll8: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"6fd805d3-dbfb-4202-9105-b8f54bb7c5dd","created":1792298038}
+poll5: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"4947d744-e534-45aa-8ca5-fc6eac22a4f9","created":1792298038}
+poll6: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"0cc785e2-b4ce-4cd4-9a2d-6ce857940817","created":1792298055}
+poll2: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"f681b9d4-f039-45f9-a502-4780c6aa8eba","created":1792298058}
+== hy-3d-3.1 poll longo (task 1503253348777730048, até 6 min) ==
+poll1 t+1x20s: "status":"processing"
+poll7: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"b50b6381-d245-4378-9acf-6f65d58d2126","created":1792298073}
+poll3: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"b7113e28-3baa-4eb5-8132-11ceaa1503e5","created":1792298080}
+poll2 t+2x20s: "status":"processing"
+poll8: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"f1124bd2-08dc-4266-b5d3-97bcd2e6e05d","created":1792298089}
+poll4: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"0fe05cde-ad25-429b-add8-67a7e5e115d3","created":1792298102}
+poll3 t+3x20s: "status":"processing"
+poll9: {"id":null,"task_id":null,"status":"processing","upstream_status":"in_progress","model_url":null,"url":null,"outputs":[],"model":null,"request_id":"aaa82471-bac9-48ab-aa49-1b699b7bfa82","created":1792298107}
+poll10: {"id":null,"task_id":null,"status":"succeeded","upstream_status":"completed","model_url":"https://hunyuan-prod-1258344699.cos.ap-guangzhou.tencentcos.cn/3d/output/1409238524/c744f795-6a0e-4770-bed6-e73c7ff4f139_0.glb?q-sign-algorithm=sha1&q
+poll5: {"id":null,"task_id":null,"status":"succeeded","upstream_status":"completed","model_url":"https://hunyuan-prod-1258344699.cos.ap-guangzhou.tencentcos.cn/3d/output/1409238524/c744f795-6a0e-4770-bed6-e73c7ff4f139_0.glb?q-sign-algorithm=sha1&q-ak=[REDACTED]
+poll4 t+4x20s: "status":"succeeded"

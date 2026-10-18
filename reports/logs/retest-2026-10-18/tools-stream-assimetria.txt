@@ -1,0 +1,5 @@
+{"model": "glm-4.6v", "finish": "tool_calls", "tool_call_chunks": 1, "content_before_toolcall": true, "content_repr": "'\\nI will call the noop tool as requested.'", "chunks_com_contente": 10}
+{"model": "glm-5", "finish": "tool_calls", "tool_call_chunks": 1, "content_before_toolcall": true, "content_repr": "'Vou chamar a ferramenta `noop` para você'", "chunks_com_contente": 7}
+{"model": "kimi-k3", "finish": "tool_calls", "tool_call_chunks": 2, "content_before_toolcall": false, "content_repr": "''", "chunks_com_contente": 0}
+{"model": "minimax-m3", "finish": "tool_calls", "tool_call_chunks": 2, "content_before_toolcall": true, "content_repr": "'<think>The user is asking me to use the '", "chunks_com_contente": 7}
+{"model": "deepseek-v4-flash", "finish": "tool_calls", "tool_call_chunks": 2, "content_before_toolcall": false, "content_repr": "''", "chunks_com_contente": 0}

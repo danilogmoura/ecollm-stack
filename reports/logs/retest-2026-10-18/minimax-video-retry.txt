@@ -1,0 +1,4 @@
+== minimax-video-v2.3-fast retry PT-BR (re-teste 2026-10-18) ==
+{"id":"1409238524-WandVideo-bf75260848724dd99b4442d9e95e0d32","request_id":"vidgen-4ff17d214b204eeeb5b08f94","status":"queued","model":"minimax-video-v2.3-fast","resolution":"720p","duration":6}
+
+poll1: {"id":"1409238524-WandVideo-bf75260848724dd99b4442d9e95e0d32","task_id":"1409238524-WandVideo-bf75260848724dd99b4442d9e95e0d32","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"

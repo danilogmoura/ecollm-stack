@@ -1,0 +1,10 @@
+== minimax-video-v2.3-fast submit correto: POST /v1/video/generations ==
+{"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","request_id":"vidgen-9925c97494b04992a6cb78ed","status":"queued","model":"minimax-video-v2.3-fast","resolution":"720p","duration":6}
+
+id=1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405
+poll1: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"
+poll2: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"
+poll3: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"
+poll4: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"
+poll5: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"
+poll6: {"id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","task_id":"1409238524-WandVideo-1a32350e2c97430eab8d24666d70d405","status":"failed","upstream_status":"Fail","video_url":null,"url":null,"

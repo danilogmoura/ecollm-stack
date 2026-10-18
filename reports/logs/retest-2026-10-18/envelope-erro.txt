@@ -1,0 +1,441 @@
+== P-5 envelope de erro (re-teste 2026-10-18) ==
+--- gateway POST /v1/chat/completions model inexistente ---
+HTTP 400
+{"detail":"Model 'nao-existe-xyz' not supported. Available: glm-5, glm-5.1, glm-5.2, glm-4.6v, glm-4.6v-flash, glm-5v-turbo, deepseek-v4-pro, deepseek-v4-flash, qwen3.7-max, qwen3.6-max-preview, qwen3-max, qwen-plus, minimax-text-01, moonshot-v1-128k, doubao-seed-2.0-pro, doubao-seed-2.0-lite, doubao-seed-2.0-code, doubao-seedream-5.0-pro, doubao-seedream-5.0, doubao-seedance-2.0, doubao-seedance-2.0-fast"}
+--- proxy GET /v1/models/nao-existe-xyz ---
+HTTP 404
+{"detail":"The model `nao-existe-xyz` does not exist or is not accessible"}
+--- gateway GET /v1/models/nao-existe-xyz ---
+HTTP 404
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>404 Not Found — NovAI AI API Gateway</title>
+  <meta name="description" content="The page you requested was not found on NovAI. Browse our AI API pricing, docs, or model catalog.">
+  <meta name="robots" content="noindex, follow">
+  <link rel="canonical" href="https://aiapi-pro.com/404">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://aiapi-pro.com/404">
+  <meta property="og:title" content="404 Not Found — NovAI">
+  <meta property="og:description" content="The page you requested was not found on NovAI.">
+  <meta property="og:image" content="https://aiapi-pro.com/og-cover.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:site_name" content="NovAI">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="404 Not Found — NovAI">
+  <meta name="twitter:description" content="The page you requested was not found on NovAI.">
+  <meta name="twitter:image" content="https://aiapi-pro.com/og-cover.png">
+  <meta name="theme-color" content="#0f172a">
+  <link rel="icon" type="image/png" href="/apple-touch-icon.png">
+  <link rel="apple-touch-icon" href="/apple-touch-icon.png">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      color: #f1f5f9;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 640px;
+      text-align: center;
+    }
+    .code {
+      font-size: 128px;
+      font-weight: 900;
+      background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      margin-bottom: 12px;
+      color: #f1f5f9;
+    }
+    p {
+      font-size: 16px;
+      line-height: 1.6;
+      color: #94a3b8;
+      margin-bottom: 32px;
+    }
+    .links {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 12px 24px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: 600;
+      transition: all 0.2s;
+      display: inline-block;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      color: white;
+    }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(59, 130, 246, 0.4); }
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.1);
+      color: #f1f5f9;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+    }
+    .btn-secondary:hover { background: rgba(255, 255, 255, 0.15); }
+    .nav {
+      margin-top: 48px;
+      display: flex;
+      gap: 16px;
+      justify-content: center;
+      flex-wrap: wrap;
+      font-size: 14px;
+    }
+    .nav a {
+      color: #60a5fa;
+      text-decoration: none;
+    }
+    .nav a:hover { text-decoration: underline; }
+  </style>
+
+<!-- CF_ANALYTICS_V1 -->
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "2d078f015fca4158ba24b8f4ff4d68b0"}'></script>
+</head>
+<body>
+  <main class="container">
+    <div class="code">404</div>
+    <h1>Page Not Found</h1>
+    <p>Sorry, the page you requested was not found on NovAI. It may have been moved, renamed, or never existed.</p>
+    <div class="links">
+      <a href="/" class="btn btn-primary">Back to Home</a>
+      <a href="/pricing" class="btn btn-secondary">See Pricing</a>
+    </div>
+    <nav class="nav">
+      <a href="/">Home</a>
+      <a href="/pricing">Pricing</a>
+      <a href="/pricing">Compare</a>
+      <a href="/docs">Docs</a>
+      <a href="/models/doubao-seed-2.0-pro.html">Doubao-Pro</a>
+      <a href="/models/deepseek-v4-pro.html">DeepSeek-V4</a>
+      <a href="/models/qwen3.6-max.html">Qwen3.6-Max</a>
+    </nav>
+  </main>
+<!-- ============ NovAI Self-Hosted Support Widget v2 (Chat) ============ -->
+<!-- 双语聊天客服 + 留言兜底，纯前端零依赖 -->
+<!-- 注入位置：所有 HTML 的 </body> 前 -->
+<div id="novai-sup" style="all:initial;"></div>
+<style>
+  #novai-sup-btn{position:fixed;right:22px;bottom:22px;z-index:99998;width:58px;height:58px;border-radius:50%;background:linear-gradient(135deg,#7c3aed 0%,#a855f7 100%);color:#fff;border:none;cursor:pointer;font-size:26px;line-height:58px;text-align:center;box-shadow:0 6px 24px rgba(124,58,237,.4);transition:transform .2s,box-shadow .2s;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;}
+  #novai-sup-btn:hover{transform:scale(1.08);box-shadow:0 8px 32px rgba(124,58,237,.55);}
+  #novai-sup-btn .nsp-dot{position:absolute;top:6px;right:6px;width:10px;height:10px;background:#22c55e;border-radius:50%;border:2px solid #fff;display:none;}
+  #novai-sup-btn.has-msg .nsp-dot{display:block;}
+  #novai-sup-panel{position:fixed;right:22px;bottom:92px;z-index:99999;width:360px;height:560px;max-height:calc(100vh - 110px);background:#fff;border-radius:14px;box-shadow:0 12px 40px rgba(0,0,0,.18);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;display:none;border:1px solid #eee;flex-direction:column;overflow:hidden;}
+  #novai-sup-panel.open{display:flex;}
+  .nsp-head{padding:14px 16px 10px 16px;border-bottom:1px solid #f0f0f0;display:flex;align-items:center;gap:8px;flex-shrink:0;}
+  .nsp-head-title{flex:1;font-weight:700;color:#7c3aed;font-size:15px;display:flex;align-items:center;gap:6px;}
+  .nsp-head-status{font-size:11px;color:#22c55e;font-weight:500;}
+  .nsp-head-status::before{content:"●";margin-right:3px;}
+  .nsp-lang{background:#f5f3ff;border:1px solid #e9d5ff;color:#7c3aed;cursor:pointer;font-size:11px;padding:3px 8px;border-radius:20px;font-weight:600;line-height:1;}
+  .nsp-lang:hover{background:#ede9fe;}
+  .nsp-close{background:none;border:none;color:#999;cursor:pointer;font-size:20px;line-height:1;padding:2px 6px;}
+  .nsp-close:hover{color:#333;}
+  .nsp-tabs{display:flex;border-bottom:1px solid #f0f0f0;flex-shrink:0;}
+  .nsp-tab{flex:1;padding:10px 6px;background:none;border:none;cursor:pointer;font-size:12px;color:#666;border-bottom:2px solid transparent;font-weight:500;}
+  .nsp-tab.active{color:#7c3aed;border-bottom-color:#7c3aed;font-weight:600;}
+  .nsp-tab:hover{color:#7c3aed;}
+  .nsp-body{flex:1;overflow:hidden;display:flex;flex-direction:column;min-height:0;}
+  .nsp-pane{display:none;flex:1;flex-direction:column;min-height:0;}
+  .nsp-pane.active{display:flex;}
+  /* Chat */
+  .nsp-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px;background:#fafafa;}
+  .nsp-msg-row{display:flex;gap:8px;animation:nsp-fade .2s;}
+  .nsp-msg-row.user{justify-content:flex-end;}
+  @keyframes nsp-fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+  .nsp-bubble{max-width:78%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.5;word-break:break-word;white-space:pre-wrap;}
+  .nsp-msg-row.user .nsp-bubble{background:#7c3aed;color:#fff;border-bottom-right-radius:4px;}
+  .nsp-msg-row.bot .nsp-bubble{background:#fff;color:#222;border:1px solid #eee;border-bottom-left-radius:4px;}
+  .nsp-msg-row.sys .nsp-bubble{background:#fef3c7;color:#92400e;font-size:12px;text-align:center;border-radius:8px;border:1px solid #fde68a;max-width:100%;}
+  .nsp-typing{display:inline-flex;gap:3px;padding:4px 0;}
+  .nsp-typing span{width:5px;height:5px;background:#a855f7;border-radius:50%;animation:nsp-bounce 1.4s infinite ease-in-out both;}
+  .nsp-typing span:nth-child(1){animation-delay:-.32s;}
+  .nsp-typing span:nth-child(2){animation-delay:-.16s;}
+  @keyframes nsp-bounce{0%,80%,100%{transform:scale(.6);opacity:.5;}40%{transform:scale(1);opacity:1;}}
+  .nsp-input-bar{padding:10px 12px;border-top:1px solid #f0f0f0;background:#fff;flex-shrink:0;}
+  .nsp-input-row{display:flex;gap:6px;align-items:flex-end;}
+  .nsp-input{flex:1;border:1px solid #ddd;border-radius:8px;padding:8px 10px;font-size:13px;font-family:inherit;resize:none;max-height:80px;min-height:36px;outline:none;}
+  .nsp-input:focus{border-color:#7c3aed;}
+  .nsp-send-btn{background:#7c3aed;color:#fff;border:none;width:36px;height:36px;border-radius:8px;cursor:pointer;font-size:14px;flex-shrink:0;}
+  .nsp-send-btn:hover{background:#6d28d9;}
+  .nsp-send-btn:disabled{background:#ccc;cursor:not-allowed;}
+  .nsp-actions{display:flex;gap:6px;margin-top:6px;justify-content:space-between;align-items:center;}
+  .nsp-action-btn{background:none;border:1px solid #e9d5ff;color:#7c3aed;font-size:11px;padding:4px 9px;border-radius:14px;cursor:pointer;}
+  .nsp-action-btn:hover{background:#f5f3ff;}
+  .nsp-action-btn:disabled{opacity:.45;cursor:not-allowed;}
+  .nsp-eml-input{width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:7px;padding:7px 9px;font-size:13px;margin-bottom:6px;font-family:inherit;}
+  .nsp-eml-input:focus{border-color:#7c3aed;outline:none;}
+  .nsp-eml-btn{background:#7c3aed;color:#fff;border:none;padding:7px 12px;border-radius:7px;cursor:pointer;font-size:12px;font-weight:600;margin-right:6px;}
+  .nsp-eml-btn:hover{background:#6d28d9;}
+  .nsp-eml-alt{background:#fff;color:#7c3aed;border:1px solid #e9d5ff;}
+  .nsp-eml-alt:hover{background:#f5f3ff;}
+  .nsp-eml-err{color:#dc2626;font-size:11px;margin-top:4px;min-height:14px;}
+  .nsp-charinfo{font-size:10px;color:#bbb;}
+  /* Form */
+  .nsp-form{padding:14px;overflow-y:auto;}
+  .nsp-h{font-weight:700;color:#7c3aed;font-size:15px;margin:0 0 4px 0;}
+  .nsp-sub{font-size:12px;color:#666;margin:0 0 12px 0;}
+  .nsp-form input,.nsp-form textarea{width:100%;box-sizing:border-box;padding:9px 10px;border:1px solid #ddd;border-radius:7px;font-size:13px;margin-bottom:8px;font-family:inherit;}
+  .nsp-form textarea{resize:vertical;min-height:80px;}
+  .nsp-form input:focus,.nsp-form textarea:focus{border-color:#7c3aed;outline:none;}
+  .nsp-send{background:#7c3aed;color:#fff;border:none;padding:10px 16px;border-radius:7px;cursor:pointer;font-size:13px;width:100%;font-weight:600;}
+  .nsp-send:hover{background:#6d28d9;}
+  .nsp-send:disabled{background:#ccc;cursor:not-allowed;}
+  .nsp-msg-result{font-size:12px;padding:8px 10px;border-radius:6px;margin-top:8px;display:none;}
+  .nsp-msg-result.ok{background:#dcfce7;color:#166534;display:block;}
+  .nsp-msg-result.err{background:#fee2e2;color:#991b1b;display:block;}
+  /* Help links */
+  .nsp-help{padding:14px;}
+  .nsp-help-item{display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:9px;text-decoration:none;color:#222;border:1px solid #eee;margin-bottom:8px;font-size:13px;background:#fff;}
+  .nsp-help-item:hover{background:#faf5ff;border-color:#a855f7;color:#7c3aed;}
+  .nsp-foot{font-size:10px;color:#aaa;text-align:center;margin-top:10px;padding:8px 0 0 0;border-top:1px solid #f0f0f0;}
+  @media(max-width:480px){#novai-sup-panel{right:12px;left:12px;width:auto;bottom:84px;}}
+</style>
+<button id="novai-sup-btn" aria-label="Contact Support">&#128172;<span class="nsp-dot"></span></button>
+<div id="novai-sup-panel" role="dialog">
+  <div class="nsp-head">
+    <div class="nsp-head-title">&#129302; <span data-t="title">NovAI Bot</span><span class="nsp-head-status" data-t="online">online</span></div>
+    <button class="nsp-lang" onclick="NovAISup.toggleLang()" title="Switch language / 切换语言"><span id="nsp-lang-label">EN</span></button>
+    <button class="nsp-close" onclick="NovAISup.close()" aria-label="Close">&times;</button>
+  </div>
+  <div class="nsp-tabs">
+    <button class="nsp-tab active" data-pane="chat" onclick="NovAISup.tab('chat')"><span>&#128172;</span> <span data-t="t_chat">Chat</span></button>
+    <button class="nsp-tab" data-pane="form" onclick="NovAISup.tab('form')"><span>&#128221;</span> <span data-t="t_form">Email</span></button>
+    <button class="nsp-tab" data-pane="help" onclick="NovAISup.tab('help')"><span>&#128218;</span> <span data-t="t_help">Help</span></button>
+  </div>
+  <div class="nsp-body">
+    <!-- Chat -->
+    <div class="nsp-pane active" id="nsp-pane-chat">
+      <div class="nsp-msgs" id="nsp-msgs"></div>
+      <div class="nsp-input-bar">
+        <div class="nsp-input-row">
+          <textarea class="nsp-input" id="nsp-chat-input" rows="1" data-t-ph="ph_input" placeholder="Type your question..."></textarea>
+          <button class="nsp-send-btn" id="nsp-chat-send" onclick="NovAISup.sendMsg()" title="Send">&#10148;</button>
+        </div>
+        <div class="nsp-actions">
+          <button class="nsp-action-btn" id="nsp-human-btn" onclick="NovAISup.requestHuman()" data-t="ask_human" disabled>Talk to human</button>
+          <span class="nsp-charinfo" id="nsp-charinfo">0/4000</span>
+        </div>
+      </div>
+    </div>
+    <!-- Form -->
+    <div class="nsp-pane" id="nsp-pane-form">
+      <div class="nsp-form">
+        <h3 class="nsp-h" data-t="form_title">Leave us a message</h3>
+        <p class="nsp-sub" data-t="form_sub">We'll reply to your email within a few hours.</p>
+        <input type="text" id="nsp-name" data-t-ph="name" placeholder="Your name">
+        <input type="email" id="nsp-email" data-t-ph="mail" placeholder="Your email" required>
+        <textarea id="nsp-body" data-t-ph="body" placeholder="How can we help?" required></textarea>
+        <button class="nsp-send" onclick="NovAISup.submit()" id="nsp-submit-btn" data-t="send">Send message</button>
+        <div id="nsp-msg-result" class="nsp-msg-result"></div>
+      </div>
+    </div>
+    <!-- Help -->
+    <div class="nsp-pane" id="nsp-pane-help">
+      <div class="nsp-help">
+        <a class="nsp-help-item" href="/docs" target="_blank"><span>&#128218;</span><span data-t="docs">Read the docs</span></a>
+        <a class="nsp-help-item" href="/api-docs" target="_blank"><span>&#128295;</span><span data-t="api">API reference</span></a>
+        <a class="nsp-help-item" href="/pricing" target="_blank"><span>&#128176;</span><span data-t="pricing">Pricing</span></a>
+        <a class="nsp-help-item" href="/cdn-cgi/l/email-protection#196a6c6969766b6d59787078697034696b76377a7674266a6c7b737c7a6d2457766f58503c2b294a6c6969766b6d" target="_blank"><span>&#128231;</span><span data-t="email">Email us</span></a>
+        <div class="nsp-foot" data-t="foot">Powered by NovAI</div>
+      </div>
+    </div>
+  </div>
+</div>
+<script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+(function(){
+  var ZH={title:"NovAI 智能客服",online:"在线",t_chat:"聊天",t_form:"留言",t_help:"帮助",ph_input:"请输入您的问题...",ask_human:"转人工",send:"发送",docs:"查看文档",api:"API 文档",pricing:"价格",email:"邮件联系",foot:"由 NovAI 自建",greet:"你好！我是 NovAI 智能客服，可以帮你解答关于 API 接入、定价、模型选择、错误排查的问题。",form_title:"给我们留言",form_sub:"我们会在几小时内回复你邮箱。",name:"你的姓名",mail:"你的邮箱",body:"有什么可以帮你？",ok:"已收到！我们会尽快回复。",err:"发送失败，请直接发邮件到 support@aiapi-pro.com",err_email:"请输入有效邮箱",err_body:"请填写留言内容",err_input:"请输入问题",human_done:"已为你创建工单",human_fail:"转人工失败，请重试",net_err:"网络异常，请稍后重试"};
+  var EN={title:"NovAI Bot",online:"online",t_chat:"Chat",t_form:"Email",t_help:"Help",ph_input:"Type your question...",ask_human:"Talk to human",send:"Send message",docs:"Read the docs",api:"API reference",pricing:"Pricing",email:"Email us",foot:"Powered by NovAI",greet:"Hi! I'm NovAI's AI assistant. I can help with API onboarding, pricing, model selection, and error troubleshooting.",form_title:"Leave us a message",form_sub:"We'll reply to your email within a few hours.",name:"Your name",mail:"Your email",body:"How can we help?",ok:"Got it! We'll reply soon.",err:"Failed. Please email support@aiapi-pro.com directly.",err_email:"Please enter a valid email",err_body:"Please enter a message",err_input:"Please type a question",human_done:"Ticket created",human_fail:"Failed to escalate, please retry",net_err:"Network error, please try again"};
+  function detectLang(){var s=null;try{s=localStorage.getItem("novai_sup_lang");}catch(e){}if(s==="zh"||s==="en")return s;return (navigator.language||"en").toLowerCase().indexOf("zh")===0?"zh":"en";}
+  function applyLang(lang){var L=lang==="zh"?ZH:EN;document.querySelectorAll("[data-t]").forEach(function(el){var k=el.getAttribute("data-t");if(L[k])el.textContent=L[k];});document.querySelectorAll("[data-t-ph]").forEach(function(el){var k=el.getAttribute("data-t-ph");if(L[k])el.setAttribute("placeholder",L[k]);});var lbl=document.getElementById("nsp-lang-label");if(lbl)lbl.textContent=lang==="zh"?"EN":"中";try{localStorage.setItem("novai_sup_lang",lang);}catch(e){}window.__nsp_lang=lang;window.__nsp_L=L;}
+  function genSid(){try{return crypto.randomUUID();}catch(e){return 'sid-'+Date.now()+'-'+Math.random().toString(36).slice(2,10);}}
+  function getSid(){var s=null;try{s=sessionStorage.getItem("novai_sup_sid");}catch(e){}if(!s){s=genSid();try{sessionStorage.setItem("novai_sup_sid",s);}catch(e){}}return s;}
+  applyLang(detectLang());
+  var panel=document.getElementById("novai-sup-panel");
+  var btn=document.getElementById("novai-sup-btn");
+  var msgsEl=document.getElementById("nsp-msgs");
+  var inputEl=document.getElementById("nsp-chat-input");
+  var sendBtn=document.getElementById("nsp-chat-send");
+  var charinfo=document.getElementById("nsp-charinfo");
+  var resultEl=document.getElementById("nsp-msg-result");
+  var history=[]; // {role,content}
+  var streaming=false;
+  var humanBtn=document.getElementById("nsp-human-btn");
+  var isLoggedIn=false,regEmail="",escalateOk=false,emailFlow=null,escalatedDone=false;
+  var NSP_I18N={
+    zh:{ask_email:"为了让人工客服能通过邮件回复你，请留下你的邮箱：",email_ph:"你的邮箱地址",email_submit:"提交并转人工",email_invalid:"请输入有效的邮箱地址",confirm_email:"我们可以用你的注册邮箱联系你吗？\n{email}",use_this:"就用这个邮箱",use_other:"换个邮箱",reply_to:"人工客服将回复至 ",btn_lock_guest:"请先描述你的问题；当 AI 判断需要人工介入时，此按钮将自动解锁",btn_lock_text:"请先发送一条消息",btn_done:"已创建人工工单，请留意你的邮箱"},
+    en:{ask_email:"So our human team can reply to you by email, please leave your email:",email_ph:"Your email address",email_submit:"Submit & talk to human",email_invalid:"Please enter a valid email",confirm_email:"Can we reach you at your registered email?\n{email}",use_this:"Yes, use this email",use_other:"Use a different email",reply_to:"Our team will reply to ",btn_lock_guest:"Describe your issue first - this button unlocks when our AI determines a human agent is needed",btn_lock_text:"Send a message first",btn_done:"Ticket created - please check your inbox"}
+  };
+  function t2(k){var L=(window.__nsp_lang==="zh")?NSP_I18N.zh:NSP_I18N.en;return L[k]||NSP_I18N.en[k]||"";}
+  function hasUserText(){for(var i=0;i<history.length;i++){if(history[i].role==="user")return true;}return false;}
+  function updateHumanBtn(){if(!humanBtn)return;var en=hasUserText()&&(isLoggedIn||escalateOk)&&!escalatedDone;humanBtn.disabled=!en;if(escalatedDone){humanBtn.title=t2("btn_done");}else if(!en){humanBtn.title=hasUserText()?t2("btn_lock_guest"):t2("btn_lock_text");}else{humanBtn.title="";}}
+  function escapeHtml(s){return String(s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+  function appendMsg(role,text){var row=document.createElement("div");row.className="nsp-msg-row "+role;var bub=document.createElement("div");bub.className="nsp-bubble";bub.textContent=text||"";row.appendChild(bub);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;return bub;}
+  function appendTyping(){var row=document.createElement("div");row.className="nsp-msg-row bot";row.id="nsp-typing-row";var bub=document.createElement("div");bub.className="nsp-bubble";bub.innerHTML='<div class="nsp-typing"><span></span><span></span><span></span></div>';row.appendChild(bub);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;return bub;}
+  function removeTyping(){var r=document.getElementById("nsp-typing-row");if(r)r.parentNode.removeChild(r);}
+  function ensureGreet(){if(history.length===0){var L=window.__nsp_L||EN;appendMsg("bot",L.greet);}}
+  inputEl.addEventListener("input",function(){var v=inputEl.value;if(v.length>4000){inputEl.value=v.slice(0,4000);}charinfo.textContent=inputEl.value.length+"/4000";inputEl.style.height="auto";inputEl.style.height=Math.min(80,inputEl.scrollHeight)+"px";});
+  inputEl.addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();NovAISup.sendMsg();}});
+  async function streamReply(userText){
+    var L=window.__nsp_L||EN;
+    history.push({role:"user",content:userText});
+    updateHumanBtn();
+    appendMsg("user",userText);
+    appendTyping();
+    streaming=true;sendBtn.disabled=true;
+    var bub=null,full="";
+    try{
+      var resp=await fetch("/api/support/chat",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sid:getSid(),messages:history.slice(-20),lang:window.__nsp_lang||"en",page:location.pathname})});
+      if(!resp.ok||!resp.body){removeTyping();appendMsg("sys",L.net_err);streaming=false;sendBtn.disabled=false;return;}
+      var reader=resp.body.getReader(),decoder=new TextDecoder("utf-8"),buf="";
+      while(true){
+        var r=await reader.read();
+        if(r.done)break;
+        buf+=decoder.decode(r.value,{stream:true});
+        var lines=buf.split("\n\n");buf=lines.pop()||"";
+        for(var i=0;i<lines.length;i++){
+          var lne=lines[i];
+          if(lne.indexOf("event: escalate_available")===0){escalateOk=true;updateHumanBtn();continue;}
+          if(lne.indexOf("event: escalated")===0){
+            var dl=lne.split("\n").find(function(x){return x.indexOf("data:")===0;});
+            if(dl){try{var ed=JSON.parse(dl.slice(5).trim());appendMsg("sys",L.human_done+" #"+ed.ticket_id);}catch(e){}}
+            continue;
+          }
+          if(lne.indexOf("data:")!==0)continue;
+          var data=lne.replace(/^data:\s*/,"").trim();
+          if(data==="[DONE]")continue;
+          try{
+            var obj=JSON.parse(data);
+            var choices=obj.choices||[];
+            var delta=(choices[0]||{}).delta||{};
+            var c=delta.content||"";
+            if(c){
+              if(!bub){removeTyping();bub=appendMsg("bot","");}
+              full+=c;bub.textContent=full;
+              msgsEl.scrollTop=msgsEl.scrollHeight;
+            }
+          }catch(e){}
+        }
+      }
+      if(!bub){removeTyping();}
+      if(full)history.push({role:"assistant",content:full});
+    }catch(e){removeTyping();appendMsg("sys",L.net_err);}
+    streaming=false;sendBtn.disabled=false;
+  }
+  function showEmailInput(){
+    emailFlow="email";
+    appendMsg("bot",t2("ask_email"));
+    var row=document.createElement("div");row.className="nsp-msg-row bot";
+    var bub=document.createElement("div");bub.className="nsp-bubble";
+    bub.innerHTML='<input type="email" class="nsp-eml-input" id="nsp-eml-input"><button class="nsp-eml-btn" id="nsp-eml-submit"></button><div class="nsp-eml-err" id="nsp-eml-err"></div>';
+    row.appendChild(bub);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;
+    var inp=document.getElementById("nsp-eml-input");inp.placeholder=t2("email_ph");
+    document.getElementById("nsp-eml-submit").textContent=t2("email_submit");
+    document.getElementById("nsp-eml-submit").onclick=function(){
+      var v=inp.value.trim();
+      if(!v||!/^\S+@\S+\.\S+$/.test(v)){document.getElementById("nsp-eml-err").textContent=t2("email_invalid");return;}
+      doEscalate(v);
+    };
+    inp.addEventListener("keydown",function(e){if(e.key==="Enter"){e.preventDefault();document.getElementById("nsp-eml-submit").click();}});
+    inp.focus();
+    updateHumanBtn();
+  }
+  function doEscalate(email){
+    var L=window.__nsp_L||EN;
+    streaming=true;sendBtn.disabled=true;updateHumanBtn();
+    fetch("/api/support/chat/escalate",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({sid:getSid(),messages:history.slice(-20),email:email})})
+      .then(function(r){return r.json().then(function(d){return{ok:r.ok,d:d};});})
+      .then(function(res){
+        emailFlow=null;
+        if(res.ok&&res.d&&res.d.ticket_id){
+          escalatedDone=true;escalateOk=false;
+          appendMsg("sys",L.human_done+" #"+res.d.ticket_id+" · "+t2("reply_to")+email);
+        }else{
+          appendMsg("sys",L.human_fail+((res.d&&res.d.detail)?(" ("+res.d.detail+")"):""));
+        }
+      })
+      .catch(function(){emailFlow=null;appendMsg("sys",L.human_fail);})
+      .finally(function(){streaming=false;sendBtn.disabled=false;updateHumanBtn();});
+  }
+  (function(){
+    try{
+      var tk=localStorage.getItem("novai_token");
+      if(tk){
+        fetch("/api/users/me",{headers:{"Authorization":"Bearer "+tk}})
+          .then(function(r){return r.ok?r.json():null;})
+          .then(function(u){if(u&&u.email){isLoggedIn=true;regEmail=u.email;updateHumanBtn();}})
+          .catch(function(){});
+      }
+    }catch(e){}
+  })();
+  window.NovAISup={
+    toggle:function(){var was=panel.classList.contains("open");panel.classList.toggle("open");btn.classList.remove("has-msg");if(!was)ensureGreet();},
+    close:function(){panel.classList.remove("open");},
+    toggleLang:function(){applyLang(window.__nsp_lang==="zh"?"en":"zh");updateHumanBtn();},
+    tab:function(name){document.querySelectorAll(".nsp-tab").forEach(function(t){t.classList.toggle("active",t.getAttribute("data-pane")===name);});document.querySelectorAll(".nsp-pane").forEach(function(p){p.classList.toggle("active",p.id==="nsp-pane-"+name);});if(name==="chat")ensureGreet();},
+    sendMsg:function(){var L=window.__nsp_L||EN;var t=inputEl.value.trim();if(!t){return;}if(streaming){return;}inputEl.value="";charinfo.textContent="0/4000";inputEl.style.height="36px";streamReply(t);},
+    requestHuman:function(){
+      if(streaming||emailFlow)return;
+      if(!hasUserText())return;
+      if(!isLoggedIn&&!escalateOk)return;
+      if(escalatedDone)return;
+      if(isLoggedIn&&regEmail){
+        emailFlow="confirm";
+        appendMsg("bot",t2("confirm_email").replace("{email}",regEmail));
+        var row=document.createElement("div");row.className="nsp-msg-row bot";
+        var bub=document.createElement("div");bub.className="nsp-bubble";
+        bub.innerHTML='<button class="nsp-eml-btn" id="nsp-eml-yes"></button><button class="nsp-eml-btn nsp-eml-alt" id="nsp-eml-no"></button>';
+        row.appendChild(bub);msgsEl.appendChild(row);msgsEl.scrollTop=msgsEl.scrollHeight;
+        document.getElementById("nsp-eml-yes").textContent=t2("use_this");
+        document.getElementById("nsp-eml-no").textContent=t2("use_other");
+        document.getElementById("nsp-eml-yes").onclick=function(){doEscalate(regEmail);};
+        document.getElementById("nsp-eml-no").onclick=function(){showEmailInput();};
+        updateHumanBtn();
+      }else{
+        showEmailInput();
+      }
+    },
+
+    submit:function(){
+      var L=window.__nsp_L||EN;
+      var name=document.getElementById("nsp-name").value.trim();
+      var email=document.getElementById("nsp-email").value.trim();
+      var body=document.getElementById("nsp-body").value.trim();
+      if(!email||!/^\S+@\S+\.\S+$/.test(email)){resultEl.className="nsp-msg-result err";resultEl.textContent=L.err_email;return;}
+      if(!body){resultEl.className="nsp-msg-result err";resultEl.textContent=L.err_body;return;}
+      var sb=document.getElementById("nsp-submit-btn");sb.disabled=true;sb.textContent="...";
+      fetch("/api/support/ticket",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:name,email:email,message:body,page:location.pathname,ua:navigator.userAgent})})
+        .then(function(r){return r.ok?r.json():Promise.reject(r);})
+        .then(function(){resultEl.className="nsp-msg-result ok";resultEl.textContent=L.ok;document.getElementById("nsp-body").value="";setTimeout(function(){NovAISup.tab("chat");NovAISup.close();resultEl.className="nsp-msg-result";},2000);})
+        .catch(function(){resultEl.className="nsp-msg-result err";resultEl.textContent=L.err;})
+        .finally(function(){sb.disabled=false;sb.textContent=L.send;});
+    }
+  };
+  btn.addEventListener("click",NovAISup.toggle);
+})();
+</script>
+<!-- ============ /NovAI Support Widget v2 ============ -->
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4c4a50b488f3442',t:'MTc5MjI5NjExNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+

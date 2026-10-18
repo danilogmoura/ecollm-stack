@@ -1,0 +1,4 @@
+{"target": "gateway", "model": "glm-5", "case": "sem campo thinking (baseline ON)", "http": 200, "completion": 114, "reasoning_tokens": 112, "rc_chars": 376, "content": "OK"}
+{"target": "gateway", "model": "glm-5", "case": "thinking:{type:disabled} na RAIZ", "http": 200, "completion": 1, "reasoning_tokens": null, "rc_chars": 0, "content": "OK"}
+{"target": "proxy", "model": "novai-glm-5-fast", "case": "extra_body.thinking:{type:disabled} (payload do harness S103/A6)", "http": 200, "completion": 1, "reasoning_tokens": null, "rc_chars": 0, "content": "OK"}
+{"target": "gateway", "model": "glm-5", "case": "extra_body.thinking:{type:disabled} (payload do harness S103/A6)", "http": 200, "completion": 149, "reasoning_tokens": 147, "rc_chars": 520, "content": "OK"}

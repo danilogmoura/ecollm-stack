@@ -1,0 +1,11 @@
+== hy-3d-3.1 poll via PROXY caminho correto: GET /novai/3d/<id> (include_subpath) ==
+poll1: {"detail":"Not Found"}
+poll2: {"detail":"Not Found"}
+poll3: {"detail":"Not Found"}
+poll4: {"detail":"Not Found"}
+poll5: {"detail":"Not Found"}
+poll6: {"detail":"Not Found"}
+poll7: {"detail":"Not Found"}
+poll8: {"detail":"Not Found"}
+poll9: {"detail":"Not Found"}
+poll10: {"detail":"Not Found"}

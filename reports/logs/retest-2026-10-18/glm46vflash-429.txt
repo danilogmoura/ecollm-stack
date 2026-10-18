@@ -1,0 +1,5 @@
+== glm-4.6v-flash tools stream (re-teste 2026-10-18, gateway) — 429 histórico ==
+non-stream: HTTP 429 em 1.269490s
+{"error":{"message":"[ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试","type":"upstream_provider_error","provider":"ZhiPu (智谱)","code":429}}== glm-4.6v-flash retry sem tools (distinguir 429 de carga vs contrato) ==
+sem-tools: HTTP 429
+{"error":{"message":"[ZhiPu (智谱)] 该模型当前访问量过大，请您稍后再试","type":"upstream_provider_error","provider":"ZhiPu (智谱)
