@@ -3,7 +3,9 @@
 **Data:** 2026-10-18 (S122)
 **Escopo:** TODAS as famílias de teste da trilha NovAI — chat, chat-fast,
 embedding, image, TTS, ASR, vídeo/3D (passthrough), tools (S119), contrato de
-shape (S117), sweep de contrato de erro (S115) e inventário/roteabilidade.
+shape (S117), sweep de contrato de erro (S115), inventário/roteabilidade e a
+**API de catálogo/metadados** (`model_api` 94 modelos × 7 sondas, `configs`,
+`docs`, `enrich --test-code`, `inventory`, `--agent` Fase K — §1.8).
 **Método de atribuição:** dual-target (gateway direto `aiapi-pro.com` vs proxy
 LiteLLM `:4000`). Divergência proxy≠gateway ⇒ bug NOSSO; falha igual nos dois ⇒
 **erro do servidor** (gateway NovAI ou upstream). Este dossiê cataloga somente a
@@ -33,6 +35,7 @@ segunda categoria (bugs nossos aparecem na §4 só para completeness de estado).
 | Sweep de erro S115 (440 checks) | 440/440 pass (com normalizador) | **0 fails** — mas confirmou envelope inconsistente (2 shapes: OpenAI vs `{detail}`) |
 | Vídeo/3D assíncrono (Fase J + S120) | 2 famílias | **`minimax-video-v2.3-fast` FAILED sistemático**; `hy-3d-3.1` inocentado (bug de polling era nosso) |
 | Embedding/TTS/ASR | 6+9+2 linhas | **0 fails ativos** (todos transitórios fechados ou bugs nossos de fixture corrigidos) |
+| **API de catálogo/metadados** (`novai_model_api` 94 modelos × 7 sondas, `novai_configs/docs/enrich`, `novai_inventory`, `--agent` Fase K) | 67 falhas de sonda (model-api) + 246 cmds (enrich) + 121 páginas (configs) + 10/10 (agent) | **0 erros NOVOS** — 38 decompõem em P-1/T-1/T-3/E-429/P-7a; 27 são artefatos da sonda (pré-S114/pré-fixes H1/F-param/classe C); 2 ASR não-sondado. configs/docs/inventory/agent: 0 erro de servidor |
 
 **Total de erros de servidor distintos catalogados: 12** (P-1 … P-7f + classe D
 
@@ -69,8 +72,9 @@ Legenda de status: 🔴 ativo (reproduz) · 🟡 intermitente · ⚪ permanente/
   As métricas mudam a cada run (não-determinismo do upstream), mas o fail é
   determinístico: 3/3 reproduzem em todas as corridas desde a Fase L.
 
-- **Veredito S120:** CONFIRMADA. Erro duplo de contrato (comportamento +
++ **Veredito S120:** CONFIRMADA. Erro duplo de contrato (comportamento +
   contabilidade) do gateway/upstream MiniMax e Step.
+
 + **Ação:** nenhuma local possível (já skipamos o veredito de thinking onde não
   há suporte; estes 3 **declaram** suporte e mentem). Candidato a ticket NovAI.
 
@@ -312,6 +316,70 @@ Coberto por P-1 (16 ids mortos) e T-1 (inventário mistura modalidades). O
 `/v1/models` do gateway não é fonte confiável de roteabilidade — nosso proxy
 filtra (S114) e o harness probeia (S97/S99).
 
+### 1.8 API de catálogo/metadados (`model_api`, `configs`, `docs`, `enrich`, `inventory`, `--agent`)
+
+Família de testes que exercita a **superfície de API não-inferência**: metadados
+de catálogo, scraping de docs/configs por modelo, inventário estático do config e
+o E2E de agente. Rodada em **2026-10-16** (antes do S114 e antes dos fixes de
+harness H1/H2/G1/G2/L2–L6) — por isso a maior parte das falhas registradas é
+**stale**. Análise linha-a-linha das 67 falhas de sonda
+(`reports/novai-model-api.json`, campo `probes[*].evidence`):
+
+| Classe | Qtd | Decomposição | Erro de servidor novo? |
+| --- | --- | --- | --- |
+| P-1 (id morto) | 22 | `404 [Alibaba Cloud] Model not exist` nos 10 ids removidos pelo S114 (`qwen-image{,-plus}`, `qwen-tts{,-latest}`, `qwen-vl-max`, `qwen3-max`, `qwen3-coder-plus`, `qwen3-vl-flash`, `qwen3.6-max-preview`, `qwen-omni-turbo`) + `429 No deployments available` do proxy (consequência local do id morto) | ❌ já catalogado |
+| Artefato: não-reasoning | 14 | `thinking ❌ sem reasoning (esperado ON)` em modelos sem par de thinking = **classe C** (lição §3.6). Matriz atual: `skipped` correto | ❌ expectativa do harness |
+| Artefato: content vazio | 8 | `chat ❌ content vazio (finish=length)` em glm-5/5.1/5.2/5.3-*, kimi-k2.5/k2.8/k3 — sonda com `max_tokens` curto consumido pelo reasoning. **Matriz atual: todos `pass`** com reasoning_chars>0 | ❌ parâmetro nosso (lição §3.3) |
+| T-3 (ignora tools) | 5 | `finish=stop/length n_tool_calls=0` (`hy-mt2-pro`, `qwen-vl-ocr`, `qwen3.5-ocr`, `glm-4.1v-thinking-flash`, `hy-vision-2.0-instruct`) — mesmas linhas `sem_tool_call` do CSV S119 | ❌ já catalogado |
+| T-1 (não-chat) | 5 | `tools ❌ HTTP 400 The request is invalid: invoke mo…` em `hunyuan-role`, `hy-role`, `hy-mt2-{lite,plus}`, `qwen-mt-plus` (role/tradução não falam chat+tools) + `qwen-mt-plus`/`qwen3.5-ocr` `400 InternalError.Algo.InvalidParameter` | ❌ já catalogado |
+| E-429 (carga ZhiPu) | 4 | `429 [ZhiPu (智谱)] 该模型当前访问量过大` em `glm-4.6v-flash`, `glm-4.7-flash` (chat/thinking/tools) | ❌ já catalogado |
+| Artefato: VL-embedding | 2 | `kinfra-vl-embedding-{2b,8b} ❌ 400 [Tencent (Kinfr…` — sonda mandou input **só-texto** para embedding multimodal (bug nosso H1). **Matriz atual: `pass`** (`dim=2048`/`dim=4096`) | ❌ bug nosso corrigido |
+| Artefato: param thinking | 2 | `minimax-m3` e `qwen3.5-ocr` `thinking ❌ 400 the request was reject…` — sonda enviou parâmetro de thinking que o upstream rejeita. **Matriz atual: `minimax-m3` = `pass`** (reasoning_tokens=21) | ❌ payload nosso |
+| P-7a/transiente image | 2 | `wan2.2-t2i-flash` e `wan2.5-t2i-preview` `Read timed out (120 s)` via proxy. `wan2.2` = **P-7a ativo**; `wan2.5` = **matriz atual `pass`** (url retornada em 18/10) | ❌ já catalogado |
+| Artefato: voice TTS | 1 | `qwen3-tts-flash ❌ 400 Invalid voice specified` — sonda usou `voice:"alloy"` fixa; harness atual usa `tts_voice_for(group)` (**F-param**, §1.2). **Matriz atual: `pass`** (wav 49964 bytes) | ❌ bug nosso corrigido |
+| ASR não-sondado | 2 | `hy-asr-3.0-preview`, `wand-asr-v1`: `requer arquivo de áudio (não sondado)` — limitação da sonda, não erro. Matriz atual cobre ASR com fixture de fala real (G1) | ❌ lacuna de cobertura |
+| **Total** | **67** | | **0 novos** |
+
+Demais scripts da família:
+
++ **`novai_configs_report.py`** (`2026-10-16-novai-configs-por-modelo.md`):
+  **121/121 páginas de modelo baixadas com sucesso** — 0 erro de servidor. As
+  lacunas registradas (preço de input em 74, output em 57, specs em 30) são
+  **ausência de conteúdo na página**, não falha de requisição.
++ **`novai_docs_report.py` / `novai_docs_scrape.py`**
+  (`2026-10-16-novai-docs.md`): scrape completo da documentação; a única tabela
+  de "Error Codes" é **documentação da NovAI** (400/401/404/429/500), não erro
+  observado. 0 erro de servidor.
++ **`novai_enrich.py --test-code`** (`2026-10-16-novai-enriquecido.md`): 246
+  comandos extraídos das docs, 95 ok / 151 "falha" — mas **151 decompõem em**:
+  94 "só cURL é executado (segurança)" + 36 sem motivo + **20 timeout** + 1
+  decode utf-8. Os 20 timeouts são de chamadas de geração longa (imagem/vídeo)
+  com limite curto do script, e o próprio relatório adverte que `ok` reflete só
+  o exit code do curl (429 upstream ainda conta como ok). **Nenhum erro de
+  servidor atribuível**; útil só como indício de SLA longo (coerente com P-7a e
+  com o SLA de 10–13 min do `hy-3d-3.1`, §1.4).
++ **`novai_inventory.py`**: determinístico e **offline** (lê
+  `litellm/config.yaml`, não chama rede) — por construção não produz erro de
+  servidor. Sua saída é a base da matriz (P-1/T-1 tratam do que ele revela).
++ **`--agent` (Fase K, E2E de agente)**: **10/10 verde** (4 modelos × 2 clientes
+  copilot/roo), 0 divergência entre clientes. Único dado operacional:
+  `glm-4.7-flash-fast` ~25× mais lento (25–34 s vs ~1,2 s) — **latência, não
+  erro** (ver P-7c para o intermitente de transporte da mesma família).
+
+**Conclusão da família:** o relatório `2026-10-16-novai-model-api.md` **não deve
+ser lido como lista de erros de servidor ativos** — ele pré-data o S114 e os
+fixes de harness. Das 67 falhas, **38 já estão catalogadas** (P-1, T-1, T-3,
+E-429, P-7a) e **27 são artefatos da própria sonda** já corrigidos ou
+reclassificados (classe C, H1, F-param, max_tokens curto), restando 2 lacunas de
+cobertura de ASR. **Nenhum erro de servidor novo** foi encontrado nesta família.
+
+> ⚠️ Ação derivada (nossa, não-servidor): o `novai_model_api.py` ainda usa
+> `voice:"alloy"` fixa, `max_tokens` curto e input só-texto para VL-embedding —
+> ou seja, **re-rodá-lo hoje reproduziria os mesmos 27 falsos positivos**. Se a
+> família for re-executada, antes alinhar as sondas ao harness canônico
+> (`tts_voice_for`, `max_tokens` escalonado, input multimodal) — registrado no
+> backlog como item nosso (§4).
+
 ---
 
 ## 2. Tabela mestra de erros de servidor (índice rápido)
@@ -334,6 +402,14 @@ filtra (S114) e o harness probeia (S97/S99).
 
 Fails ATIVOS na matriz hoje: **4** = P-3 (×3) + P-7a (×1).
 
+> **Completude:** a família de API de catálogo/metadados (§1.8 — `model_api`,
+> `configs`, `docs`, `enrich`, `inventory`, `--agent`) foi auditada linha a linha
+> e **não acrescenta nenhum ID novo** a esta tabela: suas 67 falhas de sonda
+> decompõem em P-1/T-1/T-3/E-429/P-7a (38) + artefatos de sonda já corrigidos
+> (27) + 2 lacunas de cobertura ASR. Os 12 IDs acima são, portanto, o conjunto
+> completo de erros de servidor distintos conhecidos em **todas** as famílias de
+> teste da NovAI.
+
 ---
 
 ## 3. Erros que pareciam de servidor e NÃO eram (lições para o reteste)
@@ -353,6 +429,13 @@ Para não repetir falsos positivos no próximo ciclo:
    entrada inválida nossa.
 6. **Classe C (17 "rota ON não emite reasoning")** — expectativa do harness, não
    defeito: modelo não-reasoning não tem par de thinking. Veredito correto: skip.
+7. **Sondas de API desalinhadas do harness canônico** (`novai_model_api.py`,
+   §1.8) — 27 das 67 falhas eram da sonda, não do servidor: `max_tokens` curto
+   (lido como "content vazio"), `voice:"alloy"` fixa (400 em TTS que exige voz
+   específica), input só-texto em VL-embedding (400), parâmetro de thinking
+   rejeitado. **Regra:** antes de tratar relatório de sonda como lista de erros,
+   conferir data do relatório vs. fixes de harness (este é de 16/10, pré-S114) e
+   cruzar cada falha com a matriz atual — que já é o veredito canônico.
 
 ---
 
@@ -367,6 +450,8 @@ Para não repetir falsos positivos no próximo ciclo:
 | Polling 3D/vídeo via proxy (P-7e) | ⬜ abrir rota GET subpath no passthrough **ou** documentar poll direto |
 | Logs do proxy perdidos em restart | ℹ️ P-12 opcional |
 | Harness (H1/H2, G1/G2, I1/I2, J1/J2, K1, L2–L6, S115-fix, S117-fix) | ✅ todos corrigidos |
+| Sondas de `novai_model_api.py` desalinhadas (§1.8): `voice` fixa, `max_tokens` curto, input só-texto em VL-embedding | ⬜ alinhar ao harness canônico antes de qualquer re-run (senão reproduz 27 falsos positivos) |
+| Cobertura ASR nas sondas de API (`hy-asr-3.0-preview`, `wand-asr-v1` "não sondado") | ℹ️ já coberto pela matriz com fixture de fala real (G1); sonda de API fica devendo |
 
 ---
 
@@ -501,6 +586,34 @@ done
   qualquer fail → mantém 🟡. Se glm-4.6v-flash continuar 429 por >7 dias
   seguidos, propor no catálogo: não rotacionar tráfego para o id.
 
+### Onda 6 (condicional) — API de catálogo/metadados (§1.8) · ~25 min · SÓ com fato novo
+
+```bash
+# NÃO re-rodar como está: as sondas reproduzem 27 falsos positivos (§1.8, §3.7).
+# Pré-requisito: alinhar novai_model_api.py ao harness canônico (item §4).
+# Depois do alinhamento, o re-run é barato e útil como foto de metadados:
+.venv/bin/python -m eval.novai_model_api --live --sleep 1.1
+# configs/docs/enrich (scraping, sem custo de inferência relevante):
+.venv/bin/python -m eval.novai_configs_report --live
+.venv/bin/python -m eval.novai_docs_scrape && .venv/bin/python -m eval.novai_docs_report
+# inventário é offline/determinístico — roda sempre que o config.yaml mudar:
+.venv/bin/python -m eval.novai_inventory
+# agente E2E (Fase K) — 10/10 verde em 17/10, re-rodar só se P-6/P-7b mudarem:
+RAG_PROFILE=qwen37 .venv/bin/python -m eval.novai_test --agent novai-deepseek-v4-flash --live
+```
+
++ **Por que condicional:** a família **não tem erro de servidor ativo próprio** —
+  tudo que ela encontrou já é coberto pelas ondas 1–5 (P-1, T-1, T-3, E-429,
+  P-7a) ou é artefato nosso. Re-rodá-la sem corrigir as sondas só gera ruído.
++ **Gatilho para rodar:** (a) sondas alinhadas (item §4); (b) mudança no
+  `config.yaml`/catálogo (⇒ `novai_inventory` + diff de metadados); (c) suspeita
+  de release novo da NovAI (⇒ `configs`/`docs` para capturar mudanças de preço,
+  parâmetros e endpoints documentados).
++ **Aceite:** 0 falha de sonda não-decomponível em ID do catálogo; metadados
+  (`owned_by`, `pricing`, `type`) coerentes com `novai-model-configs.json`.
++ **Saída:** `reports/novai-model-api.json` atualizado + diff contra 16/10 em
+  `reports/logs/retest-<DATA>/onda6-model-api-diff.md`.
+
 ### 6.6 Regra de fechamento (herda S115)
 
 O ciclo de reteste fecha quando:
@@ -540,4 +653,6 @@ O ciclo de reteste fecha quando:
 | P-7f | `retest-2026-10-18/glm46vflash-429.txt` |
 | T-1/T-2/T-3 | `2026-10-17-novai-tool-scan.{md,csv}` + dumps `logs/tool-scan-2026-10-17-{gateway,proxy}.jsonl` |
 | S115 sweep | `logs/2026-10-17-novai-error-sweep.jsonl` (440 reg); `2026-10-17-novai-s115-sweep-contrato-erro.md` |
+| API de catálogo/metadados (§1.8) | `novai-model-api.json` (94 reg, `probes[*].evidence`); `2026-10-16-novai-model-api.md`; `2026-10-16-novai-configs-por-modelo.md` + `novai-model-configs.json`; `2026-10-16-novai-docs.md` + `novai-docs.json`; `2026-10-16-novai-enriquecido.md`; `logs/2026-10-17-novai-agent.jsonl` (Fase K, 10 reg) |
+| Agente E2E (Fase K) | `2026-10-17-novai-fase-k.md` §3 (10/10 verde, 0 divergência copilot×roo) |
 | Matriz | `novai-test-matrix.csv` (157 linhas) |
