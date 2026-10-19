@@ -25,7 +25,7 @@ HTTP 000 em 60.563684s
 * [HTTP/2] [1] [:path: /v1/images/generations]
 * [HTTP/2] [1] [user-agent: curl/8.5.0]
 * [HTTP/2] [1] [accept: */*]
-* [HTTP/2] [1] [authorization: Bearer nvai-ebdbd828ad364a85f46cca2b8ec206267db35e08d836dab5]
+* [HTTP/2] [1] [authorization: Bearer nvai-REDACTED]
 * [HTTP/2] [1] [content-type: application/json]
 * [HTTP/2] [1] [content-length: 74]
 > POST /v1/images/generations HTTP/2
