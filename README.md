@@ -1,6 +1,7 @@
 # ecollm-stack
 
-Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, servindo três papéis:
+Gateway local de LLMs com [LiteLLM](https://docs.litellm.ai/) na porta `4000`, servindo três papéis
+(índice completo da documentação para agentes: [`llms.txt`](https://docs.litellm.ai/llms.txt)):
 
 - **Agente de código** (Roo Code / GitHub Copilot BYOK / LM Studio) → Qwen Token Plan
 - **Chat de RAG** (`rag-chat`) → Gemini com fallback local via Ollama
