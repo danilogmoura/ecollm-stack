@@ -79,11 +79,15 @@ services:
     # válidos) e marca o serviço como unhealthy se divergir — nunca "ready" c/ schema
     # quebrado. Checagem completa (halfvec 3072, opclass halfvec_cosine_ops, tsv
     # gerada) vive em rag-db/verify_schema.py; rode-o após mexer em init.sql.
+    # 2026-11-24: sonda aponta p/ `chunks_qwen37` (perfil ativo via RAG_PROFILE no
+    # .env), não mais `chunks` (perfil gemini, tabela removida do DB — o healthcheck
+    # antigo marcava unhealthy para sempre = falso alarme). Ao trocar de perfil,
+    # atualizar o nome da tabela AQUI também.
     healthcheck:
       test:
         - CMD-SHELL
         - >-
-          psql -U "$${POSTGRES_USER:-rag}" -d "$${POSTGRES_DB:-rag}" -tA -c "SELECT CASE WHEN to_regclass('chunks') IS NOT NULL AND (SELECT count(*) FROM (VALUES ('chunks_embedding_hnsw','hnsw'), ('chunks_tsv_gin','gin'),('chunks_repo_path_content_hash_gen_key','btree')) need(name,am) JOIN pg_index i ON i.indrelid='chunks'::regclass JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_am a ON a.oid=c.relam WHERE c.relname=need.name AND a.amname=need.am AND i.indisvalid)=3 THEN 'ok' ELSE 'schema-incompleto' END;" | grep -q '^ok$$'
+          psql -U "$${POSTGRES_USER:-rag}" -d "$${POSTGRES_DB:-rag}" -tA -c "SELECT CASE WHEN to_regclass('chunks_qwen37') IS NOT NULL AND (SELECT count(*) FROM (VALUES ('chunks_qwen37_embedding_hnsw','hnsw'), ('chunks_qwen37_tsv_gin','gin'),('chunks_qwen37_repo_path_content_hash_gen_key','btree')) need(name,am) JOIN pg_index i ON i.indrelid='chunks_qwen37'::regclass JOIN pg_class c ON c.oid=i.indexrelid JOIN pg_am a ON a.oid=c.relam WHERE c.relname=need.name AND a.amname=need.am AND i.indisvalid)=3 THEN 'ok' ELSE 'schema-incompleto' END;" | grep -q '^ok$$'
       interval: 30s
       timeout: 5s
       retries: 3
@@ -95,7 +99,10 @@ services:
     # NOTE: the bare `:main` tag is a stale Dec-2023 build whose ENTRYPOINT hardcodes
     # `litellm --config /app/proxy_server_config.yaml` and ignores CMD, so our config.yaml
     # was never read and the image's built-in Azure demo model_list crashed on startup.
-    image: ghcr.io/berriai/litellm:main-stable
+    # 2026-11-24: pin explicit v1.110.3 (antes main-stable flutuante = 1.109.1; update traz
+    # fix do cooldown+fallbacks relevante p/ S112 e GET /audit). Para atualizar: trocar o
+    # pino, pull, up -d; conferir https://github.com/BerriAI/litellm/releases.
+    image: ghcr.io/berriai/litellm:v1.110.3
     container_name: ai-litellm
     ports:
       - "4000:4000"
