@@ -103,6 +103,25 @@ def _default_repo() -> str:
     return os.environ.get("RAG_REPO") or repo_name(REPO_ROOT)
 
 
+def _repo_root_for(name: str) -> Path:
+    """Caminho no disco do repositorio indexado, para a checagem de frescor.
+
+    O servidor so conhece o NOME do repo (RAG_REPO); is_index_stale precisa do
+    caminho real para rodar 'git -C <path> rev-parse HEAD'. Sem isso caiaamos em
+    REPO_ROOT (= raiz do ecollm-stack) e comparavamos o HEAD errado, gerando
+    falso-positivo de stale. Resolvemos por RAG_REPO_PATH; se nao vier, usamos
+    REPO_ROOT apenas quando ele de fato corresponde ao nome indexado — senao
+    retornamos None (stalenessWarning trata como 'desconhecido' sem acusar HEAD
+    alheio).
+    """
+    explicit = os.environ.get("RAG_REPO_PATH")
+    if explicit:
+        return Path(explicit).resolve()
+    if REPO_ROOT.resolve().name == name:
+        return REPO_ROOT.resolve()
+    return None
+
+
 def _k_omitido(ctx) -> bool:
     """True se o cliente NAO enviou 'k' nos argumentos brutos do request.
 
@@ -318,7 +337,8 @@ def staleness_note(repo: str | None = None) -> str | None:
         return cached[1]
     try:
         from ingest import search as _search
-        note = _search.staleness_warning(REPO_ROOT, key)
+        root = _repo_root_for(key)
+        note = _search.staleness_warning(root, key) if root is not None else None
     except Exception:  # noqa: BLE001 — frescor é melhor-esforço, nunca derruba a tool
         note = None
     _STALENESS_CACHE[key] = (now, note)

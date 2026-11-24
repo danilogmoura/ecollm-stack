@@ -307,8 +307,8 @@ def test_build_sql_all_models_sem_filtro_de_grupo():
 
 
 def test_build_sql_models_lista_in_escapada():
-    sql = cr.build_sql(days=None, models=["deepseek-flash", "novai-doubao-seed-2.0-pro-fast"])
-    assert "model_group IN ('deepseek-flash', 'novai-doubao-seed-2.0-pro-fast')" in sql
+    sql = cr.build_sql(days=None, models=["deepseek-flash", "qwen3.8-flash-fast"])
+    assert "model_group IN ('deepseek-flash', 'qwen3.8-flash-fast')" in sql
     assert "LIKE 'qwen3.8%'" not in sql
 
 
@@ -323,40 +323,22 @@ def test_build_sql_precedencia_all_sobre_models():
     assert "IN (" not in sql
 
 
-def test_price_for_deepseek_e_doubao():
+def test_price_for_deepseek_e_qwen():
     assert cr.price_for("deepseek-flash")["input"] == 0.15
     assert cr.price_for("deepseek-v4-pro")["input"] == 0.66
-    assert cr.price_for("novai-doubao-seed-2.0-pro")["input"] == 0.40
+    assert cr.price_for("qwen3.8-max")["input"] == 2.00
     # alias -fast compartilha o preço do modelo real
     assert cr.price_for("deepseek-flash-fast") == cr.price_for("deepseek-flash")
 
 
 def test_price_for_free_nao_gera_economia_fantasma():
     # Grupo free ($0): spend=0 e projeção=0 ⇒ savings=0 (sem fantasma).
-    for mg in ("novai-glm-4.7-flash", "novai-glm-4.7-flash-fast"):
-        assert cr.price_for(mg)["input"] == 0.0
-        assert cr.price_for(mg)["output"] == 0.0
-    rows = [_row(mg="novai-glm-4.7-flash", pt=1000, ct=100, cached=0, spend=0.0)]
+    # Entrada explicita 0.0 é OBRIGATÓRIA — sem ela o fallback conservador
+    # (flash $0,15) geraria "economia fantasma".
+    rows = [_row(mg="ollama-gratis", pt=1000, ct=100, cached=0, spend=0.0)]
     m = cr.compute_metrics(rows)
     assert m.cost_no_cache == 0.0
     assert m.savings == 0.0
-
-
-def test_price_for_catalogo_novai_s102():
-    # S102: catálogo NovAI completo precificado a partir do marketplace
-    # (docs/novai-model-marketplace.html). Trava alguns valores representativos
-    # por lab para detectar regressão silenciosa da tabela.
-    assert cr.price_for("novai-kimi-k3") == {"input": 2.90, "output": 14.50}
-    assert cr.price_for("novai-glm-5.3") == {"input": 1.25, "output": 4.00}
-    assert cr.price_for("novai-deepseek-v4.1-flash") == {"input": 0.308, "output": 1.231}
-    assert cr.price_for("novai-qwen3.8-max") == {"input": 1.84, "output": 5.52}
-    assert cr.price_for("novai-minimax-m3") == {"input": 0.30, "output": 1.20}
-    assert cr.price_for("novai-hy3") == {"input": 0.18, "output": 0.72}
-    assert cr.price_for("novai-mimo-v2.6-flash") == {"input": 0.10, "output": 0.28}
-    assert cr.price_for("novai-doubao-seed-2.0-lite") == {"input": 0.075, "output": 0.45}
-    # alias -fast herda o preço do modelo real (mesmo upstream)
-    assert cr.price_for("novai-kimi-k3-fast") == cr.price_for("novai-kimi-k3")
-    assert cr.price_for("novai-glm-5.3-flash-fast") == cr.price_for("novai-glm-5.3-flash")
 
 
 def test_build_report_all_models_rotulo_e_linhas():
@@ -365,7 +347,7 @@ def test_build_report_all_models_rotulo_e_linhas():
             {"startTime": "2026-10-15", "model_group": "deepseek-flash",
              "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 660,
              "spend": 0.0001},
-            {"startTime": "2026-10-15", "model_group": "novai-doubao-seed-2.0-pro-fast",
+            {"startTime": "2026-10-15", "model_group": "qwen3.8-flash-fast",
              "prompt_tokens": 1000, "completion_tokens": 100, "cached_tokens": 250,
              "spend": 0.0002},
         ]
@@ -373,7 +355,7 @@ def test_build_report_all_models_rotulo_e_linhas():
     md = cr.build_report(days=1, all_models=True, row_source=source)
     assert "todos os model_group" in md
     assert "`deepseek-flash`" in md
-    assert "`novai-doubao-seed-2.0-pro-fast`" in md
+    assert "`qwen3.8-flash-fast`" in md
 
 
 def test_build_report_models_rotulo():
@@ -389,8 +371,8 @@ def test_build_report_models_rotulo():
 def test_preco_desconhecido_nao_gera_economia_negativa():
     # Grupo sem preço conhecido: spend real > 0 mas projeção omitida ⇒ savings >= 0
     # (nunca negativo por artefato de fallback). Usa um grupo que NÃO está em
-    # PRICE_PER_MTOKEN (o catálogo NovAI agora é quase todo precificado — S102).
-    rows = [_row(mg="novai-modelo-inexistente-xyz", pt=1000, ct=100, cached=0, spend=0.0001)]
+    # PRICE_PER_MTOKEN.
+    rows = [_row(mg="modelo-inexistente-xyz", pt=1000, ct=100, cached=0, spend=0.0001)]
     m = cr.compute_metrics(rows)
     assert m.cost_no_cache == 0.0
     assert m.savings == 0.0
@@ -401,7 +383,7 @@ def test_preco_desconhecido_nao_gera_economia_negativa():
 def test_preco_desconhecido_nao_quebra_com_conhecido():
     # Mistura conhecido + desconhecido: só o conhecido entra na projeção.
     rows = [_row(mg="qwen3.8-flash", pt=1000, ct=0, cached=0, spend=0.0),
-            _row(mg="novai-modelo-inexistente-xyz", pt=1000, ct=0, cached=0, spend=0.0)]
+            _row(mg="modelo-inexistente-xyz", pt=1000, ct=0, cached=0, spend=0.0)]
     m = cr.compute_metrics(rows)
     assert abs(m.cost_no_cache - (1000 * 0.15 / 1e6)) < 1e-12
 

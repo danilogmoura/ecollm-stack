@@ -29,32 +29,15 @@ model_list:
   # api key = LITELLM_MASTER_KEY.
   #
   # ---- POR QUE EXISTEM VERSOES "-fast" (thinking OFF) E SEM SUFIXO (ON) ----
-  # qwen3.8-* sao modelos de raciocinio: pensam em "reasoning_content" antes de
-  # responder, e isso e pago em token + latencia. Matriz medida 2026-09-25 via
-  # este proxy (tarefa dificil = revisar funcao p/ race conditions):
-  #   flash ON : 2467 out-tok (2110 reasoning!) | 59,2 s | 11 itens achados
-  #   flash OFF:  286 out-tok                   |  6,6 s |  6 itens
-  #   max   ON :  538 out-tok (183 reasoning)   | 15,9 s | 11 itens
-  #   max   OFF:  468 out-tok                   |  9,7 s | 12 itens (mais completo!)
-  # Mais 3 achados que decidiram o design:
-  #  1. ARMADILHA 400: com thinking ON, tool_choice "required"/"none" retorna
-  #     HTTP 400 no endpoint. Clientes que forcam tool_choice (alguns modos do
-  #     Roo) quebrariam nos grupos sem sufixo. Com OFF, funciona.
-  #  2. LOOP DE AGENTE: no multi-turn (resultado de ferramenta de volta), ON
-  #     re-chamou a ferramenta em vez de sintetizar (finish=tool_calls, 122 tok);
-  #     OFF respondeu certo (finish=stop, 10 tok). Thinking ON deixa o modelo
-  #     MAIS propenso a emendar chamada de ferramenta — num loop de 20-50
-  #     iteracoes por tarefa, isso multiplica custo/latencia com risco de loop.
-  #  3. Thinking ON infla ate o PROMPT (121 vs 85 in-tok = scaffolding injetado),
-  #     e o prompt de agente carrega o historico inteiro a cada iteracao.
-  # Regra de uso no Roo Code (mapear por mode nos presets):
-  #   Code/Ask/Debug-mecanico -> "-fast" (procedural, contexto ja na tela)
-  #   Architect/plantia/difficil -> sem sufixo (encadear passos = onde thinking
-  #   mostra servico: no unico caso em que ON ganhou, achou 11 vs 6 itens)
-  # OBS: "/no_think" no prompt NAO desliga nada (423 reasoning-tok medidos);
-  #      "thinking_budget:0" da erro (endpoint exige positivo). A unica alavanca
-  #      que funciona e enable_thinking:false — por isso fixamos NO PROXY, e nao
-  #      dependendo de config do cliente.
+  # Modelos de raciocinio pagam thinking em token + latencia (matriz medida
+  # 2026-09-25 neste proxy: flash ON 2467 out-tok/59s vs OFF 286/6,6s; max OFF
+  # chegou a ser MAIS completo que ON). 3 armadilhas motivaram o par ON/OFF:
+  #  1. thinking ON + tool_choice "required"/"none" => HTTP 400 no endpoint;
+  #  2. em loop de agente, ON re-chamava a ferramenta em vez de sintetizar;
+  #  3. ON injeta scaffolding no prompt (121 vs 85 in-tok medidos).
+  # Regra: Code/Ask/Debug -> "-fast"; Architect/dificil -> sem sufixo.
+  # Unica alavanca que desliga thinking: enable_thinking:false no PROXY
+  # ("/no_think" no prompt e "thinking_budget:0" NAO funcionam — medidos).
 
   # --- Thinking ON: planejamento, arquitetura, debug dificil ---
   # Preco custom (C1/C2, 2026-09-27): marketplace PAYG, USD por token (= USD/1M / 1e6).
@@ -63,17 +46,45 @@ model_list:
   # O `$` do SpendLogs (= tokens reais x esta tarifa) passa a ser o numero OFICIAL de
   # custo. Limitacao documentada: reflete so o trafego que passa pelo proxy; uso fora
   # do LiteLLM nao entra. Baseline de ganho segue sendo % hit em tokens (C6/C7).
+  # Tarifas por MODELO (páginas oficiais qwencloud.com/models/<id>.md, conferidas
+  # 2026-11-12; USD/1M ÷ 1e6). NAO sao intercambiaveis entre familias:
   #   flash: in $0,15/M out $0,47/M | cache read $0,016/M | cache write $0,20/M
   #   max:   in $2,00/M  out $6,00/M | cache read $0,17/M | cache write $2,50/M
-  - model_name: qwen3.8-max
+  #   deepseek-v4.1-flash (no Token Plan): in $0,15/M out $0,60/M | cache read
+  #   implicito $0,015/M (off-peak; peak = 2x) — pagina propria, conferir 2026-11-12
+  # Contexto (mesma fonte, seção Rate Limits & Context): flash e max = ctx 1M,
+  # Max Input 991K / Max Output 131K -> model_info abaixo (LiteLLM corta a
+  # requisicao em max_input_tokens ANTES de enviar; sem ele, modelo desconhecido
+  # assume default conservador e rejeita prompts longos legitimos).
+  # OBS: "qwen4-max-preview" confirmado ao vivo 2026-11-12 (GET /v1/models;
+  # responde como "qwen4.0-max-preview"). Sem pagina oficial (preview sem preco
+  # publicado) — tarifas abaixo = familia max (qwen3.8-max.md), provisorias.
+  - model_name: qwen4-max-preview
     litellm_params:
-      model: openai/qwen3.8-max
+      model: openai/qwen4-max-preview
       api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
       api_key: os.environ/QWEN_PLAN_API_KEY
       input_cost_per_token: 2.0e-06
       output_cost_per_token: 6.0e-06
       cache_read_input_token_cost: 1.7e-07
       cache_creation_input_token_cost: 2.5e-06
+    model_info:
+      max_input_tokens: 991000
+      max_output_tokens: 131000
+
+  - model_name: qwen4-max-preview-fast
+    litellm_params:
+      model: openai/qwen4-max-preview
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+      enable_thinking: false
+      input_cost_per_token: 2.0e-06
+      output_cost_per_token: 6.0e-06
+      cache_read_input_token_cost: 1.7e-07
+      cache_creation_input_token_cost: 2.5e-06
+    model_info:
+      max_input_tokens: 991000
+      max_output_tokens: 131000
 
   - model_name: qwen3.8-flash
     litellm_params:
@@ -84,6 +95,9 @@ model_list:
       output_cost_per_token: 4.7e-07
       cache_read_input_token_cost: 1.6e-08
       cache_creation_input_token_cost: 2.0e-07
+    model_info:
+      max_input_tokens: 991000
+      max_output_tokens: 131000
 
   # --- Thinking OFF: loop de agente (Code/Ask). Motivos: ver bloco acima ---
   - model_name: qwen3.8-flash-fast
@@ -96,7 +110,45 @@ model_list:
       output_cost_per_token: 4.7e-07
       cache_read_input_token_cost: 1.6e-08
       cache_creation_input_token_cost: 2.0e-07
+    model_info:
+      max_input_tokens: 991000
+      max_output_tokens: 131000
 
+  # --- 2026-11-12: substitui qwen3.7-flash{,-fast} (id INEXISTENTE no Token
+  # Plan — GET /v1/models nao lista; rotas morreriam em runtime). Este aqui
+  # existe e foi testado ao vivo (thinking ON default). Preco oficial
+  # (qwencloud.com/models/deepseek-v4.1-flash.md): off-peak in $0,15/M out
+  # $0,60/M cache-impl $0,015/M; PEAK = 2x. ctx 1M in / 393K out.
+  # Sem surcharge de cache-write => cache_creation omitido de proposito.
+  - model_name: deepseek-v4.1-flash
+    litellm_params:
+      model: openai/deepseek-v4.1-flash
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6.0e-07
+      cache_read_input_token_cost: 1.5e-08
+    model_info:
+      max_input_tokens: 1000000
+      max_output_tokens: 393000
+
+  # --- Thinking OFF: mesma rota, enable_thinking:false (unica alavanca que
+  # funciona no Token Plan; ver bloco de design no topo da secao Qwen) ---
+  - model_name: deepseek-v4.1-flash-fast
+    litellm_params:
+      model: openai/deepseek-v4.1-flash
+      api_base: https://token-plan.maas.qwencloudapi.com/compatible-mode/v1
+      api_key: os.environ/QWEN_PLAN_API_KEY
+      enable_thinking: false
+      input_cost_per_token: 1.5e-07
+      output_cost_per_token: 6.0e-07
+      cache_read_input_token_cost: 1.5e-08
+    model_info:
+      max_input_tokens: 1000000
+      max_output_tokens: 393000
+
+  # --- Thinking OFF do qwen3.8-max (rota ON = "qwen4-max-preview", mesmo
+  # upstream com preco da familia max) ---
   - model_name: qwen3.8-max-fast
     litellm_params:
       model: openai/qwen3.8-max
@@ -107,51 +159,28 @@ model_list:
       output_cost_per_token: 6.0e-06
       cache_read_input_token_cost: 1.7e-07
       cache_creation_input_token_cost: 2.5e-06
+    model_info:
+      max_input_tokens: 991000
+      max_output_tokens: 131000
 
-  # ===== DEEPSEEK (chat, rotas opcionais — fora do RAG) =====
-  # S55 (2026-10-14): de 1 grupo legado para 4 — flash + pro, cada um com thinking
-  # ON e OFF. NAO entram em rag-chat nem no fluxo RAG/embeddings (invariante 7).
-  # Uso: pontual do agente (ex.: dumps grandes de engenharia reversa) e bench H5b
-  # multi-modelo. Chave em DEEPSEEK_API_KEY (.env, conta separada do Qwen — creditos
-  # do Token Plan NAO valem aqui). Sem a chave, os 4 grupos falham-closed na porta e
-  # nao afetam nenhum outro modelo (docker-compose.yml: ${DEEPSEEK_API_KEY:-}).
-  #
-  # IDs UPSTREAM ATUAIS — confirmados em GET /v1/models ao vivo + docs oficiais
-  # (Models & Pricing, 2026-10-14):
-  #   deepseek-flash   = DeepSeek-V4.1-Flash  | ctx 1M (1.048.576) | out max 393.216 | visao OK
-  #   deepseek-v4-pro  = DeepSeek-V4-Pro-0813 | ctx 1M (1.048.576) | out max 393.216 | SEM visao
-  #   deepseek-chat / deepseek-reasoner = aliases LEGADOS em aposentacao (ainda
-  #   aceitos, porem servidos e cobrados como Flash). NAO usar. Armadilha medida:
-  #   supports_reasoning("deepseek/deepseek-chat") = False => o alias legado nem
-  #   habilita o caminho de reasoning no LiteLLM (motivo extra para migrar).
-  #
-  # THINKING — DIFERE da convencao S44 (extra_body): aqui `thinking` vai TOP-LEVEL
-  # no litellm_params dos 4 grupos. Motivo medido no codigo instalado do provedor
-  # (llms/deepseek/chat/transformation.py): _thinking_mode_active() so retorna True
-  # com optional_params["thinking"]["type"] == "enabled", e somente entao o LiteLLM
-  # chama _fill_reasoning_content(), que reinjeta o reasoning_content faltante nas
-  # mensagens de assistant. Enterrar thinking dentro de extra_body NAO arma esse shim
-  # (sonda: get_optional_params com extra_body => thinking nao aparece no resultado).
-  # Consequencia pratica: em loop de agente multi-turno o upstream responde HTTP 400
-  # ("The reasoning_content in the thinking mode must be passed back to the API",
-  # docs §4.3). Por isso a rota ON declara thinking explicito em vez de herdar o
-  # default. Efeito do OFF e identico ao dos -fast historicos.
-  # Nota §5.2/§5.3: em thinking ON, temperature/top_p/presence_penalty/
-  # frequency_penalty sao inertes (podem ate ser rejeitados) e completion_tokens
-  # INCLUI os tokens de raciocinio => saida muito mais cara por tarefa curta.
-  #
-  # Tarifas = card OFICIAL off-peak (USD/1M ÷ 1e6). DeepSeek NAO cobra surcharge de
-  # cache-write (write billa como input-miss), por isso cache_creation == input.
-  #   flash: cache-hit $0,003 | input-miss $0,15 | output $0,60
-  #   pro:   cache-hit $0,022 | input-miss $0,66 | output $1,98
-  # ATENCAO: PEAK = 2x esses valores (01:00-04:00 e 06:00-10:00 UTC, seg-sex;
-  # feriado chines conta como off-peak). O preco aqui e flat off-peak, entao em
-  # janela de peak o SpendLogs SUB-notifica o custo por 2x (nunca sobre-notifica).
-  # Desconto de cache de 98% torna canibalizar zona cacheada AINDA pior que no Qwen
-  # (89%) — relevante p/ decisao headroom.
-  # Concorrencia upstream: flash 2500 / pro 500 (excesso = erro 3003).
-  # Recomendacao: usar as rotas -fast em modos de agente com tools; reservar as
-  # rotas ON para chamada unica sem loop de ferramentas.
+  # ===== DEEPSEEK DIRETO (rotas opcionais — fora do RAG; S55, 2026-10-14) =====
+  # 4 grupos: flash + pro x thinking ON/OFF. Chave DEEPSEEK_API_KEY (conta
+  # separada; sem ela, falham-closed sem afetar ninguem). Alias legados
+  # deepseek-chat/-reasoner estao em aposentacao: NAO usar.
+  # Upstream (confirmado em GET /v1/models + docs 2026-10-14):
+  #   deepseek-flash  = V4.1-Flash   | ctx 1M | out 393K | visao OK
+  #   deepseek-v4-pro = V4-Pro-0813  | ctx 1M | out 393K | SEM visao
+  # GOTCHA de implementacao: aqui `thinking` vai TOP-LEVEL no litellm_params
+  # (nao em extra_body): so assim o LiteLLM arma o shim
+  # _fill_reasoning_content(); sem ele, multi-turno com tools da HTTP 400
+  # ("reasoning_content must be passed back"). Em thinking ON, temp/top_p sao
+  # inertes e completion inclui raciocinio.
+  # Tarifas oficiais OFF-PEAK (peak = 2x: SpendLogs sub-notifica na janela de
+  # peak; nunca sobre-notifica). Sem surcharge de cache-write => cache_creation
+  # == input. flash: hit $0,003 | miss $0,15 | out $0,60 (/1M).
+  #        pro:   hit $0,022 | miss $0,66 | out $1,98 (/1M).
+  # Concorrencia: flash 2500 / pro 500 (erro 3003 no excesso). Rotas -fast para
+  # agentes com tools; ON para chamada unica.
   - model_name: deepseek-flash
     litellm_params:
       model: deepseek/deepseek-flash
@@ -176,6 +205,7 @@ model_list:
       cache_creation_input_token_cost: 1.5e-07
     model_info:
       max_input_tokens: 1048576
+
   - model_name: deepseek-v4-pro
     litellm_params:
       model: deepseek/deepseek-v4-pro
@@ -200,1479 +230,6 @@ model_list:
       cache_creation_input_token_cost: 6.6e-07
     model_info:
       max_input_tokens: 1048576
-
-  # ===== NOVAI GATEWAY (chat, rota opcional — fora do RAG) =====
-  # NAO entra em rag-chat nem no fluxo RAG/embeddings. Gateway OpenAI-compativel
-  # (Hong Kong) que agrega 121+ modelos chineses a preco de lista sem markup.
-  # Base URL = https://aiapi-pro.com/v1 ; chave tem prefixo "nvai-" (NAO sk-) e fica
-  # em NOVAI_API_KEY (.env, conta/balance separada — creditos Qwen/DeepSeek NAO valem
-  # aqui). Sem a chave definida, o grupo novai-* falha-closed na porta e nao afeta
-  # nenhum outro modelo (ver docker-compose.yml, ${NOVAI_API_KEY:-}). Padrao = rota
-  # deepseek-* acima.
-  #
-  # ---- S40 (2026-10-14, decisao do usuario): SO GLM-4.7-flash "por enquanto" ----
-  # Os outros 8 grupos criados na adesao (S39) foram REMOVIDOS: os pagos
-  # glm-5.3-flash / deepseek-v4-flash / qwen3.8-max / kimi-k2.5 / doubao-seed-2.0-pro,
-  # os free glm-4.6v-flash / glm-4.1v-thinking-flash, e o alias
-  # novai-glm-4.7-flash-nothink (mesmo upstream, thinking OFF via extra_body — removido
-  # por escolha explicita do usuario). Nao e retrabalho: os blocos estao no historico
-  # git e re-adicionar e item NOVO de backlog, nao correcao.
-  # Por que a reducao e segura: os pagos nao tinham uso ativo; menos grupos = menos superficie de
-  # falha e menos ruido no seletor de modelos do cliente. (A premissa ORIGINAL da S40 era "a cota
-  # free e minúscula"; CORREGIDA na S56 abaixo — a decisao de manter so glm-4.7-flash permanece,
-  # pois era tambem escolha explicita de escopo do usuario.)
-  # ---- RATE/QUOTA (CORREGIDO S56, 2026-10-14, autoridade = usuario sobre a propria conta) ----
-  # A CONTA NovAI deste stack opera em MODO STANDARD: 60 rpm e COTA UNLIMITED. O teto de
-  # 10 chamadas/DIA POR MODELO + 5 req/min (medido 2026-10-14 via 429 "daily limit of 10 free-model")
-  # e do MODO FREE-TIER, que NAO e o estado corrente desta conta — entao NAO racionar uso da rota.
-  # glm-4.7-flash continua free-forever: PRECO do MODELO 0 (propriedade do modelo, independe do modo
-  # da conta), NAO consome saldo (erro 402 nao se aplica).
-  # Tarifas = card oficial do marketplace (USD por token = USD/1M / 1e6). NovAI cobra
-  # so input/output (sem surcharge de cache exposto), entao cache_read/cache_creation
-  # ficam de fora de proposito — LiteLLM nao inventa desconto.
-  # Throttle global da familia ZhiPu ("该模型当前访问量过大") ~10 min aparece na
-  # SpendLogs como InternalServerError, NAO RateLimit; falhas nao consomem cota.
-  # Regra operacional: backoff de minutos — nao trocar de modelo free ZhiPu (o
-  # congestionamento e compartilhado). Modelos upstream = slug exato do marketplace
-  # (GET /v1/models confirma, 121 modelos). CogView-3-Flash / CogVideoX-Flash (tambem
-  # free) SAO FORA daqui: endpoints de imagem/video (/v1/images, /v1/video), nao chat
-  # — escopo desta rota e chat-only.
-  # ---- S42 (2026-10-14, decisao do usuario): rota REVERTIDA 4.1v-thinking -> 4.7-flash ----
-  # A troca S41 (workaround) existiu so porque o gateway quebrava streaming em glm-4.7-flash
-  # (HTTP 500) e o Copilot exige stream:true. O suporte NovAI corrigiu o serializador SSE deles
-  # (3o e-mail 2026-10-14) e a re-medida provou: framing agora conforme ('}\n\ndata:' em todos
-  # os eventos, proxy LiteLLM parseia limpo, 55 eventos / 0 invalidos). Medido TAMBEM em
-  # glm-4.1v-thinking-flash — ambos streamam. Preferencia declarada do usuario (S40) =
-  # glm-4.7-flash: texto puro, mais leve/rapido que o 4.1v (vision+reasoning, mais pesado).
-  # max_input_tokens volta a 202000 (valor TRAVADO do 4.7, validado via /v1/model/info na S39).
-  # ---- S43 (2026-10-14): thinking OFF via extra_body ---- S44 (2026-10-14): DUAS rotas, ON e OFF ----
-  # S43 desligou o thinking na rota unica (sem extra_body o grupo herdava thinking ON do upstream —
-  # smoke S40: reasoning_tokens=138/143, ~96% da saida virava raciocinio). S44 (pedido do usuario
-  # "tenha os 2") revoga parcialmente a S43 e passa a expor AS DUAS variantes lado a lado, seguindo a
-  # convengao do repo (mesma dos Qwen no chatLanguageModels.json): id BASE = thinking ON, sufixo
-  # "-fast" = thinking OFF.
-  #   novai-glm-4.7-flash       -> thinking ON  (SEM extra_body; herda default do upstream, PROVADO
-  #                                S40 reasoning 138/143). Display "GLM-4.7 Flash (NovAI free thinking)".
-  #   novai-glm-4.7-flash-fast  -> thinking OFF (extra_body thinking:{type:disabled}, PROVADO S43
-  #                                reasoning 0; flag oficial ZhiPu, upstream direto na S39). Display
-  #                                "GLM-4.7 Flash (NovAI free fast)".
-  # Ambos apontam p/ MESMO upstream openai/glm-4.7-flash (compartilham rate/quota da conta). S44 foi
-  # ESCOLHA de comportamento (ON + OFF lado a lado), NAO dobrava capacidade. Sob modo STANDARD (S56)
-  # a cota e unlimited, entao as duas rotas nao competem por um teto apertado. Precedente:
-  # S39 ja teve base + alias nothink no mesmo upstream sem conflito. extra_body e _SDK_OPTION_KEY
-  # mesclado no corpo (openai.py:340/353) => NAO dropado por drop_params:true. max_input 202000 (S39).
-  - model_name: novai-glm-4.7-flash
-    litellm_params:
-      model: openai/glm-4.7-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
-    model_info:
-      max_input_tokens: 202000
-  - model_name: novai-glm-4.7-flash-fast
-    litellm_params:
-      model: openai/glm-4.7-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0.0
-      output_cost_per_token: 0.0
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 202000
-  # ---- S46 (2026-10-14, decisao do usuario): doubao-seed-2.0-pro (PAGO) — thinking ON + fast OFF ----
-  # Pedido: "adicione esse modelo pelo NovAI, nao e free, coloque o fast e thinking". Re-adesao do
-  # modelo removido na S40 — item NOVO de backlog, nao retrabalho (blocos antigos no historico git).
-  # Tarifas OFICIAIS (card marketplace + pagina do modelo): $0,40 in / $2,00 out por 1M tokens =>
-  # input_cost 4.0e-07 / output_cost 2.0e-06. PAGO com saldo da conta NovAI (min recarga $5 USDT
-  # TRC20); NAO e free-forever como o glm (cobra por token); 402 possivel se saldo zerado.
-  # (conta em modo standard / cota unlimited — S56; o teto de cobranca aqui e SALDO, nao rpm/cota.)
-  # owned_by=bytedance no catalogo
-  # (id unico "doubao-seed-2.0-pro"; "-fast" e convencao NOSSA, nao existe upstream).
-  # Thinking MEDIDO nesta sessao (n=1, direto no gateway): default -> reasoning 284/330 = ON por
-  # padrão upstream; extra_body thinking:{type:disabled} -> reasoning_tokens=0 = FUNCIONA tambem em
-  # ByteDance (estende a regra S44, antes provada so p/ ZhiPu). GOTCHA: enable_thinking:false -> 143,
-  # NAO desliga no Doubao (nao e a flag Qwen) — usar SEMPRE thinking:{type:disabled}.
-  # Convencao S44 replicada: base = thinking ON (sem extra_body), "-fast" = OFF. Ambos -> MESMO
-  # upstream openai/doubao-seed-2.0-pro => mesma cobranca, duas escolhas de comportamento.
-  # Contexto: pagina oficial do modelo = 256K in (262.144) / 16K out (compare.html sugere 128K p/
-  # familia Lite/Code; pagina dedicada vence). Gateway NAO expoe API de info por modelo (404).
-  # Chat-only: NAO entra em rag-chat nem fallbacks (invariante 7, precedente glm/deepseek).
-  - model_name: novai-doubao-seed-2.0-pro
-    litellm_params:
-      model: openai/doubao-seed-2.0-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.0e-07
-      output_cost_per_token: 2.0e-06
-    model_info:
-      max_input_tokens: 262144
-  - model_name: novai-doubao-seed-2.0-pro-fast
-    litellm_params:
-      model: openai/doubao-seed-2.0-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.0e-07
-      output_cost_per_token: 2.0e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 262144
-
-  # ===== S95 — DeepSeek via NovAI (4 upstreams x thinking ON/OFF) =====
-  # Pedido do usuario (2026-10-15): adicionar deepseek-v4.1-flash / deepseek-v4-pro /
-  # deepseek-v4-flash / deepseek-v4-flash-vision pelo gateway NovAI, com variantes
-  # fast (thinking OFF) e thinking. Convencao S44/S46 replicada: base = thinking ON
-  # (herda default upstream), -fast = extra_body thinking:{type:disabled}.
-  # MEDIDO nesta sessao (direto no gateway, n=1): default ON em todos os 4
-  # (reasoning 49/21/31 tokens; pro e v4-flash reportam em
-  # completion_tokens_details.reasoning_tokens); thinking:disabled -> reasoning 0 ou
-  # ausente em TODOS (flag funciona p/ DeepSeek via NovAI tambem -- estende regra
-  # S44, que era ZhiPu-only + ByteDance S46). Vision confirmado: o slug -vision
-  # responde a imagem base64 (cor correta).
-  # NAO sombreia as rotas DIRETAS S55 (deepseek-flash/deepseek-v4-pro...): grupos
-  # aqui usam prefixo novai-. Chat-only (invariante 7): fora de rag-chat/fallbacks.
-  # Custos TRAVADOS S96 (fonte unica: docs/novai-model-marketplace.html -- dump
-  # local do marketplace, gitignored via .gitignore:9 '/docs/'; antes chamado
-  # model-marketplace.html, renomeado 2026-10-15; tabela oficial NovAI por
-  # modelo, preco por 1M tokens): v4.1-flash e v4-flash-vision
-  # $0.308/$1.231 (Exclusive); v4-pro $0.57/$1.15; v4-flash $0.08/$0.17.
-  # O conflito apontado na S95 era entre NovAI e a DeepSeek OFICIAL (rotas
-  # diretas S55), NAO dentro da NovAI -- aqui vale o preco NovAI.
-  # Contexto 128K (131072) = mesma tabela; gateway nao expoe API de info por
-  # modelo (404, medido S46/S95). Se virar rota principal, re-medir janela real.
-  - model_name: novai-deepseek-v4.1-flash
-    litellm_params:
-      model: openai/deepseek-v4.1-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.08e-07
-      output_cost_per_token: 1.231e-06
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4.1-flash-fast
-    litellm_params:
-      model: openai/deepseek-v4.1-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.08e-07
-      output_cost_per_token: 1.231e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-pro
-    litellm_params:
-      model: openai/deepseek-v4-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.7e-07
-      output_cost_per_token: 1.15e-06
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-pro-fast
-    litellm_params:
-      model: openai/deepseek-v4-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.7e-07
-      output_cost_per_token: 1.15e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-flash
-    litellm_params:
-      model: openai/deepseek-v4-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.0e-08
-      output_cost_per_token: 1.7e-07
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-flash-fast
-    litellm_params:
-      model: openai/deepseek-v4-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.0e-08
-      output_cost_per_token: 1.7e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-flash-vision
-    litellm_params:
-      model: openai/deepseek-v4-flash-vision
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.08e-07
-      output_cost_per_token: 1.231e-06
-    model_info:
-      max_input_tokens: 131072
-  - model_name: novai-deepseek-v4-flash-vision-fast
-    litellm_params:
-      model: openai/deepseek-v4-flash-vision
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.08e-07
-      output_cost_per_token: 1.231e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 131072
-
-  # ===== S100 — CATALOGO COMPLETO NovAI (padrao de nome travado) =====
-  # Pedido (2026-10-15): "conseguimos criar um padrao de nome? quero adicionar
-  # todos os modelos da NovAI". Escala os 8 upstreams da S95/S96 para o catalogo
-  # inteiro (121 ids, 11 labs). Fonte unica dos dados = docs/novai-model-marketplace.html
-  # (dump local do marketplace, gitignored via .gitignore '/docs/'; ctx + preco por
-  # 1M tokens + capacidades). O gateway NAO expoe API de info por modelo (404).
-  #
-  # ---- PADRAO DE NOME (TRAVADO) ----
-  #   chat      -> novai-<slug>            (+ sufixo -fast = thinking OFF)
-  #   embedding -> novai-embed-<slug>
-  #   image     -> novai-image-<slug>
-  #   tts       -> novai-tts-<slug>
-  #   asr       -> novai-asr-<slug>
-  #   video     -> novai-video-<slug>      (via passthrough, ver general_settings)
-  #   3d        -> novai-3d-<slug>         (via passthrough, ver general_settings)
-  # Chat mantem o id da S95/S96 (retrocompativel). Token de familia nas demais
-  # modalidades evita colisao de slug entre categorias (o catalogo nao tem colisao,
-  # mas o token deixa o id auto-descritivo no seletor).
-  #
-  # ---- CONVENCAO -fast (S44/S46/S95) ----
-  # base = thinking ON (herda default upstream, SEM extra_body); -fast = thinking OFF
-  # via extra_body thinking:{type:disabled}. Medido funcionar em ZhiPu (S43), ByteDance
-  # (S46) e DeepSeek (S95) via este gateway. Em modelos sem thinking o extra_body e
-  # ignorado (nao quebra). Colisao de sufixo -fast upstream = ZERO (os 2 slugs
-  # terminados em -fast sao de VIDEO, que nao ganha sufixo de thinking).
-  #
-  # ---- CUSTOS ----
-  # Travados SO onde extraiveis do dump (USD/1M -> USD/token = /1e6). Onde o dump
-  # mostra FREE, 0.0 explicito (nunca inventar). Onde o dump mostra '—' (ctx nao
-  # informado), max_input_tokens e OMITIDO (nao inventar janela).
-  #
-  # ---- INVARIANTE 7 ----
-  # Nenhum novai-* entra em rag-chat, fallbacks ou embeddings do RAG. Chat-only
-  # (precedente glm/deepseek). Os grupos novai-embed-* sao de EMBEDDING do gateway
-  # NovAI, NAO do indice RAG (que usa gemini/qwen37/bgem3) — nao entram em fallbacks.
-  #
-  # ---- CHAT (61 upstreams x thinking ON/OFF = 122 grupos) ----
-  - model_name: novai-qwen3.8-max
-    litellm_params:
-      model: openai/qwen3.8-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.84e-06
-      output_cost_per_token: 5.52e-06
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-qwen3.8-max-fast
-    litellm_params:
-      model: openai/qwen3.8-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.84e-06
-      output_cost_per_token: 5.52e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-qwen3.7-max
-    litellm_params:
-      model: openai/qwen3.7-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.16e-06
-      output_cost_per_token: 3.48e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3.7-max-fast
-    litellm_params:
-      model: openai/qwen3.7-max
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.16e-06
-      output_cost_per_token: 3.48e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  # ---- S114 (2026-10-17): 12 grupos REMOVIDOS (classe A da Fase L) ----
-  # novai-qwen3.6-max-preview{,-fast}, novai-qwen3-max{,-fast},
-  # novai-qwen3-coder-plus{,-fast}, novai-qwen-vl-max{,-fast}.
-  # Motivo: o gateway anuncia os ids em GET /v1/models mas o provider Alibaba
-  # Cloud devolve 404 "Model not exist" mesmo chamado DIRETO (sem proxy), com
-  # controle positivo 200 no mesmo instante. Nao ha id alternativo. Um
-  # model_name que sempre da 404 e pior que ausencia: o cliente descobre em
-  # runtime. Evidencia: reports/2026-10-17-novai-fase-l.md §3g.
-  # Para reativar: basta repor os blocos (precos em eval/cache_report.py).
-  - model_name: novai-qwen3-vl-plus
-    litellm_params:
-      model: openai/qwen3-vl-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.1e-07
-      output_cost_per_token: 6.3e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen3-vl-plus-fast
-    litellm_params:
-      model: openai/qwen3-vl-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.1e-07
-      output_cost_per_token: 6.3e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen3.5-ocr
-    litellm_params:
-      model: openai/qwen3.5-ocr
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7e-07
-      output_cost_per_token: 7e-07
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen3.5-ocr-fast
-    litellm_params:
-      model: openai/qwen3.5-ocr
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7e-07
-      output_cost_per_token: 7e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen-vl-ocr
-    litellm_params:
-      model: openai/qwen-vl-ocr
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7e-07
-      output_cost_per_token: 7e-07
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen-vl-ocr-fast
-    litellm_params:
-      model: openai/qwen-vl-ocr
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7e-07
-      output_cost_per_token: 7e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen-mt-plus
-    litellm_params:
-      model: openai/qwen-mt-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.5e-07
-      output_cost_per_token: 7.5e-07
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-qwen-mt-plus-fast
-    litellm_params:
-      model: openai/qwen-mt-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.5e-07
-      output_cost_per_token: 7.5e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-qwen-plus
-    litellm_params:
-      model: openai/qwen-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.85e-07
-      output_cost_per_token: 5.3e-07
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen-plus-fast
-    litellm_params:
-      model: openai/qwen-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.85e-07
-      output_cost_per_token: 5.3e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-qwen3-coder-flash
-    litellm_params:
-      model: openai/qwen3-coder-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 7.5e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-qwen3-coder-flash-fast
-    litellm_params:
-      model: openai/qwen3-coder-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 7.5e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  # ---- S114 (2026-10-17): novai-qwen3-vl-flash{,-fast} REMOVIDOS (classe A) ----
-  # 404 "[Alibaba Cloud] Model not exist" direto no gateway. Ver §3g da Fase L.
-  - model_name: novai-qwen3-omni-flash
-    litellm_params:
-      model: openai/qwen3-omni-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 6e-07
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-qwen3-omni-flash-fast
-    litellm_params:
-      model: openai/qwen3-omni-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 6e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  # ---- S114 (2026-10-17): novai-qwen-omni-turbo{,-fast} REMOVIDOS (classe A) ----
-  # 404 "[Alibaba (通义千问)] Model not exist" direto no gateway. Ver §3g da Fase L.
-  - model_name: novai-doubao-seed-2.1-pro
-    litellm_params:
-      model: openai/doubao-seed-2.1-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4e-07
-      output_cost_per_token: 2e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-doubao-seed-2.1-pro-fast
-    litellm_params:
-      model: openai/doubao-seed-2.1-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4e-07
-      output_cost_per_token: 2e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-doubao-seed-2.0-code
-    litellm_params:
-      model: openai/doubao-seed-2.0-code
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.48e-07
-      output_cost_per_token: 2.24e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-doubao-seed-2.0-code-fast
-    litellm_params:
-      model: openai/doubao-seed-2.0-code
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.48e-07
-      output_cost_per_token: 2.24e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-doubao-seed-2.1-turbo
-    litellm_params:
-      model: openai/doubao-seed-2.1-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 9e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-doubao-seed-2.1-turbo-fast
-    litellm_params:
-      model: openai/doubao-seed-2.1-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.5e-07
-      output_cost_per_token: 9e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-doubao-seed-2.0-lite
-    litellm_params:
-      model: openai/doubao-seed-2.0-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.5e-08
-      output_cost_per_token: 4.5e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-doubao-seed-2.0-lite-fast
-    litellm_params:
-      model: openai/doubao-seed-2.0-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.5e-08
-      output_cost_per_token: 4.5e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-m3
-    litellm_params:
-      model: openai/minimax-m3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 1.2e-06
-    model_info:
-      max_input_tokens: 512000
-  - model_name: novai-minimax-m3-fast
-    litellm_params:
-      model: openai/minimax-m3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 1.2e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 512000
-  - model_name: novai-minimax-m2.7
-    litellm_params:
-      model: openai/minimax-m2.7
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 1.2e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-m2.7-fast
-    litellm_params:
-      model: openai/minimax-m2.7
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 1.2e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-m2.5
-    litellm_params:
-      model: openai/minimax-m2.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.7e-07
-      output_cost_per_token: 1.08e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-m2.5-fast
-    litellm_params:
-      model: openai/minimax-m2.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.7e-07
-      output_cost_per_token: 1.08e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-text-01
-    litellm_params:
-      model: openai/minimax-text-01
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.4e-07
-      output_cost_per_token: 1.1e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-minimax-text-01-fast
-    litellm_params:
-      model: openai/minimax-text-01
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.4e-07
-      output_cost_per_token: 1.1e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k3
-    litellm_params:
-      model: openai/kimi-k3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.9e-06
-      output_cost_per_token: 1.45e-05
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-kimi-k3-fast
-    litellm_params:
-      model: openai/kimi-k3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.9e-06
-      output_cost_per_token: 1.45e-05
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-kimi-k2.8-preview
-    litellm_params:
-      model: openai/kimi-k2.8-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.3e-07
-      output_cost_per_token: 3.89e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.8-preview-fast
-    litellm_params:
-      model: openai/kimi-k2.8-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.3e-07
-      output_cost_per_token: 3.89e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.7-code
-    litellm_params:
-      model: openai/kimi-k2.7-code
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6.7e-07
-      output_cost_per_token: 3.4e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.7-code-fast
-    litellm_params:
-      model: openai/kimi-k2.7-code
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6.7e-07
-      output_cost_per_token: 3.4e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.7-code-highspeed
-    litellm_params:
-      model: openai/kimi-k2.7-code-highspeed
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.07e-06
-      output_cost_per_token: 8.61e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.7-code-highspeed-fast
-    litellm_params:
-      model: openai/kimi-k2.7-code-highspeed
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.07e-06
-      output_cost_per_token: 8.61e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.6
-    litellm_params:
-      model: openai/kimi-k2.6
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.5e-07
-      output_cost_per_token: 4e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.6-fast
-    litellm_params:
-      model: openai/kimi-k2.6
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.5e-07
-      output_cost_per_token: 4e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.5
-    litellm_params:
-      model: openai/kimi-k2.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6e-07
-      output_cost_per_token: 3e-06
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-kimi-k2.5-fast
-    litellm_params:
-      model: openai/kimi-k2.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6e-07
-      output_cost_per_token: 3e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-step-5-preview
-    litellm_params:
-      model: openai/step-5-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4e-07
-      output_cost_per_token: 1.2e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-step-5-preview-fast
-    litellm_params:
-      model: openai/step-5-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4e-07
-      output_cost_per_token: 1.2e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-hy4-preview
-    litellm_params:
-      model: openai/hy4-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.34e-07
-      output_cost_per_token: 2.501e-06
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-hy4-preview-fast
-    litellm_params:
-      model: openai/hy4-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8.34e-07
-      output_cost_per_token: 2.501e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-hy3
-    litellm_params:
-      model: openai/hy3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.8e-07
-      output_cost_per_token: 7.2e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-hy3-fast
-    litellm_params:
-      model: openai/hy3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.8e-07
-      output_cost_per_token: 7.2e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-hunyuan-t1-vision
-    litellm_params:
-      model: openai/hunyuan-t1-vision
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.5e-07
-      output_cost_per_token: 1.64e-06
-  - model_name: novai-hunyuan-t1-vision-fast
-    litellm_params:
-      model: openai/hunyuan-t1-vision
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 5.5e-07
-      output_cost_per_token: 1.64e-06
-      extra_body:
-        thinking:
-          type: disabled
-  - model_name: novai-hy-vision-2.0-instruct
-    litellm_params:
-      model: openai/hy-vision-2.0-instruct
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.154e-06
-      output_cost_per_token: 2.692e-06
-  - model_name: novai-hy-vision-2.0-instruct-fast
-    litellm_params:
-      model: openai/hy-vision-2.0-instruct
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.154e-06
-      output_cost_per_token: 2.692e-06
-      extra_body:
-        thinking:
-          type: disabled
-  - model_name: novai-hunyuan-turbos-vision-video
-    litellm_params:
-      model: openai/hunyuan-turbos-vision-video
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.62e-07
-      output_cost_per_token: 1.385e-06
-  - model_name: novai-hunyuan-turbos-vision-video-fast
-    litellm_params:
-      model: openai/hunyuan-turbos-vision-video
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.62e-07
-      output_cost_per_token: 1.385e-06
-      extra_body:
-        thinking:
-          type: disabled
-  - model_name: novai-hy-mt2-pro
-    litellm_params:
-      model: openai/hy-mt2-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.9e-07
-      output_cost_per_token: 8.7e-07
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hy-mt2-pro-fast
-    litellm_params:
-      model: openai/hy-mt2-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 2.9e-07
-      output_cost_per_token: 8.7e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hy-mt2-plus
-    litellm_params:
-      model: openai/hy-mt2-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.2e-08
-      output_cost_per_token: 2.87e-07
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-hy-mt2-plus-fast
-    litellm_params:
-      model: openai/hy-mt2-plus
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.2e-08
-      output_cost_per_token: 2.87e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-hunyuan-role
-    litellm_params:
-      model: openai/hunyuan-role
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.7e-07
-      output_cost_per_token: 1.86e-06
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hunyuan-role-fast
-    litellm_params:
-      model: openai/hunyuan-role
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.7e-07
-      output_cost_per_token: 1.86e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hy-role
-    litellm_params:
-      model: openai/hy-role
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.69e-07
-      output_cost_per_token: 1.477e-06
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hy-role-fast
-    litellm_params:
-      model: openai/hy-role
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3.69e-07
-      output_cost_per_token: 1.477e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 32000
-  - model_name: novai-hy3-preview
-    litellm_params:
-      model: openai/hy3-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.27e-07
-      output_cost_per_token: 4.23e-07
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-hy3-preview-fast
-    litellm_params:
-      model: openai/hy3-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.27e-07
-      output_cost_per_token: 4.23e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 256000
-  - model_name: novai-hy-mt2-lite
-    litellm_params:
-      model: openai/hy-mt2-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.3e-08
-      output_cost_per_token: 1.72e-07
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-hy-mt2-lite-fast
-    litellm_params:
-      model: openai/hy-mt2-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.3e-08
-      output_cost_per_token: 1.72e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 8000
-  - model_name: novai-mimo-v2.5-pro
-    litellm_params:
-      model: openai/mimo-v2.5-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.27e-07
-      output_cost_per_token: 8.55e-07
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-mimo-v2.5-pro-fast
-    litellm_params:
-      model: openai/mimo-v2.5-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.27e-07
-      output_cost_per_token: 8.55e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-mimo-v2.6-pro
-    litellm_params:
-      model: openai/mimo-v2.6-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.3e-07
-      output_cost_per_token: 8.7e-07
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-mimo-v2.6-pro-fast
-    litellm_params:
-      model: openai/mimo-v2.6-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 4.3e-07
-      output_cost_per_token: 8.7e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-mimo-v2.6-flash
-    litellm_params:
-      model: openai/mimo-v2.6-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1e-07
-      output_cost_per_token: 2.8e-07
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-mimo-v2.6-flash-fast
-    litellm_params:
-      model: openai/mimo-v2.6-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1e-07
-      output_cost_per_token: 2.8e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.3
-    litellm_params:
-      model: openai/glm-5.3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.25e-06
-      output_cost_per_token: 4e-06
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-glm-5.3-fast
-    litellm_params:
-      model: openai/glm-5.3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.25e-06
-      output_cost_per_token: 4e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-glm-5.2
-    litellm_params:
-      model: openai/glm-5.2
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.19e-06
-      output_cost_per_token: 3.74e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.2-fast
-    litellm_params:
-      model: openai/glm-5.2
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.19e-06
-      output_cost_per_token: 3.74e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.1
-    litellm_params:
-      model: openai/glm-5.1
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.05e-06
-      output_cost_per_token: 3.96e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.1-fast
-    litellm_params:
-      model: openai/glm-5.1
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.05e-06
-      output_cost_per_token: 3.96e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5
-    litellm_params:
-      model: openai/glm-5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6e-07
-      output_cost_per_token: 1.92e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5-fast
-    litellm_params:
-      model: openai/glm-5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 6e-07
-      output_cost_per_token: 1.92e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5v-turbo
-    litellm_params:
-      model: openai/glm-5v-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.08e-06
-      output_cost_per_token: 3.69e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5v-turbo-fast
-    litellm_params:
-      model: openai/glm-5v-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.08e-06
-      output_cost_per_token: 3.69e-06
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.6v
-    litellm_params:
-      model: openai/glm-4.6v
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 9e-07
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.6v-fast
-    litellm_params:
-      model: openai/glm-4.6v
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 3e-07
-      output_cost_per_token: 9e-07
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.3-flash
-    litellm_params:
-      model: openai/glm-5.3-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-08
-      output_cost_per_token: 2.8e-07
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-glm-5.3-flash-fast
-    litellm_params:
-      model: openai/glm-5.3-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-08
-      output_cost_per_token: 2.8e-07
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 1000000
-  - model_name: novai-glm-5-turbo
-    litellm_params:
-      model: openai/glm-5-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.08e-06
-      output_cost_per_token: 3.69e-06
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5-turbo-fast
-    litellm_params:
-      model: openai/glm-5-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.08e-06
-      output_cost_per_token: 3.69e-06
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.6v-flash
-    litellm_params:
-      model: openai/glm-4.6v-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.6v-flash-fast
-    litellm_params:
-      model: openai/glm-4.6v-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.1v-thinking-flash
-    litellm_params:
-      model: openai/glm-4.1v-thinking-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-4.1v-thinking-flash-fast
-    litellm_params:
-      model: openai/glm-4.1v-thinking-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 0
-      output_cost_per_token: 0
-      extra_body:
-        thinking:
-          type: disabled
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.3-flashx
-    litellm_params:
-      model: openai/glm-5.3-flashx
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.2e-07
-      output_cost_per_token: 4e-07
-    model_info:
-      max_input_tokens: 128000
-  - model_name: novai-glm-5.3-flashx-fast
-    litellm_params:
-      model: openai/glm-5.3-flashx
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.2e-07
-      output_cost_per_token: 4e-07
-      extra_body:
-        reasoning_effort: low
-    model_info:
-      max_input_tokens: 128000
-
-  # ---- EMBEDDING (6 upstreams) — NAO e o indice RAG (invariante 7) ----
-  - model_name: novai-embed-qwen3.7-text-embedding
-    litellm_params:
-      model: openai/qwen3.7-text-embedding
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 1.1e-07
-  - model_name: novai-embed-text-embedding-v4
-    litellm_params:
-      model: openai/text-embedding-v4
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 8e-08
-  - model_name: novai-embed-kinfra-text-embedding-4b
-    litellm_params:
-      model: openai/kinfra-text-embedding-4b
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.23e-08
-  - model_name: novai-embed-kinfra-vl-embedding-8b
-    litellm_params:
-      model: openai/kinfra-vl-embedding-8b
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 9.23e-08
-  - model_name: novai-embed-kinfra-text-embedding-0.6b
-    litellm_params:
-      model: openai/kinfra-text-embedding-0.6b
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.69e-08
-  - model_name: novai-embed-kinfra-vl-embedding-2b
-    litellm_params:
-      model: openai/kinfra-vl-embedding-2b
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      input_cost_per_token: 7.69e-08
-
-  # ---- IMAGE (12 upstreams) — endpoint /v1/images/generations ----
-  # S114 (2026-10-17): novai-image-qwen-image e -plus REMOVIDOS (classe A da
-  # Fase L) — 404 "[Alibaba Cloud] Model not exist" direto no gateway.
-  - model_name: novai-image-wan2.5-t2i-preview
-    litellm_params:
-      model: openai/wan2.5-t2i-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-wan2.2-t2i-flash
-    litellm_params:
-      model: openai/wan2.2-t2i-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-doubao-seedream-4.5
-    litellm_params:
-      model: openai/doubao-seedream-4.5
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-seedream-image-v5.0-pro
-    litellm_params:
-      model: openai/seedream-image-v5.0-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-doubao-seedream-4.0
-    litellm_params:
-      model: openai/doubao-seedream-4.0
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-seedream-image-v5.0-lite
-    litellm_params:
-      model: openai/seedream-image-v5.0-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-hy-image-v3
-    litellm_params:
-      model: openai/hy-image-v3
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-vidu-image-q2
-    litellm_params:
-      model: openai/vidu-image-q2
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-wand-vega-image-pro
-    litellm_params:
-      model: openai/wand-vega-image-pro
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-wand-vega-image-flash
-    litellm_params:
-      model: openai/wand-vega-image-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-wand-vega-image-lite
-    litellm_params:
-      model: openai/wand-vega-image-lite
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-  - model_name: novai-image-cogview-3-flash
-    litellm_params:
-      model: openai/cogview-3-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: image_generation
-
-  # ---- TTS / MUSIC (9 upstreams) — endpoint /v1/audio/speech ----
-  # S114 (2026-10-17): novai-tts-qwen-tts e -latest REMOVIDOS (classe A da
-  # Fase L) — 404 "[Alibaba Cloud] Model not exist" direto no gateway.
-  - model_name: novai-tts-qwen3-tts-flash
-    litellm_params:
-      model: openai/qwen3-tts-flash
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-2.8-hd
-    litellm_params:
-      model: openai/minimax-speech-2.8-hd
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-2.6-hd
-    litellm_params:
-      model: openai/minimax-speech-2.6-hd
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-02-hd
-    litellm_params:
-      model: openai/minimax-speech-02-hd
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-2.8-turbo
-    litellm_params:
-      model: openai/minimax-speech-2.8-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-2.6-turbo
-    litellm_params:
-      model: openai/minimax-speech-2.6-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-speech-02-turbo
-    litellm_params:
-      model: openai/minimax-speech-02-turbo
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-music-v3.0
-    litellm_params:
-      model: openai/minimax-music-v3.0
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-  - model_name: novai-tts-minimax-music-v2.6
-    litellm_params:
-      model: openai/minimax-music-v2.6
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_speech
-
-  # ---- ASR (2 upstreams) — endpoint /v1/audio/transcriptions ----
-  - model_name: novai-asr-hy-asr-3.0-preview
-    litellm_params:
-      model: openai/hy-asr-3.0-preview
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_transcription
-  - model_name: novai-asr-wand-asr-v1
-    litellm_params:
-      model: openai/wand-asr-v1
-      api_base: https://aiapi-pro.com/v1
-      api_key: os.environ/NOVAI_API_KEY
-      mode: audio_transcription
 
   # ===== EMBEDDINGS =====
   # gemini-embedding-2 = 3072 dims (MRL: aceita 768/1536/3072 via "dimensions";
@@ -1733,43 +290,14 @@ litellm_settings:
   fallbacks:
     - rag-chat: ["qwen3:4b-instruct-2507"]
 
-  # ===== CACHE (Redis já sobe no compose; REDIS_URL aponta p/ ele) =====
-  # Habilitado SOMENTE p/ embeddings, e o motivo é um fato medido hoje:
-  # SpendLogs 2026-09-25 = 105k prompt-tok vs 6k completion-tok no fluxo de
-  # agente. ENTRADA domina o custo. Isso define qual tipo de cache serve:
-  #
-  #  1. CACHE DE RESPOSTA (este bloco, exato): chave = hash do request INTEIRO;
-  #     "qualquer mudança na conversa = miss" (doc proxy/caching). Por isso NÃO
-  #     cobrimos chat aqui: loop de agente muda os messages a cada iteração →
-  #     hit ~zero, e só adicionaria latência de round-trip ao Redis. Para
-  #     embeddings porém o texto do chunk é imutável entre execuções de ingest
-  #     → re-tocar o corpus vira hit grátis. Guardamos também contra o caso
-  #     "pergunta repetida" do RAG.
-  #  2. SEMÂNTICO (redis-semantic): doc avisa que "goes badly wrong on agentic
-  #     traffic" — embedding aproximado serviria resposta errada. De fora.
-  #  3. PROMPT CACHING de upstream (Anthropic/OpenAI/Gemini breakpoints): corta
-#     o token de ENTRADA repetido, que é exatamente nosso gargalo.
-#     [REGISTRO HISTÓRICO — AFIRMAÇÃO REFUTADA, preservada por regra do §6:]
-#     ~~"exige suporte nativo do provedor, e o Token Plan Qwen NÃO expõe nenhum
-#     campo de cache na doc (grep em qwen.txt = zero hits). LiteLLM faz cache
-#     pass-through só p/ Anthropic/OpenAI/Gemini, não p/ openai-compat custom."~~
-#     ➜ CORREÇÃO (BUG-007, ticket Alibaba 0065ETFBAP + teste empírico via este
-#       proxy): o Token Plan Individual SUPORTA context caching no endpoint
-#       OpenAI-compatível. O pass-through FOI medido EM ROTA openai-compat custom
-#       (sem upgrade): usage já devolve prompt_tokens_details.cached_tokens /
-#       cache_creation_input_tokens. Modos explicit/implicit ativos nos modelos
-#       qwen3.8-* (implícito hit ~20%; explícito criação 125%/hit menor, TTL 5min,
-#       ≤4 markers). A economia real de entrada mora AQUI, não só em headroom.
-#       Ver PLANO-RAG.md §4b-5/§4b-6 e .planning/docs/context-cache.md.
-#       (O bloco de cache RESPOSTA abaixo continua escopado em aembedding: isso é
-#        orthogonal — cache de resposta no proxy ≠ KV/prefixo cache no upstream.)
-  #
-  # ➜ HEADROOM (próxima camada, quando o RAG nascer): a economia real de entrada
-  #   não é cache de resposta — é JANELA. Um pré-processador de contexto
-  #   (headroom-style: dedupe de chunks, resumo de histórico antigo, truncar
-  #   tool-output) ataca os 105k in-tok direto. Este cache de embeddings fica
-  #   barato de manter e serve de base p/ medir hit-rate antes de adicionar
-  #   headroom por cima.
+  # ===== CACHE (Redis via REDIS_URL) =====
+  # Habilitado SO p/ embeddings (motivo medido): re-ingest do mesmo corpus vira
+  # hit gratis; chat fica FORA de proposito (loop de agente muda os messages a
+  # cada iteracao => hit ~zero + latencia Redis). Cache semantico: fora (doc
+  # LiteLLM: falha em trafego agentic). Context caching do UPSTREAM e outra
+  # camada (Token Plan suporta em rota openai-compat — BUG-007 medido; ver
+  # PLANO-RAG.md §4b). Economia de entrada a seguir = headroom de janela, nao
+  # cache de resposta.
   cache: true
   cache_params:
     type: redis # lê conexão de REDIS_URL (env), sem host/port explícitos
@@ -1780,58 +308,14 @@ litellm_settings:
     ttl: 86400 # respostas de embed válidas p/ re-ingest no mesmo dia
 
 # ===== S112 — ROUTER SETTINGS (cooldown / allowed_fails) =====
-# Incidente 2026-10-16 (reports/2026-10-16-copilot-chat-500-429.md): HTTP 429
-# `all_deployments_in_cooldown` em `deepseek-flash-fast`. Causa medida no código
-# do LiteLLM 1.105.1 (router_utils/cooldown_handlers.py):
-#   - `_is_cooldown_required` devolve True SEMPRE p/ status 429 (linha explícita
-#     `if exception_status == 429: return True`) — 429 do upstream = cooldown.
-#   - `_should_cooldown_deployment` (BASE CASE) só isenta grupo de 1 deployment
-#     quando `allowed_fails`/`allowed_fails_policy` NÃO estão setados. Como o
-#     default global `litellm.allowed_fails = 3` é aplicado em `Router.__init__`
-#     (`self.allowed_fails = allowed_fails if not None else litellm.allowed_fails`),
-#     o caminho "v2" (percentual) é pulado e o contador por minuto manda.
-#   - Grupo com 1 deployment + cooldown ⇒ próxima request não tem alternativa ⇒
-#     429 imediato `all_deployments_in_cooldown`.
-#   - A "safety net" de bypass em `async_get_healthy_deployments` só atua quando
-#     `enable_health_check_routing` E `allowed_fails_policy` estão setados — NÃO
-#     é o nosso caso, então não dá p/ contar com ela.
-#
-# Escolha: subir o limiar de falhas e encurtar o cooldown, mantendo o mecanismo
-# ligado (cooldown protege contra upstream realmente fora). NÃO usamos
-# `disable_cooldowns: true` — isso mascararia 429 real do provedor e faria o
-# agente martelar o upstream em loop.
-#   allowed_fails: 5   → 5 falhas/min antes de cooldown (default era 3)
-#   cooldown_time: 15  → 15s de cooldown (default era 5s; 5s era curto demais
-#                        p/ o upstream se recuperar e gerava rajada de 429)
-#   num_retries: 2 (em litellm_settings) continua valendo: 3 tentativas totais.
-# Invariante 7 preservado: nada de `novai-*` aqui; só política de router.
+# Incidente 2026-10-16 (reports/2026-10-16-copilot-chat-500-429.md): grupo de 1
+# deployment + cooldown por 429 => "all_deployments_in_cooldown" imediato.
+# Escolha: limiar maior e cooldown mais curto, mecanismo LIGADO (protege contra
+# upstream realmente fora; disable_cooldowns:true mascararia 429 real).
+#   allowed_fails: 5 (default 3) | cooldown_time: 15s (default 5s gerava rajada)
+# num_retries: 2 (litellm_settings) segue valendo = 3 tentativas totais.
 router_settings:
   allowed_fails: 5
   cooldown_time: 15
   disable_cooldowns: false
 
-# ===== S100 — PASSTHROUGH (video + 3D) =====
-# LiteLLM NAO tem CallType nativo p/ video nem 3D (CallTypesLiteral: sem 'video'
-# nem '3d'). O provider openai de video chama {api_base}/videos, mas o gateway
-# NovAI usa /v1/video/generations e /v1/three_d/generations => "Method Not Allowed"
-# no caminho nativo. Solucao MEDIDA nesta sessao: pass_through_endpoints (proxy
-# repassa o request cru p/ o target, sem traduzir). Testado HTTP 200:
-#   POST /novai/video -> {"id":"cgt-...","status":"queued"}
-#   POST /novai/3d    -> {"id":"1502430838674833408","status":"queued"}
-# O cliente chama http://localhost:4000/novai/video (ou /novai/3d) com o corpo do
-# gateway; o proxy injeta o Authorization e repassa. NAO entra em /v1/models (nao
-# e um model group) — e rota crua. Ids de modelo vao no corpo (ex.: "model":
-# "doubao-seedance-2.0"), conforme o gateway espera.
-general_settings:
-  master_key: os.environ/LITELLM_MASTER_KEY
-  pass_through_endpoints:
-    - path: /novai/video
-      target: https://aiapi-pro.com/v1/video/generations
-      headers:
-        Authorization: "Bearer os.environ/NOVAI_API_KEY"
-      include_subpath: false
-    - path: /novai/3d
-      target: https://aiapi-pro.com/v1/three_d/generations
-      headers:
-        Authorization: "Bearer os.environ/NOVAI_API_KEY"
-      include_subpath: false

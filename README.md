@@ -33,27 +33,6 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `qwen3.8-max-fast` / `qwen3.8-flash-fast` | Token Plan | OFF | loop de agente (Code/Ask/Copilot) |
 | `deepseek-flash` / `deepseek-v4-pro` | DeepSeek V4.1-Flash / V4-Pro (rota opcional, fora do RAG) | ON | uso pontual / bench multi-modelo (ctx 1M; pro sem visão) |
 | `deepseek-flash-fast` / `deepseek-v4-pro-fast` | DeepSeek (mesmos upstreams) | OFF | preferidas em loop de agente com tools |
-| `novai-glm-4.7-flash` / `-fast` | NovAI (aiapi-pro.com, **free-forever $0**) | ON / OFF | chat opcional (conta em **modo standard**: 60 rpm, cota **unlimited**) |
-| `novai-doubao-seed-2.0-pro` / `-fast` | NovAI (ByteDance, **pago**) | ON / OFF | chat opcional (contexto 256K) |
-| `novai-<slug>` / `-fast` (**S100**) | NovAI — **catálogo completo** (55 upstreams de chat × ON/OFF = 110 grupos) | ON / OFF | qualquer modelo de chat do gateway (Qwen, Doubao, DeepSeek, MiniMax, Kimi, GLM, Hunyuan, MiMo, Step…) |
-
-**Outras modalidades NovAI (S100 — catálogo completo, 139 ids):**
-
-> **S114 (2026-10-17):** 16 grupos removidos do `config.yaml` (classe A da Fase L) —
-> o gateway anuncia os ids em `/v1/models` mas o provider Alibaba Cloud devolve 404
-> mesmo chamado direto. Contagens abaixo já refletem a remoção.
-
-| Família | Padrão de id | Endpoint | Nº |
-| --- | --- | --- | --- |
-| chat | `novai-<slug>` / `-fast` | `/v1/chat/completions` | 55 upstreams |
-| embedding | `novai-embed-<slug>` | `/v1/embeddings` | 6 |
-| image | `novai-image-<slug>` | `/v1/images/generations` | 12 |
-| tts/music | `novai-tts-<slug>` | `/v1/audio/speech` | 9 |
-| asr | `novai-asr-<slug>` | `/v1/audio/transcriptions` | 2 |
-| video | `novai-video-<slug>` | `/novai/video` (**passthrough**) | 9 roteáveis (de 20 no catálogo) |
-| 3d | `novai-3d-<slug>` | `/novai/3d` (**passthrough**) | 7 |
-
-> **Vídeo/3D via passthrough:** o LiteLLM não tem CallType nativo para vídeo nem 3D, e o provider `openai` de vídeo chama `{api_base}/videos` (o gateway NovAI usa `/v1/video/generations` e `/v1/three_d/generations`). Solução medida: `pass_through_endpoints` em `general_settings` — o cliente chama `http://localhost:4000/novai/video` (ou `/novai/3d`) com o corpo do gateway e o proxy injeta o `Authorization`. Não aparece em `/v1/models` (é rota crua, não model group). ⚠️ **Vídeo: 20 no catálogo, só 9 roteáveis** — 11 slugs anunciados em `/v1/models` do gateway não respondem no endpoint (gap registrado, não mascarado).
 
 **Embeddings (perfis trocáveis, um espaço vetorial cada):**
 
@@ -63,15 +42,15 @@ via RRF → CLI `rag`/`rag-sync` → servidor MCP `rag_search`). Ver [Pipeline R
 | `rag-embeddings-qwen37` | openai/qwen3.7-text-embedding (MaaS) | 1024 | `chunks_qwen37` |
 | `rag-embeddings-bgem3` | bge-m3 (Ollama local, $0) | 1024 | `chunks_bgem3` |
 
-Os grupos `-fast` dos Qwen fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. Nos grupos NovAI o thinking OFF usa `extra_body: {thinking: {type: disabled}}` (a flag `enable_thinking` **não** funciona no Doubao — gotcha medido). Nas rotas DeepSeek o `thinking` vai **top-level** em `litellm_params` (`thinking: {type: enabled|disabled}`), não em `extra_body`: só assim o LiteLLM arma o shim que devolve `reasoning_content` em multi-turno e evita HTTP 400 em loop de agente. Convenção em todo o repo: id **base** = thinking ON, sufixo **`-fast`** = thinking OFF — a **flag correta é por provider**. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
+Os grupos `-fast` dos Qwen fixam `enable_thinking: false` **no proxy** — clientes nunca enviam o parâmetro. Nas rotas DeepSeek o `thinking` vai **top-level** em `litellm_params` (`thinking: {type: enabled|disabled}`), não em `extra_body`: só assim o LiteLLM arma o shim que devolve `reasoning_content` em multi-turno e evita HTTP 400 em loop de agente. Convenção em todo o repo: id **base** = thinking ON, sufixo **`-fast`** = thinking OFF — a **flag correta é por provider**. A justificativa completa (matriz medida de tokens/latência, armadilha de HTTP 400 com `tool_choice` + thinking ON) está comentada em `litellm/config.yaml`.
 
 ## Setup rápido
 
 ```bash
 cp .env.example .env   # mínimo: GEMINI_API_KEY + QWEN_PLAN_API_KEY.
                        # p/ o perfil de embed ativo (qwen37) preencha também QWEN_MAAS_API_KEY
-                       # (chave MaaS separada do Token Plan). Rotas opcionais: DEEPSEEK_API_KEY,
-                       # NOVAI_API_KEY. O .env.example traz todas as chaves.
+                       # (chave MaaS separada do Token Plan). Rotas opcionais: DEEPSEEK_API_KEY.
+                       # O .env.example traz todas as chaves.
 docker compose up -d
 # LITELLM_MASTER_KEY fica no .env; leia de la em vez de colar a chave no comando
 curl -s localhost:4000/v1/models -H "Authorization: Bearer $(grep LITELLM_MASTER_KEY .env | cut -d= -f2)" | jq -r '.data[].id'
