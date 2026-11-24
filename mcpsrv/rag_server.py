@@ -337,8 +337,9 @@ def staleness_note(repo: str | None = None) -> str | None:
         return cached[1]
     try:
         from ingest import search as _search
-        root = _repo_root_for(key)
-        note = _search.staleness_warning(root, key) if root is not None else None
+        # root pode ser None (repo desconhecido no disco): staleness_warning trata
+        # como falha de verificacao e devolve aviso conservador — nunca levantamos.
+        note = _search.staleness_warning(_repo_root_for(key), key)
     except Exception:  # noqa: BLE001 — frescor é melhor-esforço, nunca derruba a tool
         note = None
     _STALENESS_CACHE[key] = (now, note)
